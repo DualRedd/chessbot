@@ -33,6 +33,8 @@ private:
      */
     sf::Vector2f _board_to_screen_space(int file, int rank) const;
 
+
+    void loadPieceTextures(const std::string& assetPath);
     void _handleEvents();
     void _render();
     void _drawBoard();
@@ -49,8 +51,7 @@ private:
     sf::Font m_font;
 
     // Pieces
-    std::map<char, sf::Texture> m_piece_textures;
-    std::map<char, sf::Sprite> m_piece_sprites;
+    std::unordered_map<Piece, sf::Texture, Piece::Hash> m_piece_textures;
 
     // State
     std::optional<std::pair<int, int>> m_selected_square;

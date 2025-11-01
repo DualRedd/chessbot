@@ -11,12 +11,14 @@ option(BUILD_TESTS "Build unit tests" ON)
 
 # --- SFML ---
 include(FetchContent)
-message(STATUS "Fetching SMFL lib - Version 3.0.2")
+Set(FETCHCONTENT_QUIET FALSE)
 FetchContent_Declare(SFML
     GIT_REPOSITORY https://github.com/SFML/SFML.git
     GIT_TAG 3.0.2
     GIT_SHALLOW ON
+    GIT_PROGRESS TRUE
 )
+message(STATUS "Fetching SMFL lib - Version 3.0.2")
 FetchContent_MakeAvailable(SFML)
 
 # --- Include directories ---
@@ -36,6 +38,11 @@ add_executable(chess_gui
 )
 
 target_link_libraries(chess_gui PRIVATE chess_core SFML::Graphics)
+
+# --- Asset copying ---
+add_custom_command(TARGET chess_gui POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:chess_gui>/assets)
 
 # --- Tests ---
 if (BUILD_TESTS)

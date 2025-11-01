@@ -4,19 +4,34 @@
 #include <string>
 
 enum class PieceType {
-    None,
-    Pawn, Knight, Bishop, Rook, Queen, King
+    None = 0,
+    Pawn = 1, 
+    Knight = 2, 
+    Bishop = 3, 
+    Rook = 4, 
+    Queen = 5, 
+    King = 6
 };
 
 enum class PlayerColor {
-    None,
-    White,
-    Black
+    None = 0,
+    White = 1,
+    Black = 2
 };
 
 struct Piece {
     PieceType type = PieceType::None;
     PlayerColor color = PlayerColor::None;
+
+    bool operator==(const Piece& other) const {
+        return type == other.type && color == other.color;
+    }
+
+    struct Hash {
+        std::size_t operator()(const Piece& p) const {
+            return static_cast<std::size_t>(p.type) * 16 + static_cast<std::size_t>(p.color);
+        }
+    };
 };
 
 class Board {
