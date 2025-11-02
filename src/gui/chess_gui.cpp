@@ -1,5 +1,5 @@
-#include "interface/sfml_gui.hpp"
-#include "tools/assets.hpp"
+#include "gui/chess_gui.hpp"
+#include "core/assets.hpp"
 
 // NanoSVG
 #include <stdio.h>
@@ -9,12 +9,33 @@
 #define NANOSVGRAST_IMPLEMENTATION
 #include "extern/nanosvgrast.h"
 
-ChessGUI::ChessGUI(Game& game, int windowWidth, int windowHeight)
-    : m_game(game),
-      m_window(sf::VideoMode(sf::Vector2u(windowWidth, windowHeight)), "Chess")
+
+ChessGUI::ChessGUI(int window_width, int window_height)
+    : m_game(),
+      m_window(sf::VideoMode(sf::Vector2u(window_width, window_height)), "Chess")
 {
+    // Center window
+    sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
+    int posX = (int(desktop.size.x) - int(window_width)) / 2;
+    int posY = (int(desktop.size.y) - int(window_height)) / 2;
+    m_window.setPosition(sf::Vector2i(posX, posY));
+
     m_window.setFramerateLimit(60);
-    loadPieceTextures(getExecutableDir() / "assets" / "pieces");
+    _loadPieceTexturesFromSVG(getExecutableDir() / "assets" / "pieces");
+}
+
+void ChessGUI::run() {
+    m_game.new_board();
+
+    while (m_window.isOpen()) {
+        _handleEvents();
+
+        if(m_current_user_move.has_value()){
+            m_game.play_move(m_current_user_move.value());
+        }
+
+        _render();
+    }
 }
 
 sf::FloatRect ChessGUI::_get_board_bounds() const {
@@ -32,7 +53,7 @@ std::optional<std::pair<int, int>> ChessGUI::_screen_to_board_space(const sf::Ve
     }
     float tile_size = board_rect.size.x / BOARD_SIZE;
     int file = static_cast<int>((screen_pos.x - board_rect.position.x) / tile_size);    
-    int rank = static_cast<int>((screen_pos.y - board_rect.position.y) / tile_size);
+    int rank = BOARD_SIZE-1-static_cast<int>((screen_pos.y - board_rect.position.y) / tile_size);
     // safety check in case of rounding
     if (file < 0 || file >= BOARD_SIZE || rank < 0 || rank >= BOARD_SIZE){
         return std::nullopt;
@@ -43,10 +64,10 @@ std::optional<std::pair<int, int>> ChessGUI::_screen_to_board_space(const sf::Ve
 sf::Vector2f ChessGUI::_board_to_screen_space(int file, int rank) const {
     sf::FloatRect board_rect = _get_board_bounds();
     float tile_size = board_rect.size.x / BOARD_SIZE;
-    return sf::Vector2f(board_rect.position.x + file * tile_size, board_rect.position.y + rank * tile_size);
+    return sf::Vector2f(board_rect.position.x + file * tile_size, board_rect.position.y + (BOARD_SIZE-1-rank) * tile_size);
 }
 
-void ChessGUI::loadPieceTextures(const std::string& folder_path) {
+void ChessGUI::_loadPieceTexturesFromSVG(const std::string& folder_path) {
     NSVGrasterizer* rast = nsvgCreateRasterizer();
 
     auto loadSVG = [&](PieceType type, PlayerColor color, const std::string& filename) {
@@ -79,7 +100,7 @@ void ChessGUI::loadPieceTextures(const std::string& folder_path) {
     for(PlayerColor color : {PlayerColor::White, PlayerColor::Black}){
         std::string prefix = color == PlayerColor::White ? "w" : "b";
         loadSVG(PieceType::Pawn,   color, prefix + "P.svg");
-        loadSVG(PieceType::Knight, color, prefix + "K.svg");
+        loadSVG(PieceType::Knight, color, prefix + "N.svg");
         loadSVG(PieceType::Bishop, color, prefix + "B.svg");
         loadSVG(PieceType::Rook,   color, prefix + "R.svg");
         loadSVG(PieceType::Queen,  color, prefix + "Q.svg");
@@ -89,26 +110,51 @@ void ChessGUI::loadPieceTextures(const std::string& folder_path) {
     nsvgDeleteRasterizer(rast);
 }
 
-void ChessGUI::run() {
-    while (m_window.isOpen()) {
-        _handleEvents();
-        _render();
-    }
-}
-
 void ChessGUI::_handleEvents() {
     bool resized = false;
+    m_current_user_move.reset();
 
     while (const std::optional event = m_window.pollEvent()) {
         if (event->is<sf::Event::Closed>()){
             m_window.close();
         }
+
         else if (const auto& resize_event = event->getIf<sf::Event::Resized>()) {
             resized = true;
         }
-        else if (const auto* mouse_event = event->getIf<sf::Event::MouseButtonPressed>()) {
-            _handleClick(mouse_event->position);
-        } 
+
+        else if (const auto& mouse_press_event = event->getIf<sf::Event::MouseButtonPressed>()) {
+            if (mouse_press_event->button == sf::Mouse::Button::Left) {
+                if(const auto board_pos = _screen_to_board_space(sf::Vector2f(mouse_press_event->position))){
+                    auto[file, rank] = board_pos.value();
+                    if (m_game.get_board().get_piece(file, rank).type != PieceType::None) {
+                        m_is_dragging = true;
+                        m_drag_start_square = {file, rank};
+                        //m_selected_square = {file, rank};
+                        m_drag_screen_position = sf::Vector2f(mouse_press_event->position);
+                    }
+                }
+            }
+        }
+
+        else if (const auto& mouse_released_event = event->getIf<sf::Event::MouseButtonReleased>()) {
+            if (m_is_dragging && mouse_released_event->button == sf::Mouse::Button::Left) {
+                m_is_dragging = false;
+                if(const auto board_pos = _screen_to_board_space(sf::Vector2f(mouse_released_event->position))){
+                    auto[file, rank] = board_pos.value();
+                    if(file != m_drag_start_square.x || rank != m_drag_start_square.y){
+                        m_current_user_move = Move(m_drag_start_square.x, m_drag_start_square.y, file, rank);
+                    }
+                }
+            }
+        }
+
+        else if (const auto& mouse_move_event = event->getIf<sf::Event::MouseMoved>()) {
+            if (m_is_dragging) {
+                m_drag_screen_position = sf::Vector2f(mouse_move_event->position);
+            }
+        }
+
     }
 
     // Separate check so multiple resize events only trigger one view change each frame
@@ -142,11 +188,18 @@ void ChessGUI::_drawPieces() {
     float tile_size = _get_board_bounds().size.x / BOARD_SIZE;
     for (int y = 0; y < BOARD_SIZE; ++y) {
         for (int x = 0; x < BOARD_SIZE; ++x) {
-            const Piece& p = m_game.get_board().get_piece(x, BOARD_SIZE - y - 1);
+            const Piece& p = m_game.get_board().get_piece(x, y);
             if (p.type == PieceType::None) continue;
 
             sf::Sprite sprite(m_piece_textures[{p.type, p.color}]);
-            sprite.setPosition(_board_to_screen_space(x, y));
+
+            if(m_is_dragging && x == m_drag_start_square.x && y == m_drag_start_square.y){
+                sprite.setPosition(m_drag_screen_position - sf::Vector2f(tile_size / 2.f, tile_size / 2.f));
+            }
+            else{
+                sprite.setPosition(_board_to_screen_space(x, y));
+            }
+            
             float scale = tile_size / sprite.getTexture().getSize().x;
             sprite.setScale(sf::Vector2f(scale, scale));
             m_window.draw(sprite);
@@ -164,11 +217,4 @@ sf::Color ChessGUI::_getSquareColor(int file, int rank) {
         color.b = (color.b * (255 - s_highlight_color.a) + s_highlight_color.b * s_highlight_color.a) / 255;
     }
     return color;
-}
-
-void ChessGUI::_handleClick(sf::Vector2i pos){
-    if(const auto board_pos = _screen_to_board_space(sf::Vector2f(pos.x, pos.y))){
-        auto[file, rank] = board_pos.value();
-        m_selected_square = std::make_pair(file, rank);
-    }
 }

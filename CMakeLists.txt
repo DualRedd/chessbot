@@ -24,19 +24,17 @@ FetchContent_MakeAvailable(SFML)
 # --- Include directories ---
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-# --- Core engine library ---
+# --- Core library ---
 add_library(chess_core
-    src/core/game.cpp
     src/core/board.cpp
+    src/core/chess.cpp
 )
-target_link_libraries(chess_core PRIVATE sfml-system)
 
 # --- GUI executable ---
 add_executable(chess_gui
-    src/main.cpp
-    src/interface/sfml_gui.cpp
+    src/gui/chess_gui.cpp
+    src/gui/gui_main.cpp
 )
-
 target_link_libraries(chess_gui PRIVATE chess_core SFML::Graphics)
 
 # --- Asset copying ---
