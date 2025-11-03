@@ -24,9 +24,19 @@ public:
 
 private:
     /**
-     * Return board bounds in pixels.
+     * Load assets used by the gui.
+     */
+    void _loadAssets();
+
+    /**
+     * @return Board bounds in pixels.
      */
     sf::FloatRect _get_board_bounds() const;
+
+    /**
+     * @return Tile size in pixels.
+     */
+    float _get_tile_size() const;
 
     /**
      * Convert a screen position to a board tile.
@@ -39,16 +49,10 @@ private:
     /**
      * Convert a board tile to a screen coordinate.
      * @param tile The tile to convert.
-     * @return The coordinate of the top left corner of this tile.
+     * @return The coordinate of the center of this tile.
      * @note File 0 rank 0 = bottom left tile of the board
      */
     sf::Vector2f _board_to_screen_space(const BoardTile& tile) const;
-
-    /**
-     * Load piece svg files.
-     * @param asset_path path to the folder containing the svgs
-     */
-    void _loadPieceTexturesFromSVG(const std::string& asset_path);
 
     /**
      * Handles window events.
@@ -56,25 +60,27 @@ private:
     void _handleEvents();
 
     /**
-     * Render frame entry point.
+     * Draw frame entry point.
      */
     void _render();
 
     /**
-     * Render board.
+     * Draw board.
      */
     void _drawBoard();
 
     /**
-     * Render legal moves.
+     * Draw legal moves.
      * @param tile The tile which the moves are rendered for.
      */
     void _drawLegalMoves(const BoardTile& tile);
 
     /**
-     * Render pieces.
+     * Draw a piece.
+     * @param piece the piece to draw
+     * @param position draw position in screen space
      */
-    void _drawPieces();
+    void _drawPiece(const Piece& piece, const sf::Vector2f& position);
 
     /**
      * @param tile A board tile.
@@ -88,7 +94,9 @@ private:
     sf::Font m_font;
 
     // Textures
-    std::unordered_map<Piece, sf::Texture, Piece::Hash> m_piece_textures;
+    std::unordered_map<Piece, sf::Texture, Piece::Hash> m_texture_pieces;
+    sf::Texture m_texture_circle;
+    sf::Texture m_texture_circle_hollow;
 
     // State
     std::optional<BoardTile> m_selected_square;
