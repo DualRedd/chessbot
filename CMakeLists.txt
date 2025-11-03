@@ -26,6 +26,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 # --- Core library ---
 add_library(chess_core
+    src/core/piece.cpp
     src/core/board.cpp
     src/core/chess.cpp
 )
