@@ -3,10 +3,6 @@
 #include <optional>
 #include <sstream>
 
-bool is_inside_board(int x, int y) {
-    return (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE);
-}
-
 bool Piece::operator==(const Piece& other) const {
     return type == other.type && color == other.color;
 }
@@ -18,43 +14,34 @@ std::size_t Piece::Hash::operator()(const Piece& p) const {
     return static_cast<std::size_t>(p.type) * 16 + static_cast<std::size_t>(p.color);
 }
 
-Move::Move(int f_file, int f_rank, int t_file, int t_rank, std::optional<PieceType> promo)
-    : from_file(f_file), from_rank(f_rank), to_file(t_file), to_rank(t_rank), promotion(promo)
-{
-    if(!is_inside_board(from_file, from_rank) || !is_inside_board(to_file, to_rank)
-        || (f_file == t_file && f_rank == t_rank))
-    {
-        std::string from = "(" + std::to_string(from_file) + ", " + std::to_string(from_rank) + ")";
-        std::string to = "(" + std::to_string(to_file) + ", " + std::to_string(to_rank) + ")";
-        throw std::invalid_argument("Invalid move: " + from + " -> " + to);
-    }
+BoardTile::BoardTile() : file(0), rank(0) {}
 
-    if (promotion.has_value()) {
-        auto p = promotion.value();
-        if (p == PieceType::Pawn || p == PieceType::King) {
-            throw std::invalid_argument("Invalid move: illegal promotion piece");
-        }
-    }
+BoardTile::BoardTile(int file_, int rank_) : file(file_), rank(rank_)  {}
+
+bool BoardTile::operator==(const BoardTile& other) const {
+    return file == other.file && rank == other.rank;
 }
 
-Move::Move(int f_file, int f_rank, int t_file, int t_rank, PieceType promo)
-    : Move(f_file, f_rank, t_file, t_rank, std::optional<PieceType>(promo)) {}
+bool BoardTile::operator!=(const BoardTile& other) const {
+    return !(*this == other);
+}
 
+bool BoardTile::valid() const {
+    return (file >= 0 && file < CHESSBOARD_SIZE && rank >= 0 && rank < CHESSBOARD_SIZE);
+}
+
+Move::Move() : from(), to(), promotion(PieceType::None) {}
+Move::Move(BoardTile from_, BoardTile to_, PieceType promotion_): from(from_), to(to_), promotion(promotion_) {}
 
 Move::Move(const std::string& uci) {
     if (uci.size() < 4 || uci.size() > 5){
         throw std::invalid_argument("Invalid UCI move: " + uci);
     }
         
-    from_file = uci[0] - 'a';
-    from_rank = uci[1] - '1';
-    to_file   = uci[2] - 'a';
-    to_rank   = uci[3] - '1';
-
-    if(!is_inside_board(from_file, from_rank) || !is_inside_board(to_file, to_rank)){
-        throw std::invalid_argument("Invalid UCI move: " + uci);
-    }
-
+    from.file = uci[0] - 'a';
+    from.rank = uci[1] - '1';
+    to.file   = uci[2] - 'a';
+    to.rank   = uci[3] - '1';
     if (uci.size() == 5) {
         switch (uci[4]) {
             case 'q': promotion = PieceType::Queen; break;
@@ -64,30 +51,36 @@ Move::Move(const std::string& uci) {
             default: throw std::invalid_argument("Invalid UCI move: " + uci);
         }
     }
+    if(!valid()){
+        throw std::invalid_argument("Invalid UCI move: " + uci);
+    }
 }
 
 bool Move::operator==(const Move& other) const {
-    return from_file == other.from_file
-        && from_rank == other.from_rank
-        && to_file == other.to_file
-        && to_rank == other.to_rank
+    return from == other.from
+        && to == other.to
         && promotion == other.promotion;
 }
 
+bool Move::valid() const {
+    return from.valid() && to.valid() && promotion != PieceType::Pawn && promotion != PieceType::King;
+}
+
 std::string Move::toUCI() const {
+    if(!valid()){
+        throw std::runtime_error("Cannot convert invalid move to UCI string!");
+    }
     std::string uci;
-    uci += static_cast<char>('a' + from_file);
-    uci += static_cast<char>('1' + from_rank);
-    uci += static_cast<char>('a' + to_file);
-    uci += static_cast<char>('1' + to_rank);
-    if (promotion.has_value()) {
-        switch (*promotion) {
-            case PieceType::Queen:  uci += 'q'; break;
-            case PieceType::Rook:   uci += 'r'; break;
-            case PieceType::Bishop: uci += 'b'; break;
-            case PieceType::Knight: uci += 'n'; break;
-            default: break;
-        }
+    uci += static_cast<char>('a' + from.file);
+    uci += static_cast<char>('1' + from.rank);
+    uci += static_cast<char>('a' + to.file);
+    uci += static_cast<char>('1' + to.rank);
+    switch (promotion) {
+        case PieceType::Queen:  uci += 'q'; break;
+        case PieceType::Rook:   uci += 'r'; break;
+        case PieceType::Bishop: uci += 'b'; break;
+        case PieceType::Knight: uci += 'n'; break;
+        default: break;
     }
     return uci;
 }
@@ -125,11 +118,11 @@ void Board::setup(const std::string& fen) {
     }
     int white_king_count = 0;
     int black_king_count = 0;
-    int rank = BOARD_SIZE-1; // FEN starts from last rank
+    int rank = CHESSBOARD_SIZE-1; // FEN starts from last rank
     int file = 0;
     for (char c : board_part) {
         if (c == '/') {
-            if (file != BOARD_SIZE){
+            if (file != CHESSBOARD_SIZE){
                 throw std::invalid_argument("Invalid FEN: too few files in rank!");
             }
             rank--;
@@ -139,13 +132,13 @@ void Board::setup(const std::string& fen) {
 
         if (std::isdigit(c)) {
             file += c - '0';
-            if (file > BOARD_SIZE){
+            if (file > CHESSBOARD_SIZE){
                 throw std::invalid_argument("Invalid FEN: too many files in rank!");
             }
             continue;
         }
 
-        if (file >= BOARD_SIZE){
+        if (file >= CHESSBOARD_SIZE){
             throw std::invalid_argument("Invalid FEN: too many files in rank!");
         }
 
@@ -156,7 +149,7 @@ void Board::setup(const std::string& fen) {
 
         switch (std::tolower(c)) {
             case 'p': {
-                if((piece.color == PlayerColor::White && rank == BOARD_SIZE-1) || piece.color == PlayerColor::Black && rank == 0){
+                if((piece.color == PlayerColor::White && rank == CHESSBOARD_SIZE-1) || piece.color == PlayerColor::Black && rank == 0){
                     throw std::invalid_argument("Invalid FEN: unpromoted pawn cannot be on the last rank!");
                 }
                 piece.type = PieceType::Pawn; break;
@@ -172,7 +165,7 @@ void Board::setup(const std::string& fen) {
         m_board[rank][file] = piece;
         file++;
     }
-    if (rank != 0 || file != BOARD_SIZE){
+    if (rank != 0 || file != CHESSBOARD_SIZE){
         throw std::invalid_argument("Invalid FEN: incomplete board!");
     }
     if(white_king_count != 1 || black_king_count != 1){
@@ -246,19 +239,19 @@ void Board::setup(const std::string& fen) {
 }
 
 std::string Board::to_fen() const {
-    std::ostringstream ss;
+    std::ostringstream oss;
 
     // 1. Piece placement
-    for (int rank = BOARD_SIZE - 1; rank >= 0; --rank) { // FEN starts from last rank
+    for (int rank = CHESSBOARD_SIZE - 1; rank >= 0; --rank) { // FEN starts from last rank
         int empty_count = 0;
-        for (int file = 0; file < BOARD_SIZE; file++) {
+        for (int file = 0; file < CHESSBOARD_SIZE; file++) {
             const Piece& piece = m_board[file][rank];
             if (piece.type == PieceType::None) {
                 empty_count++;
                 continue;
             }
             if (empty_count > 0) {
-                ss << empty_count;
+                oss << empty_count;
                 empty_count = 0;
             }
 
@@ -276,14 +269,14 @@ std::string Board::to_fen() const {
             if (piece.color == PlayerColor::White){
                 symbol = std::toupper(symbol);
             }
-            ss << symbol;
+            oss << symbol;
         }
-        if (empty_count > 0) ss << empty_count;
-        if (rank > 0) ss << '/';
+        if (empty_count > 0) oss << empty_count;
+        if (rank > 0) oss << '/';
     }
 
     // 2. Side to move
-    ss << ' ' << (m_side_to_move == PlayerColor::White ? 'w' : 'b');
+    oss << ' ' << (m_side_to_move == PlayerColor::White ? 'w' : 'b');
 
     // 3. Castling rights
     std::string castling;
@@ -292,57 +285,57 @@ std::string Board::to_fen() const {
     if (m_black_king_side_castle_available)  castling += 'k';
     if (m_black_queen_side_castle_available) castling += 'q';
     if (castling.empty()) castling = "-";
-    ss << ' ' << castling;
+    oss << ' ' << castling;
 
     // 4. En passant target
     if (m_en_passant_available) {
         char file_char = 'a' + m_en_passant_target_file;
         char rank_char = '1' + m_en_passant_target_rank;
-        ss << ' ' << file_char << rank_char;
+        oss << ' ' << file_char << rank_char;
     } 
     else {
-        ss << " -";
+        oss << " -";
     }
 
     // 5. Halfmove and fullmove counters
-    ss << ' ' << m_halfmoves << ' ' << m_fullmoves;
+    oss << ' ' << m_halfmoves << ' ' << m_fullmoves;
 
-    return ss.str();
+    return oss.str();
 }
 
 bool Board::move_piece(Move move) {
     // The Move class guarantees it is a valid move within the board
-    Piece piece = m_board[move.from_rank][move.from_file];
+    Piece piece = m_board[move.from.rank][move.from.file];
     if (piece.type == PieceType::None) return false;
-    m_board[move.to_rank][move.to_file] = piece;
-    m_board[move.from_rank][move.from_file] = {};
+    m_board[move.to.rank][move.to.file] = piece;
+    m_board[move.from.rank][move.from.file] = {};
     m_side_to_move = m_side_to_move == PlayerColor::White ? PlayerColor::Black : PlayerColor::White;
     return true;
 }
 
-const Piece& Board::get_piece(int file, int rank) const {
-    if(!is_inside_board(file, rank)){
+const Piece& Board::get_piece(BoardTile tile) const {
+    if(!tile.valid()){
         throw std::invalid_argument("Trying to get a piece outside board bounds!");
     }
-    return m_board[rank][file];
+    return m_board[tile.rank][tile.file];
 }
 
-std::vector<Move> Board::get_legal_moves(int file, int rank) const {
+std::vector<Move> Board::get_legal_moves(BoardTile from_tile) const {
     std::vector<Move> moves;
-    if (!is_inside_board(file, rank)) return moves;
+    if (!from_tile.valid()) return moves;
 
-    const Piece& piece = m_board[rank][file];
+    const Piece& piece = m_board[from_tile.rank][from_tile.file];
     if (piece.type == PieceType::None) return moves;
 
-    auto add_move = [&](int to_file, int to_rank, std::optional<PieceType> promo = std::nullopt) {
-        if (!is_inside_board(file, rank)) return;
-        const Piece& target = m_board[to_rank][to_file];
+    auto add_move = [&](BoardTile to_tile, PieceType promo = PieceType::None) {
+        if(!to_tile.valid()) return;
+        const Piece& target = m_board[to_tile.rank][to_tile.file];
         if (target.color == piece.color) return; // can't capture own piece
-        moves.emplace_back(file, rank, to_file, to_rank, promo);
+        moves.emplace_back(from_tile, to_tile, promo);
     };
-    auto add_promo_moves = [&](int to_file, int to_rank) {
+    auto add_promo_moves = [&](BoardTile to_tile) {
         for (PieceType promo : {PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight}){
-            add_move(to_file, to_rank, promo);
+            add_move(to_tile, promo);
         }
     };
 
@@ -350,31 +343,33 @@ std::vector<Move> Board::get_legal_moves(int file, int rank) const {
         case PieceType::Pawn: {
             int dir = (piece.color == PlayerColor::White) ? 1 : -1;
             int start_rank = (piece.color == PlayerColor::White) ? 1 : 6;
-            int next_rank = rank + dir;
+            int next_rank = from_tile.rank + dir;
 
             // Forward 1
-            if (next_rank >= 0 && next_rank < BOARD_SIZE && m_board[next_rank][file].type == PieceType::None) {
+            if (next_rank >= 0 && next_rank < CHESSBOARD_SIZE && m_board[next_rank][from_tile.file].type == PieceType::None) {
                 // Promotion
-                if (next_rank == 0 || next_rank == BOARD_SIZE-1) {
-                    add_promo_moves(file, next_rank);
+                if (next_rank == 0 || next_rank == CHESSBOARD_SIZE-1) {
+                    add_promo_moves(BoardTile(from_tile.file, next_rank));
                 } else {
-                    add_move(file, next_rank);
+                    add_move(BoardTile(from_tile.file, next_rank));
                 }
 
                 // Forward 2
-                if (rank == start_rank && m_board[rank + 2*dir][file].type == PieceType::None)
-                    add_move(file, rank + 2*dir);
+                if (from_tile.rank == start_rank && m_board[from_tile.rank + 2*dir][from_tile.file].type == PieceType::None) {
+                    add_move(BoardTile(from_tile.file, from_tile.rank + 2*dir));
+                }
 
                 // Captures
                 for (int df : {-1, 1}) {
-                    int next_file = file + df;
-                    if (next_file < 0 || next_file >= BOARD_SIZE) continue;
+                    int next_file = from_tile.file + df;
+                    if (next_file < 0 || next_file >= CHESSBOARD_SIZE) continue;
+
                     const Piece& target = m_board[next_rank][next_file];
                     if (target.type != PieceType::None && target.color != piece.color) {
-                        if (next_rank == 0 || next_rank == BOARD_SIZE-1) {
-                            add_promo_moves(next_file, next_rank);
+                        if (next_rank == 0 || next_rank == CHESSBOARD_SIZE-1) {
+                            add_promo_moves(BoardTile(next_file, next_rank));
                         } else {
-                            add_move(next_file, next_rank);
+                            add_move(BoardTile(next_file, next_rank));
                         }
                     }
                 }
@@ -383,11 +378,9 @@ std::vector<Move> Board::get_legal_moves(int file, int rank) const {
         }
 
         case PieceType::Knight: {
-            std::pair<int,int> offsets[8] = {
-                {1,2},{2,1},{2,-1},{1,-2},{-1,-2},{-2,-1},{-2,1},{-1,2}
-            };
+            std::pair<int,int> offsets[8] = {{1,2},{2,1},{2,-1},{1,-2},{-1,-2},{-2,-1},{-2,1},{-1,2}};
             for (auto [dx, dy] : offsets){
-                add_move(file + dx, rank + dy);
+                add_move(BoardTile(from_tile.file + dx, from_tile.rank + dy));
             }
             break;
         }
@@ -395,14 +388,10 @@ std::vector<Move> Board::get_legal_moves(int file, int rank) const {
         case PieceType::Bishop: {
             std::pair<int,int> directions[4] = {{1,1},{1,-1},{-1,1},{-1,-1}};
             for (auto [dx, dy] : directions) {
-                for (int x = file + dx, y = rank + dy; is_inside_board(x, y); x += dx, y += dy) {
-                    const Piece& target = m_board[y][x];
-                    if (target.type == PieceType::None) {
-                        add_move(x, y);
-                    } else {
-                        if (target.color != piece.color) add_move(x, y);
-                        break;
-                    }
+                BoardTile to_tile = from_tile;
+                for (to_tile.file += dx, to_tile.rank += dy; to_tile.valid(); to_tile.file += dx, to_tile.rank += dy) {
+                    add_move(to_tile);
+                    if (get_piece(to_tile).type != PieceType::None) break;
                 }
             }
             break;
@@ -411,14 +400,10 @@ std::vector<Move> Board::get_legal_moves(int file, int rank) const {
         case PieceType::Rook: {
             std::pair<int,int> directions[4] = {{1,0},{-1,0},{0,1},{0,-1}};
             for (auto [dx, dy] : directions) {
-                for (int x = file + dx, y = rank + dy; is_inside_board(x, y); x += dx, y += dy) {
-                    const Piece& target = m_board[y][x];
-                    if (target.type == PieceType::None) {
-                        add_move(x, y);
-                    } else {
-                        if (target.color != piece.color) add_move(x, y);
-                        break;
-                    }
+                BoardTile to_tile = from_tile;
+                for (to_tile.file += dx, to_tile.rank += dy; to_tile.valid(); to_tile.file += dx, to_tile.rank += dy) {
+                    add_move(to_tile);
+                    if (get_piece(to_tile).type != PieceType::None) break;
                 }
             }
             break;
@@ -427,14 +412,10 @@ std::vector<Move> Board::get_legal_moves(int file, int rank) const {
         case PieceType::Queen: {
             std::pair<int,int> directions[8] = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{1,-1},{-1,1},{-1,-1}};
             for (auto [dx, dy] : directions) {
-                for (int x = file + dx, y = rank + dy; is_inside_board(x, y); x += dx, y += dy) {
-                    const Piece& target = m_board[y][x];
-                    if (target.type == PieceType::None) {
-                        add_move(x, y);
-                    } else {
-                        if (target.color != piece.color) add_move(x, y);
-                        break;
-                    }
+                BoardTile to_tile = from_tile;
+                for (to_tile.file += dx, to_tile.rank += dy; to_tile.valid(); to_tile.file += dx, to_tile.rank += dy) {
+                    add_move(to_tile);
+                    if (get_piece(to_tile).type != PieceType::None) break;
                 }
             }
             break;
@@ -443,8 +424,11 @@ std::vector<Move> Board::get_legal_moves(int file, int rank) const {
         case PieceType::King: {
             std::pair<int,int> offsets[8] = {{1,0},{-1,0},{0,1},{0,-1},{1,1},{1,-1},{-1,1},{-1,-1}};
             for (auto [dx, dy] : offsets) {
-                add_move(file + dx, rank + dy);
+                add_move(BoardTile(from_tile.file + dx, from_tile.rank + dy));
             }
+
+            // TODO: castling
+
             break;
         }
 

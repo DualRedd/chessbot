@@ -29,18 +29,20 @@ private:
     sf::FloatRect _get_board_bounds() const;
 
     /**
-     * Convert a screen position to file and rank coords.
-     * @return The file and rank containing the coordinate, or no value if out of bounds
-     * @note File 0 rank 0 = bottom left square of the board
+     * Convert a screen position to a board tile.
+     * @param screen_pos The position in screen space.
+     * @return The tile containing the coordinate, or no value if out of bounds.
+     * @note File 0 rank 0 = bottom left tile of the board
      */
-    std::optional<std::pair<int, int>> _screen_to_board_space(const sf::Vector2f& screen_pos) const;
+    std::optional<BoardTile> _screen_to_board_space(const sf::Vector2f& screen_pos) const;
 
     /**
-     * Convert file and rank to a screen coordinate.
-     * @return The coordinate of the top left corner of this square.
-     * @note File 0 rank 0 = bottom left square of the board
+     * Convert a board tile to a screen coordinate.
+     * @param tile The tile to convert.
+     * @return The coordinate of the top left corner of this tile.
+     * @note File 0 rank 0 = bottom left tile of the board
      */
-    sf::Vector2f _board_to_screen_space(int file, int rank) const;
+    sf::Vector2f _board_to_screen_space(const BoardTile& tile) const;
 
     /**
      * Load piece svg files.
@@ -64,30 +66,37 @@ private:
     void _drawBoard();
 
     /**
-     * Render pieces
+     * Render legal moves.
+     * @param tile The tile which the moves are rendered for.
+     */
+    void _drawLegalMoves(const BoardTile& tile);
+
+    /**
+     * Render pieces.
      */
     void _drawPieces();
 
     /**
-     * @return The color this square should be rendered with.
+     * @param tile A board tile.
+     * @return The color this tile should be rendered with.
      */
-    sf::Color _getSquareColor(int file, int rank);
+    sf::Color _getSquareColor(const BoardTile& tile);
 
 private:
     Chess m_game;
     sf::RenderWindow m_window;
     sf::Font m_font;
 
-    // Pieces
+    // Textures
     std::unordered_map<Piece, sf::Texture, Piece::Hash> m_piece_textures;
 
     // State
-    std::optional<std::pair<int, int>> m_selected_square;
+    std::optional<BoardTile> m_selected_square;
     std::optional<Move> m_current_user_move;
 
     // Dragging
     bool m_is_dragging{false};
-    sf::Vector2i m_drag_start_square;
+    BoardTile m_drag_start_square;
     sf::Vector2f m_drag_screen_position;
 
     // Colors

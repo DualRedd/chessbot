@@ -22,10 +22,16 @@ public:
     bool play_move(const Move& move);
 
     /**
+     * @return The last move played. No value if no moves have been played on this board.
+     */
+    std::optional<Move> get_last_move() const;
+
+    /**
      * @return A reference to the board this game is played on.
      */
     const Board& get_board() const;
 
 private:
     Board m_board;
+    std::optional<Move> m_last_move;
 };

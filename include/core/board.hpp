@@ -5,7 +5,7 @@
 #include <vector>
 #include <optional>
 
-constexpr int BOARD_SIZE = 8;
+constexpr int CHESSBOARD_SIZE = 8;
 
 enum class PieceType {
     None = 0,
@@ -34,27 +34,49 @@ struct Piece {
 };
 
 /**
+ * Represents a tile within a board.
+ */
+struct BoardTile {
+    int file;
+    int rank;
+
+    BoardTile();
+    BoardTile(int file, int rank);
+    bool operator==(const BoardTile& other) const;
+    bool operator!=(const BoardTile& other) const;
+
+    /**
+     * @return True if this tile is within a chessboard's bounds, else False.
+     */
+    bool valid() const;
+};
+
+
+/**
  * Represents a move within a board.
  */
 struct Move {
-    int from_file;
-    int from_rank;
-    int to_file;
-    int to_rank;
-    std::optional<PieceType> promotion = std::nullopt;
+    BoardTile from;
+    BoardTile to;
+    PieceType promotion = PieceType::None;
 
-    Move(int from_file, int from_rank, int to_file, int to_rank, std::optional<PieceType> promo = std::nullopt);
-    Move(int from_file, int from_rank, int to_file, int to_rank, PieceType promotion);
+    Move();
+    Move(BoardTile from, BoardTile to, PieceType promotion = PieceType::None);
 
     /**
-     * Construct from UCI string.
+     * @param uci UCI string describing the move
      */
     Move(const std::string& uci);
 
     /**
-     * Equal move and possible promotion.
+     * Check for equal start and end square and promotion.
      */
     bool operator==(const Move& other) const;
+
+    /**
+     * @return True this move is within a chessboard's bounds and the promotion piece is valid, else False.
+     */
+    bool valid() const;
 
     /**
      * @return UCI representation of the move
@@ -82,7 +104,7 @@ public:
     /**
      * @return The piece at the position
      */
-    const Piece& get_piece(int file, int rank) const;
+    const Piece& get_piece(BoardTile tile) const;
 
     /**
      * Apply a move regardless of its legality.
@@ -94,7 +116,7 @@ public:
     /**
      * @return A list of legal moves for the piece at the given position (none if there is no piece)
      */
-    std::vector<Move> get_legal_moves(int file, int rank) const;
+    std::vector<Move> get_legal_moves(BoardTile from_tile) const;
 
     /**
      * @return True if this a legal move in the current board state.
@@ -112,7 +134,7 @@ public:
     std::string to_string() const;
 
 private:
-    std::array<std::array<Piece, BOARD_SIZE>, BOARD_SIZE> m_board;
+    std::array<std::array<Piece, CHESSBOARD_SIZE>, CHESSBOARD_SIZE> m_board;
     PlayerColor m_side_to_move;
     bool m_white_king_side_castle_available;
     bool m_black_king_side_castle_available;
