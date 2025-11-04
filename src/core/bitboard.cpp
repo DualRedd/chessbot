@@ -642,7 +642,7 @@ void Board::_init_masks() {
         MASK_KNIGHT_ATTACKS[square] = 0ULL;
         const int knight_offsets[8][2] = {{1,2},{2,1},{2,-1},{1,-2},{-1,-2},{-2,-1},{-2,1},{-1,2}};
         for (auto[df, dr] : knight_offsets) {
-            if (file+df >= 0 && file+df < 8 && rank+dr >= 0 && rank+dr <= 8){
+            if (file+df >= 0 && file+df < 8 && rank+dr >= 0 && rank+dr < 8){
                 MASK_KNIGHT_ATTACKS[square] |= MASK_SQUARE[square_index(file+df, rank+dr)];
             }
         }
@@ -651,7 +651,7 @@ void Board::_init_masks() {
         MASK_KING_ATTACKS[square] = 0ULL;
         for (int dr = -1; dr <= 1; dr++) {
             for (int df = -1; df <= 1; df++) {
-                if (file+df >= 0 && file+df < 8 && rank+dr >= 0 && rank+dr <= 8){
+                if (file+df >= 0 && file+df < 8 && rank+dr >= 0 && rank+dr < 8){
                     MASK_KING_ATTACKS[square] |= MASK_SQUARE[square_index(file+df, rank+dr)];
                 }
             }
