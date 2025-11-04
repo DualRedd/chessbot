@@ -1,6 +1,6 @@
 #include "gui/chess_gui.hpp"
 #include "gui/assets.hpp"
-
+#include<iostream>
 ChessGUI::ChessGUI(int window_width, int window_height)
     : m_game(),
       m_window(sf::VideoMode(sf::Vector2u(window_width, window_height)), "Chess")
@@ -40,8 +40,8 @@ void ChessGUI::run() {
         _handleEvents();
 
         if(m_current_user_move.has_value()){
-            m_game.play_move(m_current_user_move.value());
-            m_selected_square.reset();
+            bool played = m_game.play_move(m_current_user_move.value());
+            if(played) m_selected_tile.reset();
         }
 
         _draw();
@@ -118,22 +118,32 @@ void ChessGUI::_handleEvents() {
 
 void ChessGUI::_onMouseLeftDown(const sf::Vector2i& screen_position) {
     if(const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))){
-        if (!m_promotion_prompt_active && m_game.get_piece_at(tile.value()).type != PieceType::None) {
-            m_is_dragging = true;
-            m_selected_square = tile;
-            m_drag_screen_position = sf::Vector2f(screen_position);
-        }
-        else {
-            if(m_promotion_prompt_active
-                && tile.value().file == m_promotion_prompt_tile.file
-                && std::abs(tile.value().rank - m_promotion_prompt_tile.rank) <= 3)
-            { // Promotion piece chosen
-                m_current_user_move = Chess::uci_create(m_selected_square.value(), m_promotion_prompt_tile,
+        if(m_promotion_prompt_active) {
+            // Check if user pressed an option or not
+            if(tile.value().file == m_promotion_prompt_tile.file && std::abs(tile.value().rank - m_promotion_prompt_tile.rank) <= 3) {
+                // Make move with the promotion piece chosen from the list
+                m_current_user_move = Chess::uci_create(m_selected_tile.value(), m_promotion_prompt_tile,
                                     s_promotion_pieces[std::abs(tile.value().rank - m_promotion_prompt_tile.rank)]);
             }
-
+            // In both cases the prompt should be closed
             m_promotion_prompt_active = false;
-            m_selected_square.reset();
+            m_selected_tile.reset();
+        }
+        else{
+            // If there is a previous selection, make a move between these tiles
+            if(m_selected_tile.has_value()){
+                _onPieceMoved(m_selected_tile.value(), tile.value());
+            }
+
+            // Start a drag if the tile has some piece
+            if (m_game.get_piece_at(tile.value()).type != PieceType::None) {
+                m_is_dragging = true;
+                m_selected_tile = tile;
+                m_drag_screen_position = sf::Vector2f(screen_position);
+            }
+            else { // else empty tile was pressed, so reset selection
+                m_selected_tile.reset();
+            }
         }
     }
 }
@@ -142,15 +152,9 @@ void ChessGUI::_onMouseLeftUp(const sf::Vector2i& screen_position){
     if(m_is_dragging){
         m_is_dragging = false;
         if(const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))){
-            if(m_selected_square.has_value() && tile != m_selected_square){
-                bool is_promotion_move = m_game.is_legal_move(Chess::uci_create(m_selected_square.value(), tile.value(), PieceType::Queen));
-                if(is_promotion_move) {
-                    m_promotion_prompt_active = true;
-                    m_promotion_prompt_tile = tile.value();
-                }
-                else{
-                    m_current_user_move = Chess::uci_create(m_selected_square.value(), tile.value());
-                }
+            // If there is a previous selection, make a move between these tiles
+            if(m_selected_tile.has_value()){
+                _onPieceMoved(m_selected_tile.value(), tile.value());
             }
         }
     }
@@ -162,6 +166,16 @@ void ChessGUI::_onMouseMoved(const sf::Vector2i& screen_position) {
     }
 }
 
+void ChessGUI::_onPieceMoved(const Chess::Tile& from, const Chess::Tile& to) {
+    bool is_promotion_move = m_game.is_legal_move(Chess::uci_create(from, to, s_promotion_pieces[0]));
+    if(is_promotion_move) {
+        m_promotion_prompt_active = true;
+        m_promotion_prompt_tile = to;
+    }
+    else{
+        m_current_user_move = Chess::uci_create(from, to);
+    }
+}
 
 void ChessGUI::_draw() {
     m_window.clear();
@@ -171,14 +185,14 @@ void ChessGUI::_draw() {
     for (int rank = 0; rank < 8; rank++) {
         for (int file = 0; file < 8; file++) {
             Chess::Tile tile(file, rank);
-            if((m_is_dragging || m_promotion_prompt_active) && tile == m_selected_square) continue;
+            if((m_is_dragging || m_promotion_prompt_active) && tile == m_selected_tile) continue;
             _drawPiece(m_game.get_piece_at(tile), _board_to_screen_space(tile));
         }
     }
     
     // Legal move highlights
-    if(m_selected_square.has_value()){
-        _drawLegalMoves(m_selected_square.value());
+    if(m_selected_tile.has_value()){
+        _drawLegalMoves(m_selected_tile.value());
     }
 
     // Promotion prompt
@@ -187,8 +201,8 @@ void ChessGUI::_draw() {
     }
 
     // Dragged piece
-    if(m_is_dragging){
-        _drawPiece(m_game.get_piece_at(m_selected_square.value()), m_drag_screen_position);
+    if(m_is_dragging && m_selected_tile.has_value()){
+        _drawPiece(m_game.get_piece_at(m_selected_tile.value()), m_drag_screen_position);
     }
 
     m_window.display();
@@ -202,7 +216,7 @@ void ChessGUI::_drawBoard() {
             Chess::Tile tile(file, rank);
             square.setOrigin(sf::Vector2f(square.getSize()) / 2.0f);
             square.setPosition(_board_to_screen_space(tile));
-            square.setFillColor(_getSquareColor(tile));
+            square.setFillColor(_getTileColor(tile));
             m_window.draw(square);
         }
     }
@@ -278,11 +292,11 @@ void ChessGUI::_drawPiece(const Piece& piece, const sf::Vector2f& position) {
     m_window.draw(sprite);
 }
 
-sf::Color ChessGUI::_getSquareColor(const Chess::Tile& tile) {
-    sf::Color color = (tile.rank + tile.file) % 2 == 0 ? s_light_square_color : s_dark_square_color;
+sf::Color ChessGUI::_getTileColor(const Chess::Tile& tile) {
+    sf::Color color = (tile.rank + tile.file) % 2 == 0 ? s_light_tile_color : s_dark_tile_color;
     
     // Select highligthing
-    bool is_selected = m_selected_square.has_value() && m_selected_square == tile;
+    bool is_selected = m_selected_tile.has_value() && m_selected_tile == tile;
 
     // Move highlighting
     bool is_previous_move_tile = false;

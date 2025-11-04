@@ -59,8 +59,9 @@ private:                       // WINDOW EVENTS //
     void _onMouseLeftDown(const sf::Vector2i& screen_position);
     void _onMouseLeftUp(const sf::Vector2i& screen_position);
     void _onMouseMoved(const sf::Vector2i& screen_position);
+    void _onPieceMoved(const Chess::Tile& from, const Chess::Tile& to);
 
-private:                       // RENDERING //
+private:                       // DRAWING //
     /**
      * Draw frame entry point.
      */
@@ -93,7 +94,7 @@ private:                       // RENDERING //
      * @param tile A board tile.
      * @return The color this tile should be rendered with.
      */
-    sf::Color _getSquareColor(const Chess::Tile& tile);
+    sf::Color _getTileColor(const Chess::Tile& tile);
 
 private:
     Chess m_game;
@@ -107,7 +108,7 @@ private:
     sf::Texture m_texture_x_icon;
 
     // State
-    std::optional<Chess::Tile> m_selected_square;
+    std::optional<Chess::Tile> m_selected_tile;
     std::optional<UCI> m_current_user_move;
     
     // Dragging
@@ -120,7 +121,7 @@ private:
     Chess::Tile m_promotion_prompt_tile;
 
     // Colors
-    const static inline sf::Color s_light_square_color = sf::Color(240, 217, 181);
-    const static inline sf::Color s_dark_square_color = sf::Color(181, 136, 99);
+    const static inline sf::Color s_light_tile_color = sf::Color(240, 217, 181);
+    const static inline sf::Color s_dark_tile_color = sf::Color(181, 136, 99);
     const static inline sf::Color s_highlight_color = sf::Color(255, 255, 0, 100);
 };
