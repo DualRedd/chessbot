@@ -88,6 +88,10 @@ void Chess::new_board(const FEN& position) {
     _update_legal_moves();
 }
 
+FEN Chess::get_board_as_fen() const {
+    return m_board.to_fen();
+}
+
 PlayerColor Chess::get_side_to_move() const {
     return m_board.get_side_to_move();
 }

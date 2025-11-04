@@ -64,6 +64,11 @@ public:
     void new_board(const FEN& position = CHESS_START_POSITION);
 
     /**
+     * @return FEN notation string describing the current board state. See: https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation
+     */
+    FEN get_board_as_fen() const;
+
+    /**
      * @return Which sides turn to move it is currently.
      */
     PlayerColor get_side_to_move() const;
