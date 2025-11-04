@@ -44,7 +44,7 @@ private:
      * @return The tile containing the coordinate, or no value if out of bounds.
      * @note File 0 rank 0 = bottom left tile of the board
      */
-    std::optional<BoardTile> _screen_to_board_space(const sf::Vector2f& screen_pos) const;
+    std::optional<Chess::Tile> _screen_to_board_space(const sf::Vector2f& screen_pos) const;
 
     /**
      * Convert a board tile to a screen coordinate.
@@ -52,7 +52,7 @@ private:
      * @return The coordinate of the center of this tile.
      * @note File 0 rank 0 = bottom left tile of the board
      */
-    sf::Vector2f _board_to_screen_space(const BoardTile& tile) const;
+    sf::Vector2f _board_to_screen_space(const Chess::Tile& tile) const;
 
     /**
      * Handles window events.
@@ -73,7 +73,7 @@ private:
      * Draw legal moves.
      * @param tile The tile which the moves are rendered for.
      */
-    void _drawLegalMoves(const BoardTile& tile);
+    void _drawLegalMoves(const Chess::Tile& tile);
 
     /**
      * Draw a piece.
@@ -86,7 +86,7 @@ private:
      * @param tile A board tile.
      * @return The color this tile should be rendered with.
      */
-    sf::Color _getSquareColor(const BoardTile& tile);
+    sf::Color _getSquareColor(const Chess::Tile& tile);
 
 private:
     Chess m_game;
@@ -99,12 +99,12 @@ private:
     sf::Texture m_texture_circle_hollow;
 
     // State
-    std::optional<BoardTile> m_selected_square;
-    std::optional<Move> m_current_user_move;
+    std::optional<Chess::Tile> m_selected_square;
+    std::optional<UCI> m_current_user_move;
 
     // Dragging
     bool m_is_dragging{false};
-    BoardTile m_drag_start_square;
+    Chess::Tile m_drag_start_square;
     sf::Vector2f m_drag_screen_position;
 
     // Colors

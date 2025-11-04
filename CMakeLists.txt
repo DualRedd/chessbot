@@ -8,6 +8,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # --- Options ---
 option(BUILD_TESTS "Build unit tests" ON)
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+
+if (ENABLE_ASAN)
+    message(STATUS "AddressSanitizer enabled")
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address -fno-omit-frame-pointer)
+endif()
 
 # --- SFML ---
 include(FetchContent)
@@ -26,8 +33,8 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 # --- Core library ---
 add_library(chess_core
-    src/core/piece.cpp
-    src/core/board.cpp
+    src/core/types.cpp
+    src/core/bitboard.cpp
     src/core/chess.cpp
 )
 
