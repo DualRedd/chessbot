@@ -1,8 +1,6 @@
 #include "gui/chess_gui.hpp"
 #include "gui/assets.hpp"
 
-
-
 ChessGUI::ChessGUI(int window_width, int window_height)
     : m_game(),
       m_window(sf::VideoMode(sf::Vector2u(window_width, window_height)), "Chess")
@@ -32,6 +30,7 @@ void ChessGUI::_loadAssets() {
     // Other
     m_texture_circle = loadSVG("circle.svg");
     m_texture_circle_hollow = loadSVG("circle_hollow.svg");
+    m_texture_x_icon = loadSVG("x_icon.svg");
 }
 
 void ChessGUI::run() {
@@ -45,7 +44,7 @@ void ChessGUI::run() {
             m_selected_square.reset();
         }
 
-        _render();
+        _draw();
     }
 }
 
@@ -91,45 +90,22 @@ void ChessGUI::_handleEvents() {
         if (event->is<sf::Event::Closed>()){
             m_window.close();
         }
-
         else if (const auto& resize_event = event->getIf<sf::Event::Resized>()) {
             resized = true;
         }
-
         else if (const auto& mouse_press_event = event->getIf<sf::Event::MouseButtonPressed>()) {
             if (mouse_press_event->button == sf::Mouse::Button::Left) {
-                if(const auto tile = _screen_to_board_space(sf::Vector2f(mouse_press_event->position))){
-                    if (m_game.get_piece_at(tile.value()).type != PieceType::None) {
-                        m_is_dragging = true;
-                        m_drag_start_square = tile.value();
-                        m_selected_square = tile.value();
-                        m_drag_screen_position = sf::Vector2f(mouse_press_event->position);
-                    }
-                    else{
-                        m_selected_square.reset();
-                    }
-                }
+                _onMouseLeftDown(mouse_press_event->position);
             }
         }
-
         else if (const auto& mouse_released_event = event->getIf<sf::Event::MouseButtonReleased>()) {
-            if (m_is_dragging && mouse_released_event->button == sf::Mouse::Button::Left) {
-                m_is_dragging = false;
-                if(const auto tile = _screen_to_board_space(sf::Vector2f(mouse_released_event->position))){
-                    if(tile != m_drag_start_square){
-                        m_current_user_move = Chess::uci_create(m_drag_start_square, tile.value());
-                        // TODO: promotion prompt
-                    }
-                }
+            if (mouse_released_event->button == sf::Mouse::Button::Left) {
+                _onMouseLeftUp(mouse_released_event->position);
             }
         }
-
         else if (const auto& mouse_move_event = event->getIf<sf::Event::MouseMoved>()) {
-            if (m_is_dragging) {
-                m_drag_screen_position = sf::Vector2f(mouse_move_event->position);
-            }
+            _onMouseMoved(mouse_move_event->position);
         }
-
     }
 
     // Separate check so multiple resize events only trigger one view change each frame
@@ -140,7 +116,54 @@ void ChessGUI::_handleEvents() {
     }
 }
 
-void ChessGUI::_render() {
+void ChessGUI::_onMouseLeftDown(const sf::Vector2i& screen_position) {
+    if(const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))){
+        if (!m_promotion_prompt_active && m_game.get_piece_at(tile.value()).type != PieceType::None) {
+            m_is_dragging = true;
+            m_selected_square = tile;
+            m_drag_screen_position = sf::Vector2f(screen_position);
+        }
+        else {
+            if(m_promotion_prompt_active
+                && tile.value().file == m_promotion_prompt_tile.file
+                && std::abs(tile.value().rank - m_promotion_prompt_tile.rank) <= 3)
+            { // Promotion piece chosen
+                m_current_user_move = Chess::uci_create(m_selected_square.value(), m_promotion_prompt_tile,
+                                    s_promotion_pieces[std::abs(tile.value().rank - m_promotion_prompt_tile.rank)]);
+            }
+
+            m_promotion_prompt_active = false;
+            m_selected_square.reset();
+        }
+    }
+}
+
+void ChessGUI::_onMouseLeftUp(const sf::Vector2i& screen_position){
+    if(m_is_dragging){
+        m_is_dragging = false;
+        if(const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))){
+            if(m_selected_square.has_value() && tile != m_selected_square){
+                bool is_promotion_move = m_game.is_legal_move(Chess::uci_create(m_selected_square.value(), tile.value(), PieceType::Queen));
+                if(is_promotion_move) {
+                    m_promotion_prompt_active = true;
+                    m_promotion_prompt_tile = tile.value();
+                }
+                else{
+                    m_current_user_move = Chess::uci_create(m_selected_square.value(), tile.value());
+                }
+            }
+        }
+    }
+}
+
+void ChessGUI::_onMouseMoved(const sf::Vector2i& screen_position) {
+    if (m_is_dragging) {
+        m_drag_screen_position = sf::Vector2f(screen_position);
+    }
+}
+
+
+void ChessGUI::_draw() {
     m_window.clear();
     _drawBoard();
 
@@ -148,7 +171,7 @@ void ChessGUI::_render() {
     for (int rank = 0; rank < 8; rank++) {
         for (int file = 0; file < 8; file++) {
             Chess::Tile tile(file, rank);
-            if(m_is_dragging && tile == m_drag_start_square) continue;
+            if((m_is_dragging || m_promotion_prompt_active) && tile == m_selected_square) continue;
             _drawPiece(m_game.get_piece_at(tile), _board_to_screen_space(tile));
         }
     }
@@ -158,9 +181,14 @@ void ChessGUI::_render() {
         _drawLegalMoves(m_selected_square.value());
     }
 
+    // Promotion prompt
+    if(m_promotion_prompt_active){
+        _drawPromotionPrompt();
+    }
+
     // Dragged piece
     if(m_is_dragging){
-        _drawPiece(m_game.get_piece_at(m_drag_start_square), m_drag_screen_position);
+        _drawPiece(m_game.get_piece_at(m_selected_square.value()), m_drag_screen_position);
     }
 
     m_window.display();
@@ -180,6 +208,36 @@ void ChessGUI::_drawBoard() {
     }
 }
 
+void ChessGUI::_drawPromotionPrompt() {
+    const float tile_size = _get_tile_size();
+    int dir = m_promotion_prompt_tile.rank == 7 ? -1 : 1;
+    PlayerColor color = m_promotion_prompt_tile.rank == 7 ? PlayerColor::White : PlayerColor::Black;
+
+    // Draw background
+    sf::RectangleShape background;
+    const float background_height = 4.5f;
+    background.setFillColor(sf::Color(233, 233, 233, 255));
+    background.setSize(sf::Vector2f(tile_size, tile_size * background_height));
+    background.setOrigin(sf::Vector2f(background.getSize()) / 2.0f);
+    background.setPosition(_board_to_screen_space(m_promotion_prompt_tile) - sf::Vector2f(0.f, tile_size * (background_height-1.f) / 2.f * dir));
+    m_window.draw(background);
+
+    // Draw pieces
+    for (int i = 0; i < 4; i++) {
+        Chess::Tile tile(m_promotion_prompt_tile.file, m_promotion_prompt_tile.rank + i * dir);
+        _drawPiece(Piece(s_promotion_pieces[i], color), _board_to_screen_space(tile));
+    }
+
+    // Draw x icon
+    sf::Sprite sprite(m_texture_x_icon);
+    float scale = tile_size / sprite.getTexture().getSize().x * 0.2f; 
+    sprite.setOrigin(sf::Vector2f(sprite.getTexture().getSize()) / 2.0f);
+    sprite.setPosition(_board_to_screen_space(m_promotion_prompt_tile) - sf::Vector2f(0.f, tile_size * (background_height - 0.75f) * dir));
+    sprite.setScale(sf::Vector2f(scale, scale));
+    sprite.setColor(sf::Color(255, 255, 255, 195));
+    m_window.draw(sprite);
+}
+
 void ChessGUI::_drawLegalMoves(const Chess::Tile& tile) {
     std::vector<UCI> moves(m_game.get_legal_moves());
     if (moves.empty()) return;
@@ -188,6 +246,10 @@ void ChessGUI::_drawLegalMoves(const Chess::Tile& tile) {
     for (const UCI& move : moves) {
         auto[from, to, promo] = Chess::uci_parse(move);
         if(from != tile) continue;
+
+        if(promo != PieceType::None && promo != PieceType::Queen){
+            continue; // avoid duplicating sprites on promotion moves
+        }
 
         bool is_capture = (m_game.get_piece_at(to).type != PieceType::None);
 

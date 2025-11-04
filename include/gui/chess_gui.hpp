@@ -54,20 +54,27 @@ private:
      */
     sf::Vector2f _board_to_screen_space(const Chess::Tile& tile) const;
 
-    /**
-     * Handles window events.
-     */
+private:                       // WINDOW EVENTS //
     void _handleEvents();
+    void _onMouseLeftDown(const sf::Vector2i& screen_position);
+    void _onMouseLeftUp(const sf::Vector2i& screen_position);
+    void _onMouseMoved(const sf::Vector2i& screen_position);
 
+private:                       // RENDERING //
     /**
      * Draw frame entry point.
      */
-    void _render();
+    void _draw();
 
     /**
      * Draw board.
      */
     void _drawBoard();
+
+    /**
+     * Draw promotion prompt.
+     */
+    void _drawPromotionPrompt();
 
     /**
      * Draw legal moves.
@@ -97,15 +104,20 @@ private:
     std::unordered_map<Piece, sf::Texture, Piece::Hash> m_texture_pieces;
     sf::Texture m_texture_circle;
     sf::Texture m_texture_circle_hollow;
+    sf::Texture m_texture_x_icon;
 
     // State
     std::optional<Chess::Tile> m_selected_square;
     std::optional<UCI> m_current_user_move;
-
+    
     // Dragging
     bool m_is_dragging{false};
-    Chess::Tile m_drag_start_square;
     sf::Vector2f m_drag_screen_position;
+
+    // Promotion
+    const static inline PieceType s_promotion_pieces[4] = { PieceType::Queen, PieceType::Rook, PieceType::Knight, PieceType::Bishop };
+    bool m_promotion_prompt_active{false};
+    Chess::Tile m_promotion_prompt_tile;
 
     // Colors
     const static inline sf::Color s_light_square_color = sf::Color(240, 217, 181);
