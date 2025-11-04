@@ -122,11 +122,7 @@ void Board::set_from_fen(const FEN& fen) {
             case 'b': type = PieceType::Bishop; break;
             case 'r': type = PieceType::Rook; break;
             case 'q': type = PieceType::Queen; break;
-            case 'p': type = PieceType::Pawn;
-                if((rank == 0 && color == PlayerColor::Black) || (rank == 7 && color == PlayerColor::White)){
-                    throw std::invalid_argument("Board::set_from_fen() - FEN invalid board description! Unpromoted pawn on last rank.");
-                }
-                break;
+            case 'p': type = PieceType::Pawn; break;
             case 'k':
                 type = PieceType::King;
                 (color == PlayerColor::White ? white_king_count : black_king_count)++;
@@ -279,27 +275,29 @@ std::vector<Move> Board::generate_pseudo_legal_moves() const {
     moves.reserve(218); // max legal moves in any position
 
     // Pawns (separate logic for non-capturing moves and promotions)
-    Bitboard pawns = m_pieces[(int)m_side_to_move][(int)PieceType::Pawn];
     Bitboard home_rank = (m_side_to_move == PlayerColor::White) ? RANK_1 : RANK_6;
+    Bitboard last_rank = (m_side_to_move == PlayerColor::White) ? RANK_7 : RANK_0;
     int forward_dir = (m_side_to_move == PlayerColor::White) ? 1 : -1;
 
     // en passant captures
     if(m_en_passant_square != -1) {
-        Bitboard ep_attacks = pawns & MASK_PAWN_ATTACKS[1-(int)m_side_to_move][m_en_passant_square];
+        Bitboard ep_attacks = m_pieces[(int)m_side_to_move][(int)PieceType::Pawn] & MASK_PAWN_ATTACKS[1-(int)m_side_to_move][m_en_passant_square];
         while(ep_attacks){
             int from_square = lsb(ep_attacks);
             moves.emplace_back(MoveEncoding::encode(from_square, m_en_passant_square, PieceType::Pawn, PieceType::Pawn, PieceType::None, false, true));
             pop_lsb(ep_attacks);
         }
     }
+
     // normal moves
+    Bitboard pawns = m_pieces[(int)m_side_to_move][(int)PieceType::Pawn] & ~last_rank;
     while(pawns != 0) {
         int from_square = lsb(pawns);
 
         // single forward
-        int to_square = from_square + forward_dir * 8; // can assume to be a valid square, because a unpromoted pawn on last rank is an invalid state
+        int to_square = from_square + forward_dir * 8; // is a valid square, because last rank pawns are excluded
         if ((m_occupied_all & MASK_SQUARE[to_square]) == 0) {
-            if (MASK_SQUARE[to_square] & PROMOTION_RANKS) {
+            if (MASK_SQUARE[to_square] & last_rank) {
                 for (PieceType promo : {PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight}){
                     moves.emplace_back(MoveEncoding::encode(from_square, to_square, PieceType::Pawn, PieceType::None, promo));
                 }
@@ -320,7 +318,7 @@ std::vector<Move> Board::generate_pseudo_legal_moves() const {
         Bitboard attacks = MASK_PAWN_ATTACKS[(int)m_side_to_move][from_square] & m_occupied[1-(int)m_side_to_move];
         while(attacks != 0){
             to_square = lsb(attacks);
-            if(MASK_SQUARE[to_square] & PROMOTION_RANKS) {
+            if(MASK_SQUARE[to_square] & last_rank) {
                 for (PieceType promo : {PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight}){
                     moves.emplace_back(MoveEncoding::encode(from_square, to_square, PieceType::Pawn, m_piece_on_square[to_square], promo));
                 }
