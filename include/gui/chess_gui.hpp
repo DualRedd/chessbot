@@ -1,10 +1,9 @@
 #pragma once
 
 #include "../core/chess.hpp"
+#include "elements/board_view.hpp"
 
 #include <SFML/Graphics.hpp>
-#include <array>
-#include <map>
 
 /**
  * GUI for configuring and playing chess interactively with bots.
@@ -24,104 +23,28 @@ public:
 
 private:
     /**
-     * Load assets used by the gui.
+     * Handle window events.
      */
-    void _loadAssets();
-
-    /**
-     * @return Board bounds in pixels.
-     */
-    sf::FloatRect _get_board_bounds() const;
-
-    /**
-     * @return Tile size in pixels.
-     */
-    float _get_tile_size() const;
-
-    /**
-     * Convert a screen position to a board tile.
-     * @param screen_pos The position in screen space.
-     * @return The tile containing the coordinate, or no value if out of bounds.
-     * @note File 0 rank 0 = bottom left tile of the board
-     */
-    std::optional<Chess::Tile> _screen_to_board_space(const sf::Vector2f& screen_pos) const;
-
-    /**
-     * Convert a board tile to a screen coordinate.
-     * @param tile The tile to convert.
-     * @return The coordinate of the center of this tile.
-     * @note File 0 rank 0 = bottom left tile of the board
-     */
-    sf::Vector2f _board_to_screen_space(const Chess::Tile& tile) const;
-
-private:                       // WINDOW EVENTS //
     void _handleEvents();
-    void _onMouseLeftDown(const sf::Vector2i& screen_position);
-    void _onMouseLeftUp(const sf::Vector2i& screen_position);
-    void _onMouseMoved(const sf::Vector2i& screen_position);
-    void _onPieceMoved(const Chess::Tile& from, const Chess::Tile& to);
 
-private:                       // DRAWING //
     /**
-     * Draw frame entry point.
+     * Draw next frame.
      */
     void _draw();
 
     /**
-     * Draw board.
+     * Update view to match resized window.
      */
-    void _drawBoard();
+    void _onWindowResize();
 
     /**
-     * Draw promotion prompt.
+     * Update element transforms to current view.
      */
-    void _drawPromotionPrompt();
-
-    /**
-     * Draw legal moves.
-     * @param tile The tile which the moves are rendered for.
-     */
-    void _drawLegalMoves(const Chess::Tile& tile);
-
-    /**
-     * Draw a piece.
-     * @param piece the piece to draw
-     * @param position draw position in screen space
-     */
-    void _drawPiece(const Piece& piece, const sf::Vector2f& position);
-
-    /**
-     * @param tile A board tile.
-     * @return The color this tile should be rendered with.
-     */
-    sf::Color _getTileColor(const Chess::Tile& tile);
+    void _updateElementTransforms();
 
 private:
-    Chess m_game;
     sf::RenderWindow m_window;
-    sf::Font m_font;
 
-    // Textures
-    std::unordered_map<Piece, sf::Texture, Piece::Hash> m_texture_pieces;
-    sf::Texture m_texture_circle;
-    sf::Texture m_texture_circle_hollow;
-    sf::Texture m_texture_x_icon;
-
-    // State
-    std::optional<Chess::Tile> m_selected_tile;
-    std::optional<UCI> m_current_user_move;
-    
-    // Dragging
-    bool m_is_dragging{false};
-    sf::Vector2f m_drag_screen_position;
-
-    // Promotion
-    const static inline PieceType s_promotion_pieces[4] = { PieceType::Queen, PieceType::Rook, PieceType::Knight, PieceType::Bishop };
-    bool m_promotion_prompt_active{false};
-    Chess::Tile m_promotion_prompt_tile;
-
-    // Colors
-    const static inline sf::Color s_light_tile_color = sf::Color(240, 217, 181);
-    const static inline sf::Color s_dark_tile_color = sf::Color(181, 136, 99);
-    const static inline sf::Color s_highlight_color = sf::Color(255, 255, 0, 100);
+    // GUI elements
+    BoardView m_board_view;
 };

@@ -40,6 +40,7 @@ add_library(chess_core
 
 # --- GUI executable ---
 add_executable(chess_gui
+    src/gui/elements/board_view.cpp
     src/gui/chess_gui.cpp
     src/gui/gui_main.cpp
 )

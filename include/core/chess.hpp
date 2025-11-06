@@ -36,7 +36,7 @@ public:
      * Helper for creating UCI strings.
      * @param from origin tile
      * @param to target tile
-     * @param promotion promotion type
+     * @param promotion promotion type (default PieceType::None)
      * @return UCI string describing the move.
      * @throw invalid_argument if the arguments do not describe a valid UCI move.
      */
