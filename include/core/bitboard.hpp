@@ -65,12 +65,6 @@ public:
     std::vector<Move> generate_legal_moves() const;
 
     /**
-     * Convert UCI string to a Move on the current board.
-     * @throw invalid_argument if the UCI string is invalid.
-     */
-    Move move_from_uci(const UCI& uci);
-
-    /**
      * @param square square index (8 * rank + file)
      * @param by player color
      * @return True if the the square is attacked by any of the player's pieces, else false.
@@ -98,6 +92,14 @@ public:
     bool undo_move();
 
     /**
+     * Convert UCI string to a Move on the current board.
+     * @throw invalid_argument if the UCI string is invalid.
+     * @return The move corresponding to the UCI string.
+     * @note The constructed move might not be legal!
+     */
+    Move move_from_uci(const UCI& uci) const;
+
+    /**
      * @return The last move played if there is one.
      */
     std::optional<Move> get_last_move() const;
@@ -108,8 +110,10 @@ private:
      */
     struct StoredState {
         Move move;
-        int halfmoves;
-        StoredState(Move move, int halfmoves);
+        uint8_t castling_rights;
+        int8_t en_passant_square;
+        uint halfmoves;
+        StoredState(Move move, uint8_t castling_rights, int8_t en_passant_square, int halfmoves);
         // TODO: castling rights, en passant
     };
 
@@ -125,7 +129,7 @@ private:
     /**
      * Precalculate various attack and move masks.
      */
-    static void _init_masks();
+    static void _precalc();
 
 private:
     std::vector<StoredState> m_state_history;
@@ -136,13 +140,13 @@ private:
     PieceType m_piece_on_square[64]; // [square]
 
     PlayerColor m_side_to_move;
-    uint8_t m_castling_rights;   // bitmask: WK=1, WQ=2, BK=4, BQ=8
-    int m_en_passant_square;     // 0–63 or -1 if none
-    int m_halfmoves;
-    int m_fullmoves;
+    uint8_t m_castling_rights;       // bitmask: WK=1, WQ=2, BK=4, BQ=8
+    int8_t m_en_passant_square;      // 0–63 or -1 if none
+    uint m_halfmoves;
+    uint m_fullmoves;
 
 private:
-    // Precalculated masks
+    // Precalculated masks and values
     static inline Bitboard MASK_SQUARE[64];          // [square]
     static inline Bitboard MASK_PAWN_ATTACKS[2][64]; // [color][square]
     static inline Bitboard MASK_KNIGHT_ATTACKS[64];  // [square]
@@ -150,9 +154,14 @@ private:
     static inline Bitboard MASK_BISHOP[64];          // [square]
     static inline Bitboard MASK_ROOK[64];            // [square]
 
+    static inline Bitboard MASK_CASTLE_CLEAR[2][2];  // [color][0=queenside,1=kingside]
+    static inline uint8_t CASTLE_FLAG[2][2];         // [color][0=queenside,1=kingside]
+    static inline uint8_t ROOK_SQUARE[2][2];         // [color][0=queenside,1=kingside]
+    static inline uint8_t KING_SQUARE[2];            // [color]
+
     struct Initializer {
         Initializer() {
-            _init_masks();
+            _precalc();
         }
     };
     static inline Initializer _init_once;

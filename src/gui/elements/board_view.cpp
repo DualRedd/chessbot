@@ -18,6 +18,14 @@ void BoardView::setSize(const float size) {
 void BoardView::handleEvent(const sf::Event& event) {
     m_legal_move_played = false;
 
+    
+    if (const auto& key_press_event = event.getIf<sf::Event::KeyPressed>()) {
+        if (key_press_event->scancode == sf::Keyboard::Scan::R) {
+            m_game.undo_move(); /** DEBUGGING */
+        }
+    }
+    
+
     if (const auto& mouse_press_event = event.getIf<sf::Event::MouseButtonPressed>()) {
         if (mouse_press_event->button == sf::Mouse::Button::Left) {
             _onMouseLeftDown(mouse_press_event->position);
@@ -179,6 +187,7 @@ void BoardView::_drawLegalMoves(sf::RenderWindow& window, const Chess::Tile& til
     std::vector<UCI> moves(m_game.get_legal_moves());
     if (moves.empty()) return;
 
+    PieceType selected_piece = m_game.get_piece_at(tile).type;
     for (const UCI& move : moves) {
         auto[from, to, promo] = Chess::uci_parse(move);
         if(from != tile) continue;
@@ -188,8 +197,10 @@ void BoardView::_drawLegalMoves(sf::RenderWindow& window, const Chess::Tile& til
             // multiple legal moves to this square differing only in promotion.
             continue; 
         }
-
-        bool is_capture = (m_game.get_piece_at(to).type != PieceType::None);
+        
+        PieceType target_piece = m_game.get_piece_at(to).type;
+        bool is_capture = (target_piece != PieceType::None)                             // normal capture
+                        || (selected_piece == PieceType::Pawn && from.file != to.file); // en passant / pawn capture
 
         sf::Sprite sprite(is_capture ? m_texture_circle_hollow : m_texture_circle);
         float scale = m_tile_size / sprite.getTexture().getSize().x * (is_capture ? 0.95f : 0.3f); 

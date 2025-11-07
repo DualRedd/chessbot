@@ -17,9 +17,23 @@ using Move = uint32_t;
 enum class PlayerColor : uint8_t { White = 0, Black = 1 };
 
 /**
+ * Conversion to integer.
+ */
+constexpr int operator+(PlayerColor c) noexcept {
+    return static_cast<int>(c);
+}
+
+/**
  * Chess piece type.
  */
 enum class PieceType : uint8_t { Pawn = 0, Knight = 1, Bishop = 2, Rook = 3, Queen = 4, King = 5, None = 6};
+
+/**
+ * Conversion to integer.
+ */
+constexpr int operator+(PieceType t) noexcept {
+    return static_cast<int>(t);
+}
 
 /**
  * Combines piece type and color.
@@ -81,6 +95,16 @@ namespace MoveEncoding {
      * @return Promotion piece type.
      */
     constexpr PieceType promo(Move m) { return static_cast<PieceType>((m >> 18) & 0x7); }
+
+    /**
+     * @return Whether this move is a castle.
+     */
+    constexpr bool is_castle(Move m) { return static_cast<bool>((m >> 21) & 1); }
+
+    /**
+     * @return Whether this move is an en passant.
+     */
+    constexpr bool is_en_passant(Move m) { return static_cast<bool>((m >> 22) & 1); }
 
     /**
      * @return UCI representation of the move.

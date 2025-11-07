@@ -116,7 +116,9 @@ bool Chess::play_move(const UCI& move) {
 }
 
 bool Chess::undo_move() {
-    return m_board.undo_move();
+    bool success = m_board.undo_move();
+    if(success) _update_legal_moves();
+    return success;
 }
 
 std::optional<UCI> Chess::get_last_move() const {

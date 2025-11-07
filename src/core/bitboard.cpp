@@ -15,12 +15,16 @@ static_assert(static_cast<int>(PieceType::King)   == 5, "Bitboard: King enum ind
 static_assert(static_cast<int>(PlayerColor::White) == 0, "Bitboard: White enum index must be 0");
 static_assert(static_cast<int>(PlayerColor::Black) == 1, "Bitboard: Black enum index must be 1");
 
-// Bitboard constants
+
+// Helper constants
 constexpr Board::Bitboard RANK_0 = 0x00000000000000FFULL;
 constexpr Board::Bitboard RANK_1 = 0x000000000000FF00ULL;
 constexpr Board::Bitboard RANK_6 = 0x00FF000000000000ULL;
 constexpr Board::Bitboard RANK_7 = 0xFF00000000000000ULL;
 constexpr Board::Bitboard PROMOTION_RANKS = RANK_0 | RANK_7;
+constexpr int QUEEN_SIDE = 0;
+constexpr int KING_SIDE = 1;
+
 
 // Helper functions
 constexpr inline int square_index(int file, int rank)   { return rank * 8 + file; }
@@ -31,8 +35,8 @@ constexpr inline int lsb(Board::Bitboard b)             { return __builtin_ctzll
 constexpr inline void pop_lsb(Board::Bitboard &b)       { b &= b - 1; }
 
 
-Board::StoredState::StoredState(Move move_, int halfmoves_) 
-    : move(move_), halfmoves(halfmoves_) {}
+Board::StoredState::StoredState(Move move_, uint8_t castling_rights_, int8_t en_passant_square_, int halfmoves_) 
+    : move(move_), castling_rights(castling_rights_), en_passant_square(en_passant_square_), halfmoves(halfmoves_) {}
 
 Board::Board(const FEN& fen){
     set_from_fen(fen);
@@ -133,8 +137,8 @@ void Board::set_from_fen(const FEN& fen) {
 
         int square = square_index(file, rank);
         m_piece_on_square[square] = PieceType(type);
-        m_pieces[(int)color][(int)type] |= MASK_SQUARE[square];
-        m_occupied[(int)color] |= MASK_SQUARE[square];
+        m_pieces[+color][+type] |= MASK_SQUARE[square];
+        m_occupied[+color] |= MASK_SQUARE[square];
         m_occupied_all |= MASK_SQUARE[square];
 
         file++;
@@ -161,10 +165,38 @@ void Board::set_from_fen(const FEN& fen) {
         }
         for (char c : castling_part) {
             switch (c) {
-                case 'K': m_castling_rights |= (1 << 0); break; // white kingside
-                case 'Q': m_castling_rights |= (1 << 1); break; // white queenside
-                case 'k': m_castling_rights |= (1 << 2); break; // black kingside
-                case 'q': m_castling_rights |= (1 << 3); break; // black queenside
+                case 'K': { // white kingside
+                    if(m_piece_on_square[KING_SQUARE[+PlayerColor::White]] != PieceType::King
+                    || m_piece_on_square[KING_SQUARE[+PlayerColor::White]+3] != PieceType::Rook)
+                    {
+                        throw std::invalid_argument("Board::set_from_fen() - FEN castling rights description does not match board state!");
+                    }
+                    m_castling_rights |= CASTLE_FLAG[+PlayerColor::White][KING_SIDE];  break; 
+                }
+                case 'Q': { // white queenside
+                    if(m_piece_on_square[KING_SQUARE[+PlayerColor::White]] != PieceType::King
+                    || m_piece_on_square[KING_SQUARE[+PlayerColor::White]-4] != PieceType::Rook)
+                    {
+                        throw std::invalid_argument("Board::set_from_fen() - FEN castling rights description does not match board state!");
+                    }
+                    m_castling_rights |= CASTLE_FLAG[+PlayerColor::White][QUEEN_SIDE]; break;
+                }
+                case 'k': { // black kingside
+                    if(m_piece_on_square[KING_SQUARE[+PlayerColor::Black]] != PieceType::King
+                    || m_piece_on_square[KING_SQUARE[+PlayerColor::Black]+3] != PieceType::Rook)
+                    {
+                        throw std::invalid_argument("Board::set_from_fen() - FEN castling rights description does not match board state!");
+                    }
+                    m_castling_rights |= CASTLE_FLAG[+PlayerColor::Black][KING_SIDE]; break; 
+                }
+                case 'q': { // black queenside
+                    if(m_piece_on_square[KING_SQUARE[+PlayerColor::Black]] != PieceType::King
+                    || m_piece_on_square[KING_SQUARE[+PlayerColor::Black]-4] != PieceType::Rook)
+                    {
+                        throw std::invalid_argument("Board::set_from_fen() - FEN castling rights description does not match board state!");
+                    }
+                    m_castling_rights |= CASTLE_FLAG[+PlayerColor::Black][QUEEN_SIDE]; break; 
+                }
                 default: throw std::invalid_argument(std::string("Board::set_from_fen() - FEN castling rights description unknown character '") + c + "'!");
             }
         }
@@ -176,10 +208,10 @@ void Board::set_from_fen(const FEN& fen) {
             int file = ep_part[0] - 'a';
             int rank = ep_part[1] - '1';
             m_en_passant_square = square_index(file, rank);
-            if(m_side_to_move == PlayerColor::White && (m_pieces[(int)PlayerColor::Black][(int)PieceType::Pawn] | MASK_SQUARE[square_index(file, rank-1)]) == 0ULL) {
+            if(m_side_to_move == PlayerColor::White && (m_pieces[+PlayerColor::Black][+PieceType::Pawn] | MASK_SQUARE[square_index(file, rank-1)]) == 0ULL) {
                 throw std::invalid_argument("Board::set_from_fen() - FEN invalid en passant description! Missing black pawn below en passant target.");
             }
-            if(m_side_to_move == PlayerColor::Black && (m_pieces[(int)PlayerColor::White][(int)PieceType::Pawn] | MASK_SQUARE[square_index(file, rank+1)]) == 0ULL) {
+            if(m_side_to_move == PlayerColor::Black && (m_pieces[+PlayerColor::White][+PieceType::Pawn] | MASK_SQUARE[square_index(file, rank+1)]) == 0ULL) {
                 throw std::invalid_argument("Board::set_from_fen() - FEN invalid en passant description! Missing white pawn above en passant target.");
             }
         }
@@ -233,10 +265,10 @@ FEN Board::to_fen() const {
 
     // 3. Castling rights
     std::string castling;
-    if (m_castling_rights & 0b0001) castling += 'K';
-    if (m_castling_rights & 0b0010) castling += 'Q';
-    if (m_castling_rights & 0b0100) castling += 'k';
-    if (m_castling_rights & 0b1000) castling += 'q';
+    if (m_castling_rights & CASTLE_FLAG[+PlayerColor::White][KING_SIDE])  castling += 'K';
+    if (m_castling_rights & CASTLE_FLAG[+PlayerColor::White][QUEEN_SIDE]) castling += 'Q';
+    if (m_castling_rights & CASTLE_FLAG[+PlayerColor::Black][KING_SIDE])  castling += 'k';
+    if (m_castling_rights & CASTLE_FLAG[+PlayerColor::Black][QUEEN_SIDE]) castling += 'q';
     if (castling.empty()) castling = "-";
     oss << ' ' << castling;
 
@@ -260,12 +292,11 @@ PlayerColor Board::get_side_to_move() const {
 }
 
 Piece Board::get_piece_at(const int square) const {
-    for (int color = 0; color < 2; color++) {
-        for (int type = 0; type < 6; type++) {
-            if (m_pieces[color][type] & MASK_SQUARE[square]){
-                return Piece{(PieceType)type, (PlayerColor)color};
-            }
-        }
+    if(m_occupied[+PlayerColor::White] & MASK_SQUARE[square]){
+        return Piece{m_piece_on_square[square], PlayerColor::White};
+    }
+    if(m_occupied[+PlayerColor::Black] & MASK_SQUARE[square]){
+        return Piece{m_piece_on_square[square], PlayerColor::Black};
     }
     return Piece{PieceType::None, PlayerColor::White};
 }
@@ -274,6 +305,30 @@ std::vector<Move> Board::generate_pseudo_legal_moves() const {
     std::vector<Move> moves;
     moves.reserve(218); // max legal moves in any position
 
+    // Castling
+    bool king_in_check = in_check(m_side_to_move);
+    if(!king_in_check){
+        // Queenside
+        if((m_castling_rights & CASTLE_FLAG[+m_side_to_move][QUEEN_SIDE])
+            && (MASK_CASTLE_CLEAR[+m_side_to_move][QUEEN_SIDE] & m_occupied_all) == 0
+            && !is_square_attacked(KING_SQUARE[+m_side_to_move]-1, PlayerColor(1-(+m_side_to_move)))
+            && !is_square_attacked(KING_SQUARE[+m_side_to_move]-2, PlayerColor(1-(+m_side_to_move))))
+        {
+            moves.emplace_back(MoveEncoding::encode(KING_SQUARE[+m_side_to_move], KING_SQUARE[+m_side_to_move] - 2, PieceType::King,
+                                                    PieceType::None, PieceType::None, true /* castle flag */, false /* en passant */));
+        }
+
+        // Kingside
+        if((m_castling_rights & CASTLE_FLAG[+m_side_to_move][KING_SIDE])
+            && (MASK_CASTLE_CLEAR[+m_side_to_move][KING_SIDE] & m_occupied_all) == 0
+            && !is_square_attacked(KING_SQUARE[+m_side_to_move]+1, PlayerColor(1-(+m_side_to_move)))
+            && !is_square_attacked(KING_SQUARE[+m_side_to_move]+2, PlayerColor(1-(+m_side_to_move))))
+        {
+            moves.emplace_back(MoveEncoding::encode(KING_SQUARE[+m_side_to_move], KING_SQUARE[+m_side_to_move] + 2, PieceType::King,
+                                                    PieceType::None, PieceType::None, true /* castle flag */, false /* en passant */));
+        }
+    }
+
     // Pawns (separate logic for non-capturing moves and promotions)
     Bitboard home_rank = (m_side_to_move == PlayerColor::White) ? RANK_1 : RANK_6;
     Bitboard last_rank = (m_side_to_move == PlayerColor::White) ? RANK_7 : RANK_0;
@@ -281,16 +336,17 @@ std::vector<Move> Board::generate_pseudo_legal_moves() const {
 
     // en passant captures
     if(m_en_passant_square != -1) {
-        Bitboard ep_attacks = m_pieces[(int)m_side_to_move][(int)PieceType::Pawn] & MASK_PAWN_ATTACKS[1-(int)m_side_to_move][m_en_passant_square];
+        Bitboard ep_attacks = m_pieces[+m_side_to_move][+PieceType::Pawn] & MASK_PAWN_ATTACKS[1-(+m_side_to_move)][m_en_passant_square];
         while(ep_attacks){
             int from_square = lsb(ep_attacks);
-            moves.emplace_back(MoveEncoding::encode(from_square, m_en_passant_square, PieceType::Pawn, PieceType::Pawn, PieceType::None, false, true));
+            moves.emplace_back(MoveEncoding::encode(from_square, m_en_passant_square, PieceType::Pawn,
+                                                    PieceType::Pawn, PieceType::None, false /* castle flag */, true /* en passant */));
             pop_lsb(ep_attacks);
         }
     }
 
     // normal moves
-    Bitboard pawns = m_pieces[(int)m_side_to_move][(int)PieceType::Pawn] & ~last_rank;
+    Bitboard pawns = m_pieces[+m_side_to_move][+PieceType::Pawn] & ~last_rank;
     while(pawns != 0) {
         int from_square = lsb(pawns);
 
@@ -315,7 +371,7 @@ std::vector<Move> Board::generate_pseudo_legal_moves() const {
         }
 
         // captures
-        Bitboard attacks = MASK_PAWN_ATTACKS[(int)m_side_to_move][from_square] & m_occupied[1-(int)m_side_to_move];
+        Bitboard attacks = MASK_PAWN_ATTACKS[+m_side_to_move][from_square] & m_occupied[1-(+m_side_to_move)];
         while(attacks != 0){
             to_square = lsb(attacks);
             if(MASK_SQUARE[to_square] & last_rank) {
@@ -335,12 +391,12 @@ std::vector<Move> Board::generate_pseudo_legal_moves() const {
 
     // All other pieces
     for(int type = 1; type < 6; type++){
-        Bitboard pieces = m_pieces[(int)m_side_to_move][type];
+        Bitboard pieces = m_pieces[+m_side_to_move][type];
         while(pieces != 0) {
             int from_square = lsb(pieces);
 
             Bitboard attacks = _attacks_from(PieceType(type), m_side_to_move, from_square);
-            attacks &= ~m_occupied[(int)m_side_to_move]; // remove attacks on ally pieces
+            attacks &= ~m_occupied[+m_side_to_move]; // remove attacks on ally pieces
 
             while(attacks != 0){
                 int to_square = lsb(attacks);
@@ -359,7 +415,7 @@ std::vector<Move> Board::generate_legal_moves() const {
     std::vector<Move> legal_moves;
     std::vector<Move> pseudo_legal = generate_pseudo_legal_moves();
 
-    Board copy_board(*this, false); // create a copy without copying move history
+    Board copy_board(*this, false /* Move history not copied */);
     for (Move move : pseudo_legal) {
         copy_board.make_move(move);
         if (!copy_board.in_check(m_side_to_move)) {
@@ -371,7 +427,199 @@ std::vector<Move> Board::generate_legal_moves() const {
     return legal_moves;
 }
 
-Move Board::move_from_uci(const UCI& uci) {
+bool Board::is_square_attacked(const int square, const PlayerColor by) const {
+    Bitboard target = MASK_SQUARE[square];
+
+    if (MASK_PAWN_ATTACKS[1-(+by)][square] & m_pieces[+by][+PieceType::Pawn]) {
+        return true;
+    }
+
+    if (MASK_KNIGHT_ATTACKS[square] & m_pieces[+by][+PieceType::Knight]) {
+        return true;
+    }
+
+    if (MASK_KING_ATTACKS[square] & m_pieces[+by][+PieceType::King]) {
+        return true;
+    }
+
+    Bitboard bishops = m_pieces[+by][+PieceType::Bishop] | m_pieces[+by][+PieceType::Queen];
+    if (_attacks_from(PieceType::Bishop, by, square) & bishops) {
+        return true;
+    }
+
+    Bitboard rooks = m_pieces[+by][+PieceType::Rook] | m_pieces[+by][+PieceType::Queen];
+    if (_attacks_from(PieceType::Rook, by, square) & rooks) {
+        return true;
+    }
+
+    return false;
+}
+
+bool Board::in_check(const PlayerColor side) const {
+    return is_square_attacked(lsb(m_pieces[+side][+PieceType::King]), side == PlayerColor::White ? PlayerColor::Black : PlayerColor::White);
+}
+
+void Board::make_move(const Move move) {
+    int from = MoveEncoding::from_sq(move);
+    int to = MoveEncoding::to_sq(move);
+    PieceType piece = MoveEncoding::piece(move);
+    PieceType captured = MoveEncoding::capture(move);
+    PieceType promo = MoveEncoding::promo(move);
+    bool is_castle = MoveEncoding::is_castle(move);
+    bool is_ep = MoveEncoding::is_en_passant(move);
+
+    // Store to state history
+    m_state_history.emplace_back(StoredState(move, m_castling_rights, m_en_passant_square, m_halfmoves));
+
+    // Remove moved piece from the origin square
+    m_pieces[+m_side_to_move][+piece] &= ~MASK_SQUARE[from];
+    m_occupied[+m_side_to_move] &= ~MASK_SQUARE[from];
+    m_piece_on_square[from] = PieceType::None;
+
+    // Remove captured piece (and handle en passant)
+    if (captured != PieceType::None) {
+        int capture_square = is_ep ? (from & 0b111000 /* rank of from */) | (to & 0b000111 /* file of to */) : to;
+        m_pieces[1-(+m_side_to_move)][+captured] &= ~MASK_SQUARE[capture_square];
+        m_occupied[1-(+m_side_to_move)] &= ~MASK_SQUARE[capture_square];
+        m_piece_on_square[capture_square] = PieceType::None;
+    }
+
+    // Place moved piece / promotion on target square
+    m_occupied[+m_side_to_move] |= MASK_SQUARE[to];
+    if (promo == PieceType::None) {
+        m_pieces[+m_side_to_move][+piece] |= MASK_SQUARE[to]; // Place original piece
+        m_piece_on_square[to] = piece;
+    }
+    else {
+        m_pieces[+m_side_to_move][+promo] |= MASK_SQUARE[to]; // Place promoted piece
+        m_piece_on_square[to] = promo;
+    }
+
+    // Handle castling
+    if(is_castle) {
+        // Remove rook
+        int rook_square = to > from ? from + 3 : from - 4;
+        m_pieces[+m_side_to_move][+PieceType::Rook] &= ~MASK_SQUARE[rook_square];
+        m_occupied[+m_side_to_move] &= ~MASK_SQUARE[rook_square];
+        m_piece_on_square[rook_square] = PieceType::None;
+
+        // Add rook
+        rook_square = (to + from) >> 1;
+        m_pieces[+m_side_to_move][+PieceType::Rook] |= MASK_SQUARE[rook_square];
+        m_occupied[+m_side_to_move] |= MASK_SQUARE[rook_square];
+        m_piece_on_square[rook_square] = PieceType::Rook;
+    }
+
+    // Update all occupancy status
+    m_occupied_all = m_occupied[0] | m_occupied[1];
+
+    // Update castling rights
+    if(piece == PieceType::King) {
+        m_castling_rights &= ~CASTLE_FLAG[+m_side_to_move][KING_SIDE];
+        m_castling_rights &= ~CASTLE_FLAG[+m_side_to_move][QUEEN_SIDE];
+    }
+
+    if(from == ROOK_SQUARE[+m_side_to_move][QUEEN_SIDE])       m_castling_rights &= ~CASTLE_FLAG[+m_side_to_move][QUEEN_SIDE];
+    else if(from == ROOK_SQUARE[+m_side_to_move][KING_SIDE])   m_castling_rights &= ~CASTLE_FLAG[+m_side_to_move][KING_SIDE];
+
+    if(to == ROOK_SQUARE[1-(+m_side_to_move)][QUEEN_SIDE])     m_castling_rights &= ~CASTLE_FLAG[1-(+m_side_to_move)][QUEEN_SIDE];
+    else if(to == ROOK_SQUARE[1-(+m_side_to_move)][KING_SIDE]) m_castling_rights &= ~CASTLE_FLAG[1-(+m_side_to_move)][KING_SIDE];
+
+    // Update en passant square
+    if(piece == PieceType::Pawn && std::abs(to-from) == 16) {
+        m_en_passant_square = (to + from) >> 1;
+    }
+    else{
+        m_en_passant_square = -1;
+    }
+
+    // Update move counters
+    if (piece == PieceType::Pawn || captured != PieceType::None) {
+        m_halfmoves = 0; // reset on pawn move or capture
+    } else {
+        m_halfmoves++;
+    }
+    if (m_side_to_move == PlayerColor::Black) m_fullmoves++;
+
+    // Next turn
+    m_side_to_move = (m_side_to_move == PlayerColor::White) ? PlayerColor::Black: PlayerColor::White;
+}
+
+bool Board::undo_move() {
+    if(m_state_history.size() == 0) return false;
+
+    // Get previous state
+    const StoredState& state = m_state_history.back();
+
+    int from = MoveEncoding::from_sq(state.move);
+    int to = MoveEncoding::to_sq(state.move);
+    PieceType piece = MoveEncoding::piece(state.move);
+    PieceType captured = MoveEncoding::capture(state.move);
+    PieceType promo = MoveEncoding::promo(state.move);
+    bool is_castle = MoveEncoding::is_castle(state.move);
+    bool is_ep = MoveEncoding::is_en_passant(state.move);
+
+    // Previous turn
+    m_side_to_move = (m_side_to_move == PlayerColor::White) ? PlayerColor::Black: PlayerColor::White;
+
+    // Remove moved piece / promotion on target square
+    m_occupied[+m_side_to_move] &= ~MASK_SQUARE[to];
+    m_piece_on_square[to] = PieceType::None;
+    if (promo != PieceType::None) {
+        m_pieces[+m_side_to_move][+promo] &= ~MASK_SQUARE[to]; // Remove promoted piece
+    }
+    else {
+        m_pieces[+m_side_to_move][+piece] &= ~MASK_SQUARE[to]; // Remove original piece
+    }
+
+    // Add captured piece (and handle en passant)
+    if (captured != PieceType::None) {
+        int capture_square = is_ep ? (from & 0b111000 /* rank of from */) | (to & 0b000111 /* file of to */) : to;
+        m_pieces[1-(+m_side_to_move)][+captured] |= MASK_SQUARE[capture_square];
+        m_occupied[1-(+m_side_to_move)] |= MASK_SQUARE[capture_square];
+        m_piece_on_square[capture_square] = captured;
+    }
+
+    // Add moved piece to the origin square
+    m_pieces[+m_side_to_move][+piece] |= MASK_SQUARE[from];
+    m_occupied[+m_side_to_move] |= MASK_SQUARE[from];
+    m_piece_on_square[from] = piece;
+
+    // Handle castling
+    if(is_castle) {
+        // Remove rook
+        int rook_square = (to + from) >> 1;
+        m_pieces[+m_side_to_move][+PieceType::Rook] &= ~MASK_SQUARE[rook_square];
+        m_occupied[+m_side_to_move] &= ~MASK_SQUARE[rook_square];
+        m_piece_on_square[rook_square] = PieceType::None;
+
+        // Add rook
+        rook_square = to > from ? from + 3 : from - 4;
+        m_pieces[+m_side_to_move][+PieceType::Rook] |= MASK_SQUARE[rook_square];
+        m_occupied[+m_side_to_move] |= MASK_SQUARE[rook_square];
+        m_piece_on_square[rook_square] = PieceType::Rook;
+    }
+
+    // Update all occupancy status
+    m_occupied_all = m_occupied[0] | m_occupied[1];
+
+    // Update castling status
+    m_castling_rights = state.castling_rights;
+
+    // Update en passant square
+    m_en_passant_square = state.en_passant_square;
+
+    // Update move counters
+    if (m_side_to_move == PlayerColor::Black) {
+        m_fullmoves--;
+    }
+    m_halfmoves = state.halfmoves;
+
+    m_state_history.pop_back(); // remove used history
+    return true;
+}
+
+Move Board::move_from_uci(const UCI& uci) const {
     // Validate format
     if (uci.size() < 4 || uci.size() > 5) {
         throw std::invalid_argument("Board::move_from_uci() - invalid input UCI!");
@@ -413,144 +661,6 @@ Move Board::move_from_uci(const UCI& uci) {
     }
 
     return MoveEncoding::encode(from, to, piece, capture, promo, is_castle, is_ep);
-}
-
-bool Board::is_square_attacked(const int square, const PlayerColor by) const {
-    Bitboard target = MASK_SQUARE[square];
-
-    if (MASK_PAWN_ATTACKS[1-(int)by][square] & m_pieces[(int)by][(int)PieceType::Pawn]) {
-        return true;
-    }
-
-    if (MASK_KNIGHT_ATTACKS[square] & m_pieces[(int)by][(int)PieceType::Knight]) {
-        return true;
-    }
-
-    if (MASK_KING_ATTACKS[square] & m_pieces[(int)by][(int)PieceType::King]) {
-        return true;
-    }
-
-    Bitboard bishops = m_pieces[(int)by][(int)PieceType::Bishop] | m_pieces[(int)by][(int)PieceType::Queen];
-    if (_attacks_from(PieceType::Bishop, by, square) & bishops) {
-        return true;
-    }
-
-    Bitboard rooks = m_pieces[(int)by][(int)PieceType::Rook] | m_pieces[(int)by][(int)PieceType::Queen];
-    if (_attacks_from(PieceType::Rook, by, square) & rooks) {
-        return true;
-    }
-
-    return false;
-}
-
-bool Board::in_check(const PlayerColor side) const {
-    Bitboard king_bb = m_pieces[(int)side][(int)PieceType::King];
-    if (!king_bb) throw std::runtime_error("Bitboard broken internal state: missing king piece!");
-    int king_square = lsb(king_bb);
-    return is_square_attacked(king_square, side == PlayerColor::White ? PlayerColor::Black : PlayerColor::White);
-}
-
-void Board::make_move(const Move move) {
-    int from = MoveEncoding::from_sq(move);
-    int to = MoveEncoding::to_sq(move);
-    PieceType piece = MoveEncoding::piece(move);
-    PieceType captured = MoveEncoding::capture(move);
-    PieceType promo = MoveEncoding::promo(move);
-
-    // Store to state history
-    m_state_history.emplace_back(StoredState(move, m_halfmoves));
-
-    int side = (int)m_side_to_move;
-    int opp = 1 - side;
-
-    // Remove moved piece from the origin square
-    m_pieces[side][(int)piece] &= ~MASK_SQUARE[from];
-    m_occupied[side] &= ~MASK_SQUARE[from];
-    m_piece_on_square[from] = PieceType::None;
-
-    // Remove captured piece if needed
-    if (captured != PieceType::None) {
-        m_pieces[opp][(int)captured] &= ~MASK_SQUARE[to];
-        m_occupied[opp] &= ~MASK_SQUARE[to];
-    }
-
-    // Handle promotion
-    if (promo != PieceType::None) {
-        m_pieces[side][(int)promo] |= MASK_SQUARE[to]; // Place promoted piece
-        m_piece_on_square[to] = promo;
-    }
-    else {
-        m_pieces[side][(int)piece] |= MASK_SQUARE[to]; // Place original piece
-        m_piece_on_square[to] = piece;
-    }
-    m_occupied[side] |= MASK_SQUARE[to];
-
-    // Update all occupancy status
-    m_occupied_all = m_occupied[0] | m_occupied[1];
-
-    // Update move counters
-    if (piece == PieceType::Pawn || captured != PieceType::None) {
-        m_halfmoves = 0; // reset on pawn move or capture
-    } else {
-        m_halfmoves++;
-    }
-    if (m_side_to_move == PlayerColor::Black) m_fullmoves++;
-
-    // Next turn
-    m_side_to_move = (m_side_to_move == PlayerColor::White) ? PlayerColor::Black: PlayerColor::White;
-}
-
-bool Board::undo_move() {
-    if(m_state_history.size() == 0) return false;
-
-    // Get previous state and move
-    StoredState state = m_state_history.back();
-    m_state_history.pop_back();
-    Move& move = state.move;
-
-    int from = MoveEncoding::from_sq(move);
-    int to = MoveEncoding::to_sq(move);
-    PieceType piece = MoveEncoding::piece(move);
-    PieceType captured = MoveEncoding::capture(move);
-    PieceType promo = MoveEncoding::promo(move);
-
-    // Previous turn
-    m_side_to_move = (m_side_to_move == PlayerColor::White) ? PlayerColor::Black: PlayerColor::White;
-
-    int side = (int)m_side_to_move;
-    int opp = 1 - side;
-
-    // Handle promotion
-    if (promo != PieceType::None) {
-        m_pieces[side][(int)promo] &= ~MASK_SQUARE[to]; // Remove promoted piece
-    }
-    else {
-        m_pieces[side][(int)piece] &= ~MASK_SQUARE[to]; // Remove original piece
-    }
-    m_occupied[side] &= ~MASK_SQUARE[to];
-    m_piece_on_square[to] = PieceType::None;
-
-    // Add captured piece if needed
-    if (captured != PieceType::None) {
-        m_pieces[opp][(int)captured] |= MASK_SQUARE[to];
-        m_occupied[opp] |= MASK_SQUARE[to];
-        m_piece_on_square[to] = captured;
-    }
-
-    // Add moved piece to the origin square
-    m_pieces[side][(int)piece] |= MASK_SQUARE[from];
-    m_occupied[side] |= MASK_SQUARE[from];
-    m_piece_on_square[from] = piece;
-
-    // Update all occupancy status
-    m_occupied_all = m_occupied[0] | m_occupied[1];
-
-    // Update move counters
-    if (m_side_to_move == PlayerColor::Black) {
-        m_fullmoves--;
-    }
-    m_halfmoves = state.halfmoves;
-    return true;
 }
 
 std::optional<Move> Board::get_last_move() const {
@@ -608,7 +718,7 @@ Board::Bitboard Board::_attacks_from(const PieceType type, const PlayerColor col
             return MASK_KING_ATTACKS[square];
 
         case PieceType::Pawn:
-            return MASK_PAWN_ATTACKS[(int)color][square];
+            return MASK_PAWN_ATTACKS[+color][square];
 
         default:
             return 0ULL;
@@ -617,25 +727,55 @@ Board::Bitboard Board::_attacks_from(const PieceType type, const PlayerColor col
     return attacks;
 }
 
-void Board::_init_masks() {
+void Board::_precalc() {
+    // Single square masks
     for (int square = 0; square < 64; square++){
         MASK_SQUARE[square] = 1ULL << square;
     }
 
+    // Castling masks and flags
+    KING_SQUARE[+PlayerColor::White] = 4;
+    KING_SQUARE[+PlayerColor::Black] = 60;
+
+    ROOK_SQUARE[+PlayerColor::White][QUEEN_SIDE] = 0;
+    ROOK_SQUARE[+PlayerColor::Black][QUEEN_SIDE] = 56;
+    ROOK_SQUARE[+PlayerColor::White][KING_SIDE] = 7;
+    ROOK_SQUARE[+PlayerColor::Black][KING_SIDE] = 63;
+
+    CASTLE_FLAG[+PlayerColor::White][QUEEN_SIDE] = 0b0010;
+    CASTLE_FLAG[+PlayerColor::Black][QUEEN_SIDE] = 0b1000;
+    CASTLE_FLAG[+PlayerColor::White][KING_SIDE] = 0b0001;
+    CASTLE_FLAG[+PlayerColor::Black][KING_SIDE] = 0b0100;
+
+    MASK_CASTLE_CLEAR[+PlayerColor::White][QUEEN_SIDE] = 0ULL;
+    MASK_CASTLE_CLEAR[+PlayerColor::Black][QUEEN_SIDE] = 0ULL;
+    for(int i = 1; i <= 3; i++){
+        MASK_CASTLE_CLEAR[+PlayerColor::White][QUEEN_SIDE] |= MASK_SQUARE[KING_SQUARE[+PlayerColor::White]-i];
+        MASK_CASTLE_CLEAR[+PlayerColor::Black][QUEEN_SIDE] |= MASK_SQUARE[KING_SQUARE[+PlayerColor::Black]-i];
+    }
+
+    MASK_CASTLE_CLEAR[+PlayerColor::White][KING_SIDE] = 0ULL;
+    MASK_CASTLE_CLEAR[+PlayerColor::Black][KING_SIDE] = 0ULL;
+    for(int i = 1; i <= 2; i++){
+        MASK_CASTLE_CLEAR[+PlayerColor::White][KING_SIDE] |= MASK_SQUARE[KING_SQUARE[+PlayerColor::White]+i];
+        MASK_CASTLE_CLEAR[+PlayerColor::Black][KING_SIDE] |= MASK_SQUARE[KING_SQUARE[+PlayerColor::Black]+i];
+    }
+
+    // Piece masks
     for (int square = 0; square < 64; square++) {
         int file = file_of(square);
         int rank = rank_of(square);
 
         // Pawn attacks
-        MASK_PAWN_ATTACKS[(int)PlayerColor::White][square] = 0ULL;
-        MASK_PAWN_ATTACKS[(int)PlayerColor::Black][square] = 0ULL;
+        MASK_PAWN_ATTACKS[+PlayerColor::White][square] = 0ULL;
+        MASK_PAWN_ATTACKS[+PlayerColor::Black][square] = 0ULL;
         if (rank < 7) {
-            if (file > 0) MASK_PAWN_ATTACKS[(int)PlayerColor::White][square] |= MASK_SQUARE[square_index(file-1, rank+1)];
-            if (file < 7) MASK_PAWN_ATTACKS[(int)PlayerColor::White][square] |= MASK_SQUARE[square_index(file+1, rank+1)];
+            if (file > 0) MASK_PAWN_ATTACKS[+PlayerColor::White][square] |= MASK_SQUARE[square_index(file-1, rank+1)];
+            if (file < 7) MASK_PAWN_ATTACKS[+PlayerColor::White][square] |= MASK_SQUARE[square_index(file+1, rank+1)];
         }
         if (rank > 0) {
-            if (file > 0) MASK_PAWN_ATTACKS[(int)PlayerColor::Black][square] |= MASK_SQUARE[square_index(file-1, rank-1)];
-            if (file < 7) MASK_PAWN_ATTACKS[(int)PlayerColor::Black][square] |= MASK_SQUARE[square_index(file+1, rank-1)];
+            if (file > 0) MASK_PAWN_ATTACKS[+PlayerColor::Black][square] |= MASK_SQUARE[square_index(file-1, rank-1)];
+            if (file < 7) MASK_PAWN_ATTACKS[+PlayerColor::Black][square] |= MASK_SQUARE[square_index(file+1, rank-1)];
         }
 
         // Knights
