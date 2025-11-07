@@ -79,8 +79,8 @@ void Board::set_from_fen(const FEN& fen) {
     m_halfmoves = 0;
     m_fullmoves = 1;
     m_side_to_move = PlayerColor::White;
-    m_castling_rights = 0b1111; // all rights
-    m_en_passant_square = -1; // none
+    m_castling_rights = 0;
+    m_en_passant_square = -1;
 
     // Parse FEN
     std::istringstream iss(fen);
