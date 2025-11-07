@@ -22,6 +22,7 @@ public:
     /**
      * Create a board from a FEN description.
      * @param fen FEN string
+     * @throw std::invalid_argument if the FEN string is not a valid position.
      */
     explicit Board(const FEN& fen);
 
@@ -35,6 +36,7 @@ public:
     /**
      * Set board configuration from a FEN description. Resets all board state.
      * @param fen FEN string
+     * @throw std::invalid_argument if the FEN string is not a valid position.
      */
     void set_from_fen(const FEN& fen);
 

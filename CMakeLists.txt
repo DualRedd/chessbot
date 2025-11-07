@@ -18,15 +18,23 @@ endif()
 
 # --- SFML ---
 include(FetchContent)
-Set(FETCHCONTENT_QUIET FALSE)
 FetchContent_Declare(SFML
     GIT_REPOSITORY https://github.com/SFML/SFML.git
     GIT_TAG 3.0.2
     GIT_SHALLOW ON
-    GIT_PROGRESS TRUE
 )
 message(STATUS "Fetching SMFL lib - Version 3.0.2")
 FetchContent_MakeAvailable(SFML)
+
+# --- GoogleTest ---
+FetchContent_Declare(googletest
+    GIT_REPOSITORY https://github.com/google/googletest.git
+    GIT_TAG v1.17.0
+    GIT_SHALLOW ON
+)
+message(STATUS "Fetching GoogleTest - Version 1.17.0")
+FetchContent_MakeAvailable(googletest)
+
 
 # --- Include directories ---
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -44,15 +52,26 @@ add_executable(chess_gui
     src/gui/chess_gui.cpp
     src/gui/gui_main.cpp
 )
-target_link_libraries(chess_gui PRIVATE chess_core SFML::Graphics)
+target_link_libraries(chess_gui PRIVATE
+    chess_core
+    SFML::Graphics
+)
 
 # --- Asset copying ---
 add_custom_command(TARGET chess_gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:chess_gui>/assets)
 
+
 # --- Tests ---
 if (BUILD_TESTS)
-    enable_testing()
-    # TODO
+    #enable_testing()
+    
+    add_executable(run_tests
+        tests/test_bitboard.cpp
+    )
+    target_link_libraries(run_tests PRIVATE
+        gtest_main
+        chess_core
+    )
 endif()
