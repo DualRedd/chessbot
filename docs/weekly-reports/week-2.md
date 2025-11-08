@@ -16,7 +16,7 @@ Olen alustavasti aloittanut testaamaan siirtojen generointia ja niiden tekemist�
 Ne vaikuttavat toimivan oikein. Aloitin myös toteuttamaan testikattavuusraporttien luontia.
 C++:n kanssa pieni ärsytys näyttäisi olevan haarautumiskattavuuden mittaaminen, sillä gcov luo haarautumisdataa
 monille riveille, joissa ei ole oikeasti testattavaa haaraa (esim. rivit jotka heittävät jonkun virheen).
-Vähän olen tätä ehtinyt tutkia, ja ilmeisesti lcov:n luomista tracefile-tekstitiedostoista datan voisi poistaa manuaalisesti riveiltä,
+Vähän olen tätä ehtinyt tutkia, ja ilmeisesti lcov:n luomista tracefile-tekstitiedostoista datan voisi poistaa riveiltä,
 joilta ei löydy vaikka if- tai while- lausetta.
 
 Kysymys: Aikataulussa toisella viikolla on kohta "Projektin testikattavuus seurattavissa" - tarkoittaako tämä,
