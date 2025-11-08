@@ -9,11 +9,36 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # --- Options ---
 option(BUILD_TESTS "Build unit tests" ON)
 option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 
 if (ENABLE_ASAN)
     message(STATUS "AddressSanitizer enabled")
     add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
     add_link_options(-fsanitize=address -fno-omit-frame-pointer)
+endif()
+
+if(ENABLE_COVERAGE)
+    message(STATUS "Coverage instrumentation enabled")
+    add_compile_options(--coverage -O0 -g)
+    add_link_options(--coverage)
+
+    find_program(LCOV_EXEC lcov)
+    find_program(GENHTML_EXEC genhtml)
+
+    if(LCOV_EXEC AND GENHTML_EXEC)
+        configure_file(
+            ${CMAKE_SOURCE_DIR}/cmake/coverage.sh.in
+            ${CMAKE_BINARY_DIR}/coverage.sh
+            @ONLY
+        )
+        file(CHMOD ${CMAKE_BINARY_DIR}/coverage.sh FILE_PERMISSIONS
+            OWNER_READ OWNER_WRITE OWNER_EXECUTE
+            GROUP_READ GROUP_EXECUTE
+            WORLD_READ WORLD_EXECUTE
+        )
+    else()
+        message(WARNING "Install lcov for coverage reporting!")
+    endif()
 endif()
 
 # --- SFML ---
@@ -65,7 +90,8 @@ add_custom_command(TARGET chess_gui POST_BUILD
 
 # --- Tests ---
 if (BUILD_TESTS)
-    #enable_testing()
+    include(CTest)
+    enable_testing()
     
     add_executable(run_tests
         tests/test_bitboard.cpp
@@ -74,4 +100,8 @@ if (BUILD_TESTS)
         gtest_main
         chess_core
     )
+
+    # Register to CTest
+    include(GoogleTest)
+    gtest_discover_tests(run_tests)
 endif()

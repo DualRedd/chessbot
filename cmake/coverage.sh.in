@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Running tests..."
+ctest --test-dir "@CMAKE_BINARY_DIR@" --output-on-failure
+
+echo "==> Capturing coverage data..."
+@LCOV_EXEC@ --capture --directory "@CMAKE_BINARY_DIR@" --output-file coverage.info --rc lcov_branch_coverage=1 --quiet 2>&1 | grep -v "Subroutine" || true
+@LCOV_EXEC@ --remove coverage.info '/usr/*' '*/_deps/*' '*/tests/*' --output-file coverage.info --rc lcov_branch_coverage=1 --quiet
+
+echo "==> Generating HTML report..."
+@GENHTML_EXEC@ coverage.info --output-directory coverage-report --rc lcov_branch_coverage=1 --quiet
+
+echo "Coverage report generated at: @CMAKE_BINARY_DIR@/coverage-report/index.html"
+
+echo "==> Coverage summary:"
+@LCOV_EXEC@ --summary coverage.info --rc lcov_branch_coverage=1
