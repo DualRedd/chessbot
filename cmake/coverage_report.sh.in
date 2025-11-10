@@ -23,6 +23,7 @@ mkdir -p "@COVERAGE_DIR@/xml"
 $GCOVR_EXEC \
     -r "@CMAKE_SOURCE_DIR@" \
     --filter "@CMAKE_SOURCE_DIR@/src/.*" \
+    --filter "@CMAKE_SOURCE_DIR@/include/core/.*" \
     --html-details "@COVERAGE_DIR@/html/coverage.html" \
     --xml "@COVERAGE_DIR@/xml/coverage.xml" \
     --branches \
