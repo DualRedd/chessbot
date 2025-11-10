@@ -22,9 +22,10 @@ public:
     /**
      * Create a board from a FEN description.
      * @param fen FEN string
-     * @throw std::invalid_argument if the FEN string is not a valid position.
+     * @param allow_illegal_position if true, an illegal position according to normal chess rules can be set without a thrown exception
+     * @throw std::invalid_argument if the FEN string is not valid OR the position is illegal and allow_illegal_positions is false. 
      */
-    explicit Board(const FEN& fen);
+    explicit Board(const FEN& fen, bool allow_illegal_position = false);
 
     /**
      * Copy constructor. Allows to drop move history.
@@ -36,9 +37,10 @@ public:
     /**
      * Set board configuration from a FEN description. Resets all board state.
      * @param fen FEN string
-     * @throw std::invalid_argument if the FEN string is not a valid position.
+     * @param allow_illegal_position if true, an illegal position according to normal chess rules can be set without a thrown exception
+     * @throw std::invalid_argument if the FEN string is not valid OR the position is illegal and allow_illegal_positions is false. 
      */
-    void set_from_fen(const FEN& fen);
+    void set_from_fen(const FEN& fen, bool allow_illegal_position = false);
 
     /**
      * @return Current board state as a FEN string.
@@ -75,7 +77,7 @@ public:
 
     /**
      * @param side White or Black
-     * @return True if this side's king is in check, else false.
+     * @return True if this side's king(s) is in check, else false.
      */
     bool in_check(const PlayerColor side) const;
 

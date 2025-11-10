@@ -27,6 +27,7 @@ constexpr int KING_SIDE = 1;
 
 
 // Helper functions
+constexpr inline PlayerColor opponent(PlayerColor side) { return side == PlayerColor::White ? PlayerColor::Black : PlayerColor::White; };
 constexpr inline int square_index(int file, int rank)   { return rank * 8 + file; }
 constexpr inline int square_index(char file, char rank) { return (rank - '1') * 8 + (file - 'a'); }
 constexpr inline int rank_of(int square)                { return square / 8; }
@@ -38,8 +39,8 @@ constexpr inline void pop_lsb(Board::Bitboard &b)       { b &= b - 1; }
 Board::StoredState::StoredState(Move move_, uint8_t castling_rights_, int8_t en_passant_square_, int halfmoves_) 
     : move(move_), castling_rights(castling_rights_), en_passant_square(en_passant_square_), halfmoves(halfmoves_) {}
 
-Board::Board(const FEN& fen){
-    set_from_fen(fen);
+Board::Board(const FEN& fen, bool allow_illegal_position){
+    set_from_fen(fen, allow_illegal_position);
 }
 
 Board::Board(const Board& other, bool copy_history) {
@@ -59,7 +60,7 @@ Board::Board(const Board& other, bool copy_history) {
     }
 }
 
-void Board::set_from_fen(const FEN& fen) {
+void Board::set_from_fen(const FEN& fen, bool allow_illegal_position) {
     // Clear the board
     m_occupied_all = 0ULL;
     for(int player = 0; player < 2; player++){
@@ -84,8 +85,17 @@ void Board::set_from_fen(const FEN& fen) {
 
     // Parse FEN
     std::istringstream iss(fen);
-    std::string board_part, side_part, castling_part, ep_part;
-    iss >> board_part >> side_part >> castling_part >> ep_part >> m_halfmoves >> m_fullmoves;
+    std::string board_part, side_part, castling_part, ep_part, token;
+    iss >> board_part >> side_part >> castling_part >> ep_part;
+    if(iss >> token){
+        try { m_halfmoves = std::stoul(token); }
+        catch(...) { throw std::invalid_argument("Board::set_from_fen() - FEN invalid halfmove count!"); }
+    }
+    if(iss >> token){
+        try {  m_fullmoves = std::stoul(token); }
+        catch(...) { throw std::invalid_argument("Board::set_from_fen() - FEN invalid fullmove count!"); }
+    }
+
     if (board_part.empty()) {
         throw std::invalid_argument("Board::set_from_fen() - FEN missing board description!");
     }
@@ -143,12 +153,8 @@ void Board::set_from_fen(const FEN& fen) {
 
         file++;
     }
-
     if (rank != 0 || file != 8) {
         throw std::invalid_argument("Board::set_from_fen() - FEN invalid board description!");
-    }
-    if (white_king_count != 1 || black_king_count != 1) {
-        throw std::invalid_argument("Board::set_from_fen() - FEN invalid board description! Board must have exactly one king per side.");
     }
 
     // 2. Side to move (optional)
@@ -204,19 +210,30 @@ void Board::set_from_fen(const FEN& fen) {
 
     // 4. En passant target (optional)
     if (!ep_part.empty() && ep_part != "-") {
-        if (ep_part.size() == 2 && ep_part[0] >= 'a' && ep_part[0] <= 'h' && (ep_part[1] == '3' || ep_part[1] == '6')){
-            int file = ep_part[0] - 'a';
-            int rank = ep_part[1] - '1';
-            m_en_passant_square = square_index(file, rank);
-            if(m_side_to_move == PlayerColor::White && (m_pieces[+PlayerColor::Black][+PieceType::Pawn] | MASK_SQUARE[square_index(file, rank-1)]) == 0ULL) {
-                throw std::invalid_argument("Board::set_from_fen() - FEN invalid en passant description! Missing black pawn below en passant target.");
-            }
-            if(m_side_to_move == PlayerColor::Black && (m_pieces[+PlayerColor::White][+PieceType::Pawn] | MASK_SQUARE[square_index(file, rank+1)]) == 0ULL) {
-                throw std::invalid_argument("Board::set_from_fen() - FEN invalid en passant description! Missing white pawn above en passant target.");
-            }
-        }
-        else {
+        if(ep_part.size() != 2 || ep_part[0] < 'a' || ep_part[0] > 'h' || ep_part[1] != (m_side_to_move == PlayerColor::White ? '6' : '3')){
             throw std::invalid_argument("Board::set_from_fen() - FEN invalid en passant description!");
+        }
+
+        int file = ep_part[0] - 'a';
+        int rank = ep_part[1] - '1';
+        m_en_passant_square = square_index(file, rank);
+        int m_capture_piece_square = m_en_passant_square + (m_side_to_move == PlayerColor::White ? -8 : 8);
+        
+        if((m_pieces[+opponent(m_side_to_move)][+PieceType::Pawn] & MASK_SQUARE[m_capture_piece_square]) == 0ULL){
+            throw std::invalid_argument("Board::set_from_fen() - FEN invalid en passant description! Missing pawn to capture.");
+        }
+    }
+
+    // Position legality check
+    if(!allow_illegal_position){
+        if (white_king_count != 1 || black_king_count != 1) {
+            throw std::invalid_argument("Board::set_from_fen() - illegal FEN! Board must have exactly one king per side.");
+        }
+        if(in_check(opponent(m_side_to_move))){
+            throw std::invalid_argument("Board::set_from_fen() - illegal FEN! King capture possible.");
+        }
+        if(PROMOTION_RANKS & (m_pieces[+PlayerColor::White][+PieceType::Pawn] | m_pieces[+PlayerColor::Black][+PieceType::Pawn])){
+            throw std::invalid_argument("Board::set_from_fen() - illegal FEN! Unpromoted pawn on last rank.");
         }
     }
 }
@@ -456,7 +473,14 @@ bool Board::is_square_attacked(const int square, const PlayerColor by) const {
 }
 
 bool Board::in_check(const PlayerColor side) const {
-    return is_square_attacked(lsb(m_pieces[+side][+PieceType::King]), side == PlayerColor::White ? PlayerColor::Black : PlayerColor::White);
+    Bitboard king_board = m_pieces[+side][+PieceType::King];
+    while(king_board != 0ULL){
+        if(is_square_attacked(lsb(m_pieces[+side][+PieceType::King]), opponent(side))){
+            return true;
+        }
+        pop_lsb(king_board);
+    } 
+    return false;
 }
 
 void Board::make_move(const Move move) {
