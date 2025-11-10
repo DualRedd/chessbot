@@ -264,7 +264,7 @@ FEN Board::to_fen() const {
                 case PieceType::Rook:   symbol = 'r'; break;
                 case PieceType::Queen:  symbol = 'q'; break;
                 case PieceType::King:   symbol = 'k'; break;
-                default: throw std::runtime_error("Board::to_fen() - Unknown piece type encountered during conversion!");
+                default: throw std::runtime_error("Board::to_fen() - Unknown piece type encountered during conversion!"); // GCOVR_EXCL_LINE: should never be hit
             }
 
             if (piece.color == PlayerColor::White){
