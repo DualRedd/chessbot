@@ -18,26 +18,35 @@ if (ENABLE_ASAN)
 endif()
 
 if(ENABLE_COVERAGE)
-    message(STATUS "Coverage instrumentation enabled")
-    add_compile_options(--coverage -O0 -g)
-    add_link_options(--coverage)
-
     find_program(LCOV_EXEC lcov)
     find_program(GENHTML_EXEC genhtml)
+    find_package(Python3 COMPONENTS Interpreter)
 
-    if(LCOV_EXEC AND GENHTML_EXEC)
+    if(LCOV_EXEC AND GENHTML_EXEC AND Python3_FOUND)
+        message(STATUS "Coverage instrumentation enabled")
+        add_compile_options(--coverage -O0 -g)
+        add_link_options(--coverage)
+
+        set(COVERAGE_DIR ${CMAKE_BINARY_DIR}/coverage)
+        set(COVERAGE_EXCLUDE /usr/* */_deps/* */tests/*)
+        string(REPLACE ";" "\" \"" COVERAGE_EXCLUDE_QUOTED "\"${COVERAGE_EXCLUDE}\"")
+
         configure_file(
-            ${CMAKE_SOURCE_DIR}/cmake/coverage.sh.in
-            ${CMAKE_BINARY_DIR}/coverage.sh
+            ${CMAKE_SOURCE_DIR}/cmake/coverage_report.sh.in
+            ${CMAKE_BINARY_DIR}/coverage_report.sh
             @ONLY
         )
-        file(CHMOD ${CMAKE_BINARY_DIR}/coverage.sh FILE_PERMISSIONS
+        file(CHMOD ${CMAKE_BINARY_DIR}/coverage_report.sh FILE_PERMISSIONS
             OWNER_READ OWNER_WRITE OWNER_EXECUTE
             GROUP_READ GROUP_EXECUTE
             WORLD_READ WORLD_EXECUTE
         )
+        
+        file(COPY ${CMAKE_SOURCE_DIR}/cmake/coverage_filter.py
+            DESTINATION ${COVERAGE_DIR}
+        )
     else()
-        message(WARNING "Install lcov for coverage reporting!")
+        message(WARNING "Install lcov, genhtml, and python3 to generate coverage reports!")
     endif()
 endif()
 
