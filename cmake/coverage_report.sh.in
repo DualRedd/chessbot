@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+echo "==> Cleaning old coverage data..."
+find "@CMAKE_BINARY_DIR@" \
+    -name "*.gcda" \
+    -type f -delete \
+
+echo "==> Running tests..."
+ctest --test-dir "@CMAKE_BINARY_DIR@" \
+    --output-on-failure
+
 echo "==> Capturing coverage data..."
 @LCOV_EXEC@ --capture \
             --directory @CMAKE_BINARY_DIR@ \
