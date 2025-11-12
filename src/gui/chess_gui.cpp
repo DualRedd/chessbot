@@ -2,7 +2,8 @@
 
 ChessGUI::ChessGUI(int window_width, int window_height)
     : m_window(sf::VideoMode(sf::Vector2u(window_width, window_height)), "Chess"),
-      m_board_view()
+      m_game(),
+      m_board_view(m_game)
 {
     m_window.setFramerateLimit(60);
 
@@ -11,6 +12,11 @@ ChessGUI::ChessGUI(int window_width, int window_height)
     int pos_x = (static_cast<int>(desktop.size.x) - window_width) / 2;
     int pos_y = (static_cast<int>(desktop.size.y) - window_height) / 2;
     m_window.setPosition(sf::Vector2i(pos_x, pos_y));
+
+    // Callbacks
+    m_board_view.setOnMoveAttemptCallback([this](const UCI& uci){
+        return this->onUserMoveAttempt(uci);
+    });
 
     // UI element setup
     _updateElementTransforms();
@@ -34,10 +40,20 @@ void ChessGUI::_handleEvents() {
             resized = true;
         }
 
+        else if (const auto& key_press_event = event->getIf<sf::Event::KeyPressed>()) {
+            if (key_press_event->scancode == sf::Keyboard::Scan::R) {
+                m_game.undo_move(); /** DEBUGGING */
+            }
+        }
+
         m_board_view.handleEvent(event.value());
     }
 
     if(resized) _onWindowResize();
+}
+
+bool ChessGUI::onUserMoveAttempt(const UCI& uci) {
+    return m_game.play_move(uci);
 }
 
 void ChessGUI::_draw() {

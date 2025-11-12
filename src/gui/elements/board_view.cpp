@@ -1,9 +1,12 @@
 #include "gui/elements/board_view.hpp"
 #include "gui/assets.hpp"
 
-BoardView::BoardView() : m_game() {
-    m_game.new_board();
+BoardView::BoardView(const Chess& game) : m_game(game) {
     _loadAssets();
+}
+
+void BoardView::setOnMoveAttemptCallback(std::function<bool(const UCI&)> callback) {
+    onMoveAttempt = std::move(callback);
 }
 
 void BoardView::setPosition(const sf::Vector2f position) {
@@ -16,15 +19,7 @@ void BoardView::setSize(const float size) {
 }
 
 void BoardView::handleEvent(const sf::Event& event) {
-    m_legal_move_played = false;
-
-    
-    if (const auto& key_press_event = event.getIf<sf::Event::KeyPressed>()) {
-        if (key_press_event->scancode == sf::Keyboard::Scan::R) {
-            m_game.undo_move(); /** DEBUGGING */
-        }
-    }
-    
+    m_move_applied = false;
 
     if (const auto& mouse_press_event = event.getIf<sf::Event::MouseButtonPressed>()) {
         if (mouse_press_event->button == sf::Mouse::Button::Left) {
@@ -40,8 +35,8 @@ void BoardView::handleEvent(const sf::Event& event) {
         _onMouseMoved(mouse_move_event->position);
     }
 
-    if(m_legal_move_played) {
-        // Selection should be reset when a legal move was played. 
+    if(m_move_applied) {
+        // Selection should be reset when a move was applied. 
         // This prevents the user from immediately dragging the just moved piece.
         m_selected_tile.reset();
     }
@@ -137,7 +132,7 @@ void BoardView::_onPieceMoved(const Chess::Tile& from, const Chess::Tile& to, co
     }
 
     UCI move = Chess::uci_create(from, to, promotion);
-    m_legal_move_played = m_game.play_move(move);
+    m_move_applied = onMoveAttempt(move);
 }
 
 

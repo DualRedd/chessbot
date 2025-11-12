@@ -11,7 +11,14 @@
  */
 class BoardView {
 public:
-    BoardView();
+    BoardView(const Chess& game);
+
+    /**
+     * Set a callback for handling dragging moves.
+     * @param callback Callback accepting the move as a UCI string.
+     * The callback should return whether the move was actually applied.
+     */
+    void setOnMoveAttemptCallback(std::function<bool(const UCI&)> callback);
 
     /**
      * Set the position of the top left corner of the board.
@@ -97,7 +104,7 @@ private:                                                             /** Private
     sf::Vector2f _board_to_screen_space(const Chess::Tile& tile) const;
 
 private:
-    Chess m_game;
+    const Chess& m_game;
 
     // Transform
     sf::Vector2f m_position;
@@ -114,7 +121,8 @@ private:
     bool m_is_dragging = false;
     sf::Vector2f m_drag_screen_position;
     std::optional<Chess::Tile> m_selected_tile;
-    bool m_legal_move_played = false;
+    std::function<bool(const UCI&)> onMoveAttempt = [](const UCI&) { return false; };
+    bool m_move_applied = false;
 
     // Promotion
     const static inline PieceType s_promotion_pieces[4] = { PieceType::Queen, PieceType::Rook, PieceType::Knight, PieceType::Bishop };

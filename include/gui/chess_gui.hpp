@@ -28,6 +28,11 @@ private:
     void _handleEvents();
 
     /**
+     * Handle GUI user moves.
+     */
+    bool onUserMoveAttempt(const UCI& uci);
+
+    /**
      * Draw next frame.
      */
     void _draw();
@@ -44,6 +49,7 @@ private:
 
 private:
     sf::RenderWindow m_window;
+    Chess m_game;
 
     // GUI elements
     BoardView m_board_view;
