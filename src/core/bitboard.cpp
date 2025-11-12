@@ -328,8 +328,7 @@ std::vector<Move> Board::generate_pseudo_legal_moves() const {
         // Queenside
         if((m_castling_rights & CASTLE_FLAG[+m_side_to_move][QUEEN_SIDE])
             && (MASK_CASTLE_CLEAR[+m_side_to_move][QUEEN_SIDE] & m_occupied_all) == 0
-            && !is_square_attacked(KING_SQUARE[+m_side_to_move]-1, PlayerColor(1-(+m_side_to_move)))
-            && !is_square_attacked(KING_SQUARE[+m_side_to_move]-2, PlayerColor(1-(+m_side_to_move))))
+            && !is_square_attacked(KING_SQUARE[+m_side_to_move]-1, PlayerColor(1-(+m_side_to_move))))
         {
             moves.emplace_back(MoveEncoding::encode(KING_SQUARE[+m_side_to_move], KING_SQUARE[+m_side_to_move] - 2, PieceType::King,
                                                     PieceType::None, PieceType::None, true /* castle flag */, false /* en passant */));
@@ -338,8 +337,7 @@ std::vector<Move> Board::generate_pseudo_legal_moves() const {
         // Kingside
         if((m_castling_rights & CASTLE_FLAG[+m_side_to_move][KING_SIDE])
             && (MASK_CASTLE_CLEAR[+m_side_to_move][KING_SIDE] & m_occupied_all) == 0
-            && !is_square_attacked(KING_SQUARE[+m_side_to_move]+1, PlayerColor(1-(+m_side_to_move)))
-            && !is_square_attacked(KING_SQUARE[+m_side_to_move]+2, PlayerColor(1-(+m_side_to_move))))
+            && !is_square_attacked(KING_SQUARE[+m_side_to_move]+1, PlayerColor(1-(+m_side_to_move))))
         {
             moves.emplace_back(MoveEncoding::encode(KING_SQUARE[+m_side_to_move], KING_SQUARE[+m_side_to_move] + 2, PieceType::King,
                                                     PieceType::None, PieceType::None, true /* castle flag */, false /* en passant */));
