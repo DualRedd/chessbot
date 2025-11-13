@@ -27,8 +27,8 @@ ChessGUI::ChessGUI(int window_width, int window_height)
 
 void ChessGUI::run() {
     while (m_window.isOpen()) {
-        _handeAIMoves();
         _handleEvents();
+        _handeAIMoves();
         _draw();
     }
 }
@@ -87,7 +87,10 @@ bool ChessGUI::onUserMoveAttempt(const UCI& uci) {
 
 void ChessGUI::_draw() {
     m_window.clear();
-    m_board_view.draw(m_window);
+
+    bool is_human_turn = !m_ai_move.has_value();
+    m_board_view.draw(m_window, is_human_turn);
+
     m_window.display();
 }
 

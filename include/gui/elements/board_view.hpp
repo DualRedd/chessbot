@@ -40,8 +40,9 @@ public:
     /**
      * Draw the board.
      * @param window target for drawing
+     * @param is_human_turn conditional drawing for human moves
      * */
-    void draw(sf::RenderWindow& window);
+    void draw(sf::RenderWindow& window, bool is_human_turn = true);
 
 private:                                                             /** Events */
     void _onMouseLeftDown(const sf::Vector2i& screen_position);

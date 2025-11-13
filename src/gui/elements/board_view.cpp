@@ -42,7 +42,7 @@ void BoardView::handleEvent(const sf::Event& event) {
     }
 }
 
-void BoardView::draw(sf::RenderWindow& window) {
+void BoardView::draw(sf::RenderWindow& window, bool is_human_turn) {
     _drawBoard(window);
 
     // Stationary pieces
@@ -55,7 +55,7 @@ void BoardView::draw(sf::RenderWindow& window) {
     }
     
     // Legal move highlights
-    if(m_selected_tile.has_value()){
+    if(is_human_turn && m_selected_tile.has_value()){
         _drawLegalMoves(window, m_selected_tile.value());
     }
 
