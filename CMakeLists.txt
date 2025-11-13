@@ -64,10 +64,11 @@ FetchContent_MakeAvailable(googletest)
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
 # --- Core library ---
-add_library(chess_core
+add_library(chess_core SHARED
     src/core/types.cpp
     src/core/bitboard.cpp
     src/core/chess.cpp
+    src/core/ai_player.cpp
 )
 
 # --- GUI executable ---

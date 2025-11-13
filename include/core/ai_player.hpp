@@ -1,9 +1,23 @@
 #pragma once
 
-#include "board.hpp"
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <future>
+
+#include "types.hpp"
 
 /**
- * Abstract base class representing an AI player
+ * Represents the state of an asynchronous move request.
+ */
+struct AsyncMoveTask {
+    std::atomic_bool done{false};
+    std::exception_ptr error;
+    UCI result;
+};
+
+/**
+ * Base class representing an AI player.
  */
 class AIPlayer {
 public:
@@ -12,8 +26,15 @@ public:
 
     /**
      * Request a move from this player.
-     * @param board board representation.
-     * @return A move response.
+     * @param board board FEN representation.
+     * @return UCI move response.
      */
-    virtual Move getMove(const Board& board) = 0;
+    virtual UCI getMove(const FEN& fen) = 0;
+
+    /**
+     * Request a move from this player asynchronously.
+     * @param board board FEN representation.
+     * @return AsyncMoveTask indicating response status.
+     */
+    std::shared_ptr<AsyncMoveTask> getMoveAsync(const FEN& fen);
 };
