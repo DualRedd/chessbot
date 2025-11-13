@@ -71,6 +71,12 @@ add_library(chess_core SHARED
     src/core/ai_player.cpp
 )
 
+# --- AIs ---
+add_library(chess_bots SHARED
+    src/ai/registry.cpp
+    src/ai/ai_random.cpp
+)
+
 # --- GUI executable ---
 add_executable(chess_gui
     src/gui/elements/board_view.cpp
