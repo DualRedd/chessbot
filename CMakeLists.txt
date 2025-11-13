@@ -85,6 +85,7 @@ add_executable(chess_gui
 )
 target_link_libraries(chess_gui PRIVATE
     chess_core
+    chess_bots
     SFML::Graphics
 )
 

@@ -1,8 +1,10 @@
 #pragma once
 
 #include "../core/chess.hpp"
+#include "../core/ai_player.hpp"
 #include "elements/board_view.hpp"
 
+#include <thread>
 #include <SFML/Graphics.hpp>
 
 /**
@@ -28,6 +30,11 @@ private:
     void _handleEvents();
 
     /**
+     * Handle getting and applying AI moves.
+     */
+    void _handeAIMoves();
+
+    /**
      * Handle GUI user moves.
      */
     bool onUserMoveAttempt(const UCI& uci);
@@ -49,7 +56,12 @@ private:
 
 private:
     sf::RenderWindow m_window;
+
+    // Game
     Chess m_game;
+    std::optional<std::unique_ptr<AIPlayer>> m_white_ai;
+    std::optional<std::unique_ptr<AIPlayer>> m_black_ai;
+    std::optional<std::shared_ptr<AsyncMoveTask>> m_ai_move;
 
     // GUI elements
     BoardView m_board_view;

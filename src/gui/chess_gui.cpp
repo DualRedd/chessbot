@@ -1,4 +1,5 @@
 #include "gui/chess_gui.hpp"
+#include "ai/registry.hpp"
 
 ChessGUI::ChessGUI(int window_width, int window_height)
     : m_window(sf::VideoMode(sf::Vector2u(window_width, window_height)), "Chess"),
@@ -20,10 +21,13 @@ ChessGUI::ChessGUI(int window_width, int window_height)
 
     // UI element setup
     _updateElementTransforms();
+
+    m_black_ai = AIRegistry::create("Random"); // configurable ai later
 }
 
 void ChessGUI::run() {
     while (m_window.isOpen()) {
+        _handeAIMoves();
         _handleEvents();
         _draw();
     }
@@ -52,7 +56,32 @@ void ChessGUI::_handleEvents() {
     if(resized) _onWindowResize();
 }
 
+void ChessGUI::_handeAIMoves() {
+    auto& cur_ai = m_game.get_side_to_move() == PlayerColor::White ? m_white_ai : m_black_ai;
+
+    if(!m_ai_move.has_value() && cur_ai.has_value()) {
+        m_ai_move = cur_ai.value()->getMoveAsync(m_game.get_board_as_fen());
+    }
+
+    if (m_ai_move.has_value() && m_ai_move.value()->done) {
+        if (m_ai_move.value()->error){
+            std::rethrow_exception(m_ai_move.value()->error);
+        }
+        else {
+            m_game.play_move(m_ai_move.value()->result);
+        }
+        m_ai_move.reset();
+    }
+}
+
 bool ChessGUI::onUserMoveAttempt(const UCI& uci) {
+    PlayerColor turn = m_game.get_side_to_move();
+    if(turn == PlayerColor::White && m_white_ai != std::nullopt){
+        return false;
+    }
+    if(turn == PlayerColor::Black && m_black_ai != std::nullopt){
+        return false;
+    }
     return m_game.play_move(uci);
 }
 
