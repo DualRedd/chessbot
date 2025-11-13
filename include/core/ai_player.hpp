@@ -1,9 +1,6 @@
 #pragma once
 
-#include <thread>
 #include <atomic>
-#include <mutex>
-#include <future>
 
 #include "types.hpp"
 

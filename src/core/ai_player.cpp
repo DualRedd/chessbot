@@ -1,5 +1,8 @@
 #include "core/ai_player.hpp"
 
+#include <thread>
+#include <memory>
+
 std::shared_ptr<AsyncMoveTask> AIPlayer::getMoveAsync(const FEN& fen) {
     auto task = std::make_shared<AsyncMoveTask>();
 
