@@ -1,12 +1,9 @@
 #pragma once
 
 #include <string>
+#include <cstdint>
 
-// UCI standard
-using UCI = std::string;
-
-// FEN standard
-using FEN = std::string;
+#include "standards.hpp"
 
 // Move encoding (32 bits)
 using Move = uint32_t;
