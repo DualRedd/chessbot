@@ -2,8 +2,8 @@
 
 #include <thread>
 
-std::shared_ptr<AsyncMoveTask> AIPlayer::compute_move_async() {
-    auto task = std::make_shared<AsyncMoveTask>();
+std::shared_ptr<AsyncMoveCompute> AIPlayer::compute_move_async() {
+    auto task = std::make_shared<AsyncMoveCompute>();
 
     std::thread([this, task]() {
         try {

@@ -73,7 +73,7 @@ private:
     Chess m_game;
     std::optional<std::unique_ptr<AIPlayer>> m_white_ai;
     std::optional<std::unique_ptr<AIPlayer>> m_black_ai;
-    std::optional<std::shared_ptr<AsyncMoveTask>> m_ai_move;
+    std::optional<std::shared_ptr<AsyncMoveCompute>> m_ai_move;
 
     // GUI elements
     BoardView m_board_view;

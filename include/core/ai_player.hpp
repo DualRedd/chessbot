@@ -8,7 +8,7 @@
 /**
  * Represents the state of an asynchronous move request.
  */
-struct AsyncMoveTask {
+struct AsyncMoveCompute {
     std::atomic_bool done{false};
     std::exception_ptr error;
     UCI result;
@@ -50,7 +50,7 @@ public:
 
     /**
      * Compute a move on the current board asynchronously.
-     * @return AsyncMoveTask indicating response status.
+     * @return AsyncMoveCompute indicating response status.
      */
-    std::shared_ptr<AsyncMoveTask> compute_move_async();
+    std::shared_ptr<AsyncMoveCompute> compute_move_async();
 };
