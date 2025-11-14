@@ -30,14 +30,26 @@ private:
     void _handle_events();
 
     /**
-     * Handle getting and applying AI moves.
+     * Handle getting AI moves.
      */
-    void _hande_ai_moves();
+    void _handle_ai_moves();
 
     /**
      * Handle GUI user moves.
      */
     bool _on_gui_move(const UCI& uci);
+
+    /**
+     * Try applying a move on the board.
+     * @return true if succesfull
+     */
+    bool _try_make_move(const UCI& move);
+
+    /**
+     * Try undoing a move on the board.
+     * @return true if succesfull
+     */
+    bool _try_undo_move();
 
     /**
      * Draw next frame.

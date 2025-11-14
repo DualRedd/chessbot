@@ -22,13 +22,15 @@ ChessGUI::ChessGUI(int window_width, int window_height)
     // UI element setup
     _update_element_transforms();
 
-    m_black_ai = AIRegistry::create("Random"); // configurable ai later
+    // configurable ai later
+    m_black_ai = AIRegistry::create("Random"); 
+    m_black_ai.value()->set_board(m_game.get_board_as_fen());
 }
 
 void ChessGUI::run() {
     while (m_window.isOpen()) {
         _handle_events();
-        _hande_ai_moves();
+        _handle_ai_moves();
         _draw();
     }
 }
@@ -46,7 +48,7 @@ void ChessGUI::_handle_events() {
 
         else if (const auto& key_press_event = event->getIf<sf::Event::KeyPressed>()) {
             if (key_press_event->scancode == sf::Keyboard::Scan::R) {
-                m_game.undo_move(); /** DEBUGGING */
+                _try_undo_move(); /** DEBUGGING */
             }
         }
 
@@ -56,19 +58,19 @@ void ChessGUI::_handle_events() {
     if(resized) _on_window_resize();
 }
 
-void ChessGUI::_hande_ai_moves() {
+void ChessGUI::_handle_ai_moves() {
     auto& cur_ai = m_game.get_side_to_move() == PlayerColor::White ? m_white_ai : m_black_ai;
 
     if(!m_ai_move.has_value() && cur_ai.has_value()) {
-        m_ai_move = cur_ai.value()->getMoveAsync(m_game.get_board_as_fen());
+        m_ai_move = cur_ai.value()->compute_move_async();
     }
 
     if (m_ai_move.has_value() && m_ai_move.value()->done) {
         if (m_ai_move.value()->error){
             std::rethrow_exception(m_ai_move.value()->error);
         }
-        else {
-            m_game.play_move(m_ai_move.value()->result);
+        if(!_try_make_move(m_ai_move.value()->result)){
+            throw std::runtime_error("ChessGUI::_handle_ai_moves() - AI gave illegal move!");
         }
         m_ai_move.reset();
     }
@@ -82,7 +84,35 @@ bool ChessGUI::_on_gui_move(const UCI& uci) {
     if(turn == PlayerColor::Black && m_black_ai != std::nullopt){
         return false;
     }
-    return m_game.play_move(uci);
+    return _try_make_move(uci);
+}
+
+
+bool ChessGUI::_try_make_move(const UCI& move) {
+    bool success = m_game.play_move(move);
+    if(!success) return false;
+
+    if(m_white_ai.has_value()) {
+        m_white_ai.value()->apply_move(move);
+    }
+    if(m_black_ai.has_value()) {
+        m_black_ai.value()->apply_move(move);
+    }
+    return true;
+}
+
+
+bool ChessGUI::_try_undo_move() {
+    bool success = m_game.undo_move();
+    if(!success) return false;
+
+    if(m_white_ai.has_value()) {
+        m_white_ai.value()->undo_move();
+    }
+    if(m_black_ai.has_value()) {
+        m_black_ai.value()->undo_move();
+    }
+    return true;
 }
 
 void ChessGUI::_draw() {

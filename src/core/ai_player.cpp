@@ -2,12 +2,12 @@
 
 #include <thread>
 
-std::shared_ptr<AsyncMoveTask> AIPlayer::getMoveAsync(const FEN& fen) {
+std::shared_ptr<AsyncMoveTask> AIPlayer::compute_move_async() {
     auto task = std::make_shared<AsyncMoveTask>();
 
-    std::thread([this, fen, task]() {
+    std::thread([this, task]() {
         try {
-            task->result = getMove(fen);
+            task->result = compute_move();
         }
         catch (...) {
             task->error = std::current_exception();

@@ -10,13 +10,30 @@ void registerRandomAI() {
     AIRegistry::registerAI("Random", {}, createRandomAI);
 }
 
+void RandomAI::set_board(const FEN& fen) {
+    m_board.set_from_fen(fen);
+}
 
-UCI RandomAI::getMove(const FEN& fen) {
-    Board board(fen);
-    auto moves = board.generate_legal_moves();
+void RandomAI::apply_move(const UCI& uci_move) {
+    Move move = m_board.move_from_uci(uci_move);
+    auto legal_moves = m_board.generate_legal_moves();
+    if(std::find(legal_moves.begin(), legal_moves.end(), move) == legal_moves.end()){
+        throw std::invalid_argument("RandomAI::apply_move() - illegal move!");
+    }
+    m_board.make_move(move);
+}
+
+void RandomAI::undo_move() {
+    if(!m_board.undo_move()){
+        throw std::invalid_argument("RandomAI::undo_move() - no previous move!");
+    }
+}
+
+UCI RandomAI::compute_move() {
+    auto moves = m_board.generate_legal_moves();
 
     if (moves.empty()) {
-        throw std::runtime_error("RandomAI::getMove() - no legal moves!");
+        throw std::runtime_error("RandomAI::compute_move() - no legal moves!");
     }
 
     static thread_local std::mt19937 rng(std::random_device{}());

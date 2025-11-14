@@ -23,16 +23,34 @@ public:
     virtual ~AIPlayer() = default;
 
     /**
-     * Request a move from this player.
+     * Set the board state.
      * @param board board FEN representation.
-     * @return UCI move response.
+     * @throw std::invalid_argument if the board could not be set
      */
-    virtual UCI getMove(const FEN& fen) = 0;
+    virtual void set_board(const FEN& fen) = 0;
 
     /**
-     * Request a move from this player asynchronously.
-     * @param board board FEN representation.
+     * Apply a move to the current board.
+     * @param move UCI move string
+     * @throw std::invalid_argument if the move could not be applied
+     */
+    virtual void apply_move(const UCI& move) = 0;
+
+    /**
+     * Undo a move on the current board.
+     * @throw std::invalid_argument if a move could not be undone
+     */
+    virtual void undo_move() = 0;
+
+    /**
+     * Compute a move on the current board.
+     * @return UCI move response.
+     */
+    virtual UCI compute_move() = 0;
+
+    /**
+     * Compute a move on the current board asynchronously.
      * @return AsyncMoveTask indicating response status.
      */
-    std::shared_ptr<AsyncMoveTask> getMoveAsync(const FEN& fen);
+    std::shared_ptr<AsyncMoveTask> compute_move_async();
 };
