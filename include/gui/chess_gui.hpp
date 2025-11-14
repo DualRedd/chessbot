@@ -27,17 +27,17 @@ private:
     /**
      * Handle window events.
      */
-    void _handleEvents();
+    void _handle_events();
 
     /**
      * Handle getting and applying AI moves.
      */
-    void _handeAIMoves();
+    void _hande_ai_moves();
 
     /**
      * Handle GUI user moves.
      */
-    bool onUserMoveAttempt(const UCI& uci);
+    bool _on_gui_move(const UCI& uci);
 
     /**
      * Draw next frame.
@@ -47,12 +47,12 @@ private:
     /**
      * Update view to match resized window.
      */
-    void _onWindowResize();
+    void _on_window_resize();
 
     /**
      * Update element transforms to current view.
      */
-    void _updateElementTransforms();
+    void _update_element_transforms();
 
 private:
     sf::RenderWindow m_window;

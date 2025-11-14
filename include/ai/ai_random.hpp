@@ -1,7 +1,7 @@
 #pragma once
 
 #include "registry.hpp"
-#include "../core/bitboard.hpp"
+#include "../core/board.hpp"
 
 void registerRandomAI();
 

@@ -66,7 +66,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 # --- Core library ---
 add_library(chess_core SHARED
     src/core/types.cpp
-    src/core/bitboard.cpp
+    src/core/board.cpp
     src/core/chess.cpp
     src/core/ai_player.cpp
 )
@@ -101,7 +101,7 @@ if (BUILD_TESTS)
     enable_testing()
     
     add_executable(run_tests
-        tests/test_bitboard.cpp
+        tests/test_board.cpp
     )
     target_link_libraries(run_tests PRIVATE
         gtest_main

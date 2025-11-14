@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "core/bitboard.hpp"
+#include "core/board.hpp"
 
 #include <functional>
 

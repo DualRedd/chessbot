@@ -1,4 +1,4 @@
-#include "core/bitboard.hpp"
+#include "core/board.hpp"
 
 #include <cstring>
 #include <sstream>

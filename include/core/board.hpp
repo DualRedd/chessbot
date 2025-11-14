@@ -118,7 +118,6 @@ private:
         int8_t en_passant_square;
         uint halfmoves;
         StoredState(Move move, uint8_t castling_rights, int8_t en_passant_square, int halfmoves);
-        // TODO: castling rights, en passant
     };
 
     /**

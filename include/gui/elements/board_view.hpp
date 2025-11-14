@@ -18,24 +18,24 @@ public:
      * @param callback Callback accepting the move as a UCI string.
      * The callback should return whether the move was actually applied.
      */
-    void setOnMoveAttemptCallback(std::function<bool(const UCI&)> callback);
+    void _set_on_move_callback(std::function<bool(const UCI&)> callback);
 
     /**
      * Set the position of the top left corner of the board.
      * @param position screen space position
      */
-    void setPosition(const sf::Vector2f position);
+    void set_position(const sf::Vector2f position);
 
     /**
      * Set the size of the board.
      * @param size width and height of the board
      */
-    void setSize(const float size);
+    void set_size(const float size);
 
     /**
      * @param event the event to handle
      * */
-    void handleEvent(const sf::Event& event);
+    void handle_event(const sf::Event& event);
 
     /**
      * Draw the board.
@@ -45,48 +45,48 @@ public:
     void draw(sf::RenderWindow& window, bool is_human_turn = true);
 
 private:                                                             /** Events */
-    void _onMouseLeftDown(const sf::Vector2i& screen_position);
-    void _onMouseLeftUp(const sf::Vector2i& screen_position);
-    void _onMouseMoved(const sf::Vector2i& screen_position);
-    void _onPieceMoved(const Chess::Tile& from, const Chess::Tile& to, const PieceType promotion = PieceType::None);
+    void _on_mouse_left_down(const sf::Vector2i& screen_position);
+    void _on_mouse_left_up(const sf::Vector2i& screen_position);
+    void _on_mouse_moved(const sf::Vector2i& screen_position);
+    void _on_piece_moved(const Chess::Tile& from, const Chess::Tile& to, const PieceType promotion = PieceType::None);
 
 private:                                                             /** Drawing */
     /**
      * Draw tiles with possible highlighting.
      * @param window target for drawing
      */
-    void _drawBoard(sf::RenderWindow& window);
+    void _draw_board(sf::RenderWindow& window);
 
     /**
      * Draw a vertical select of pieces.
      * @param window target for drawing
      */
-    void _drawPromotionPrompt(sf::RenderWindow& window);
+    void _draw_promotion_prompt(sf::RenderWindow& window);
 
     /** 
      * @param window target for drawing
      * @param tile The tile which the moves are drawn for.
      */
-    void _drawLegalMoves(sf::RenderWindow& window, const Chess::Tile& tile);
+    void _draw_legal_moves(sf::RenderWindow& window, const Chess::Tile& tile);
 
     /**
      * @param window target for drawing
      * @param piece the piece to draw
      * @param position draw position in screen space
      */
-    void _drawPiece(sf::RenderWindow& window, const Piece& piece, const sf::Vector2f& position);
+    void _draw_piece(sf::RenderWindow& window, const Piece& piece, const sf::Vector2f& position);
 
     /**
      * @param tile A board tile.
      * @return The color this tile should be rendered with.
      */
-    sf::Color _getTileColor(const Chess::Tile& tile);
+    sf::Color _get_tile_color(const Chess::Tile& tile);
 
 private:                                                             /** Private helpers */
     /**
      * Load pieces and other UI assets.
      */
-    void _loadAssets();
+    void _load_assets();
 
     /**
      * Convert a screen position to a board tile.

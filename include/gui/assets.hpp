@@ -26,7 +26,7 @@ namespace fs = std::filesystem;
 /**
  * @return Path to this executable. fs::current_path() as fallback.
  */
-fs::path getExecutableDir() {
+fs::path get_executable_dir() {
     fs::path exePath = fs::current_path(); // fallback
 #if defined(_WIN32)
     std::vector<char> buf(MAX_PATH);
@@ -57,8 +57,8 @@ fs::path getExecutableDir() {
  * @param asset_path relative path within the 'assets' folder next to this executable
  * @return SFML texture rasterized from the svg
  */
-sf::Texture loadSVG(const fs::path& asset_path) {
-    fs::path file = getExecutableDir() / "assets" / asset_path;
+sf::Texture load_svg(const fs::path& asset_path) {
+    fs::path file = get_executable_dir() / "assets" / asset_path;
 
     // Parse SVG
     NSVGimage* image = nsvgParseFromFile(file.c_str(), "px", 96.0f);
