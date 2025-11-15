@@ -84,14 +84,14 @@ public:
     /**
      * Apply a Move on this board.
      * @param move the move.
-     * @note You should use generate_legal_moves(). Illegal moves can cause the internal state of the
-     * bitboard to become invalid. There are no safety checks for performance reasons.
+     * @note Illegal moves can cause internal state to become invalid.
+     * There are no safety checks for performance reasons.
      */
     void make_move(const Move move);
 
     /**
      * Undo the last move on this board.
-     * @return True if there was a previous move and it was undone, else false.
+     * @return True if there was a previous move (and it was undone), else false.
      */
     bool undo_move();
 
