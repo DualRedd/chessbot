@@ -3,6 +3,7 @@
 Algoritmit ja tekoäly -kurssin projekti
 
 [![CI](https://github.com/DualRedd/chessbot/actions/workflows/CI.yml/badge.svg)](https://github.com/DualRedd/chessbot/actions/workflows/CI.yml)
+[![codecov](https://codecov.io/gh/DualRedd/chessbot/graph/badge.svg?token=7J0XBWX4DI)](https://codecov.io/gh/DualRedd/chessbot)
 
 # Dokumentaatio
 
