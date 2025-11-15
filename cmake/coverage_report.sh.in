@@ -8,28 +8,20 @@ if [[ -z "$GCOVR_EXEC" ]]; then
     exit 1
 fi
 
-echo "==> Cleaning old coverage data..."
-find "@CMAKE_BINARY_DIR@" \
-    -name "*.gcda" \
-    -type f -delete \
-
-echo "==> Running tests..."
-ctest --test-dir "@CMAKE_BINARY_DIR@" \
-    --output-on-failure
-
 echo "==> Capturing coverage data..."
-mkdir -p "@COVERAGE_DIR@/html"
-mkdir -p "@COVERAGE_DIR@/xml"
+mkdir -p "@COVERAGE_REPORT_DIR@/html"
+mkdir -p "@COVERAGE_REPORT_DIR@/xml"
 $GCOVR_EXEC \
+    -d "@CMAKE_BINARY_DIR@" \
     -r "@CMAKE_SOURCE_DIR@" \
     --filter "@CMAKE_SOURCE_DIR@/src/core/.*" \
     --filter "@CMAKE_SOURCE_DIR@/include/core/.*" \
-    --html-details "@COVERAGE_DIR@/html/coverage.html" \
-    --xml "@COVERAGE_DIR@/xml/coverage.xml" \
+    --html-details "@COVERAGE_REPORT_DIR@/html/coverage.html" \
+    --xml "@COVERAGE_REPORT_DIR@/xml/coverage.xml" \
     --txt-metric branch \
     --exclude-throw-branches \
     --print-summary
 
 echo "Coverage report generated:"
-echo "  HTML: @COVERAGE_DIR@/html/coverage.html"
-echo "  XML : @COVERAGE_DIR@/xml/coverage.xml"
+echo "  HTML: @COVERAGE_REPORT_DIR@/html/coverage.html"
+echo "  XML : @COVERAGE_REPORT_DIR@/xml/coverage.xml"

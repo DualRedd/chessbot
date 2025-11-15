@@ -22,16 +22,24 @@ if(ENABLE_COVERAGE)
     add_compile_options(--coverage -O0 -g)
     add_link_options(--coverage)
 
-    set(COVERAGE_DIR ${CMAKE_BINARY_DIR}/reports)
-    configure_file(
+    set(COVERAGE_REPORT_DIR ${CMAKE_BINARY_DIR}/reports)
+
+    function(configure_executable_script input output)
+        configure_file(${input} ${output} @ONLY)
+        file(CHMOD ${output} FILE_PERMISSIONS 
+            OWNER_READ OWNER_WRITE OWNER_EXECUTE
+            GROUP_READ GROUP_EXECUTE
+            WORLD_READ WORLD_EXECUTE
+        )
+    endfunction()
+
+    configure_executable_script(
         ${CMAKE_SOURCE_DIR}/cmake/coverage_report.sh.in
         ${CMAKE_BINARY_DIR}/coverage_report.sh
-        @ONLY
     )
-    file(CHMOD ${CMAKE_BINARY_DIR}/coverage_report.sh FILE_PERMISSIONS
-        OWNER_READ OWNER_WRITE OWNER_EXECUTE
-        GROUP_READ GROUP_EXECUTE
-        WORLD_READ WORLD_EXECUTE
+    configure_executable_script(
+        ${CMAKE_SOURCE_DIR}/cmake/clean_coverage.sh.in
+        ${CMAKE_BINARY_DIR}/clean_coverage.sh
     )
 
     find_program(GCOVR_EXEC gcovr)

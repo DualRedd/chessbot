@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "==> Cleaning old coverage data..."
+find "@CMAKE_BINARY_DIR@" \
+    -name "*.gcda" \
+    -type f -delete \

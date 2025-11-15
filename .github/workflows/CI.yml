@@ -26,14 +26,24 @@ jobs:
               cmake make ${{ matrix.compiler }} g++ lcov \
               libxrandr-dev libxcursor-dev libxi-dev libudev-dev \
               libfreetype-dev libflac-dev libvorbis-dev \
-              libgl1-mesa-dev libegl1-mesa-dev
+              libgl1-mesa-dev libegl1-mesa-dev \
+              gcovr
 
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
 
       - name: Build
         run: cmake --build build -- -j$(nproc)
 
       - name: Run tests
         run: ctest --test-dir build --output-on-failure
+
+      - name: Generate coverage
+        run: ./build/coverage_report.sh
+      
+      - name: Upload coverage to Codecov
+        if: success()
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: bash <(curl -s https://codecov.io/bash) -f build/reports/xml/coverage.xml
 
