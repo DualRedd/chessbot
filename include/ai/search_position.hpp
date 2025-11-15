@@ -30,9 +30,10 @@ public:
     PlayerColor get_side_to_move() const;
 
     /**
+     * @param ordered whether to apply move ordering
      * @return All pseudo-legal moves in the current position.
      */
-    std::vector<Move> generate_pseudo_legal_moves() const;
+    std::vector<Move> generate_pseudo_legal_moves(bool ordered) const;
 
     /**
      * @return All legal moves in the current position.

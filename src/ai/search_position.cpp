@@ -1,6 +1,8 @@
 #include "ai/search_position.hpp"
 #include "ai/pst.hpp"
 
+#include <algorithm>
+
 // Helper functions
 constexpr inline PlayerColor opponent(PlayerColor side) { return side == PlayerColor::White ? PlayerColor::Black : PlayerColor::White; };
 constexpr inline int square_for_side(int square, PlayerColor side) { return (side == PlayerColor::White) ? square : (63 - square); };
@@ -21,8 +23,26 @@ PlayerColor SearchPosition::get_side_to_move() const {
     return m_board.get_side_to_move();
 }
 
-std::vector<Move> SearchPosition::generate_pseudo_legal_moves() const {
-    return m_board.generate_pseudo_legal_moves();
+std::vector<Move> SearchPosition::generate_pseudo_legal_moves(bool ordered) const {
+    std::vector<Move> moves = m_board.generate_pseudo_legal_moves();
+    if(!ordered) return moves;
+
+    std::sort(moves.begin(), moves.end(), [](Move a, Move b) {
+        // 1. Captures
+        bool a_capture = MoveEncoding::capture(a) != PieceType::None;
+        bool b_capture = MoveEncoding::capture(b) != PieceType::None;
+        if (a_capture != b_capture) return a_capture;
+
+        // 2. Promotions
+        bool a_promo = MoveEncoding::promo(a) != PieceType::None;
+        bool b_promo = MoveEncoding::promo(b) != PieceType::None;
+        if (a_promo != b_promo) return a_promo;
+
+        // 3. Rest
+        return false;
+    });
+
+    return moves;
 }
 
 std::vector<Move> SearchPosition::generate_legal_moves() const {

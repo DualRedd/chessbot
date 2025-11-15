@@ -30,7 +30,7 @@ void MinimaxAI::undo_move() {
 }
 
 UCI MinimaxAI::compute_move() {
-    auto pseudo_moves = m_position.generate_pseudo_legal_moves();
+    auto pseudo_moves = m_position.generate_pseudo_legal_moves(true);
     if(pseudo_moves.size() == 0){
         throw std::invalid_argument("MinimaxAI::compute_move() - no legal moves!");
     }
@@ -60,7 +60,7 @@ int MinimaxAI::_alphaBeta(int alpha, int beta, int depth_left) {
     if(depth_left == 0) return m_position.get_eval();
 
     PlayerColor side = m_position.get_side_to_move();
-    for(const Move& move : m_position.generate_pseudo_legal_moves()){
+    for(const Move& move : m_position.generate_pseudo_legal_moves(true)){
         m_position.make_move(move);
         if(!m_position.in_check(side)){
             int score = -_alphaBeta(-beta, -alpha, depth_left - 1);
