@@ -26,7 +26,7 @@ $GCOVR_EXEC \
     --filter "@CMAKE_SOURCE_DIR@/include/core/.*" \
     --html-details "@COVERAGE_DIR@/html/coverage.html" \
     --xml "@COVERAGE_DIR@/xml/coverage.xml" \
-    --branches \
+    --txt-metric branch \
     --exclude-throw-branches \
     --print-summary
 
