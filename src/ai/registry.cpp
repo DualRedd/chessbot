@@ -1,10 +1,12 @@
 #include "ai/registry.hpp"
+
 #include "ai/ai_random.hpp"
+#include "ai/ai_minimax.hpp"
 
 void AIRegistry::registerAIs() {
     registerRandomAI();
+    registerMinimaxAI();
 }
-
 
 void AIRegistry::registerAI(std::string name, std::vector<ConfigField> fields, Factory factory) {
     registry().emplace(std::move(name), Entry{std::move(factory), std::move(fields)});

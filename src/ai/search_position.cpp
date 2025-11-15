@@ -21,12 +21,16 @@ PlayerColor SearchPosition::get_side_to_move() const {
     return m_board.get_side_to_move();
 }
 
-std::vector<Move> SearchPosition::generate_pseudo_legal_moves() const{
+std::vector<Move> SearchPosition::generate_pseudo_legal_moves() const {
     return m_board.generate_pseudo_legal_moves();
 }
 
 std::vector<Move> SearchPosition::generate_legal_moves() const {
     return m_board.generate_legal_moves();
+}
+
+bool SearchPosition::in_check(const PlayerColor side) const {
+    return m_board.in_check(side);
 }
 
 void SearchPosition::make_move(Move move) {
@@ -72,6 +76,10 @@ bool SearchPosition::undo_move() {
     m_eval_history.pop_back();
     m_board.undo_move();
     return true;
+}
+
+Move SearchPosition::move_from_uci(const UCI& uci) const {
+    return m_board.move_from_uci(uci);
 }
 
 int SearchPosition::_material_value(PieceType type) const {

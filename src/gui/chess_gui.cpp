@@ -23,7 +23,7 @@ ChessGUI::ChessGUI(int window_width, int window_height)
     _update_element_transforms();
 
     // configurable ai later
-    m_black_ai = AIRegistry::create("Random"); 
+    m_black_ai = AIRegistry::create("Minimax"); 
     m_black_ai.value()->set_board(m_game.get_board_as_fen());
 }
 
@@ -70,7 +70,7 @@ void ChessGUI::_handle_ai_moves() {
             std::rethrow_exception(m_ai_move.value()->error);
         }
         if(!_try_make_move(m_ai_move.value()->result)){
-            throw std::runtime_error("ChessGUI::_handle_ai_moves() - AI gave illegal move!");
+            throw std::runtime_error(std::string("ChessGUI::_handle_ai_moves() - AI gave illegal move '") + m_ai_move.value()->result + "'!");
         }
         m_ai_move.reset();
     }
@@ -87,7 +87,6 @@ bool ChessGUI::_on_gui_move(const UCI& uci) {
     return _try_make_move(uci);
 }
 
-
 bool ChessGUI::_try_make_move(const UCI& move) {
     bool success = m_game.play_move(move);
     if(!success) return false;
@@ -100,7 +99,6 @@ bool ChessGUI::_try_make_move(const UCI& move) {
     }
     return true;
 }
-
 
 bool ChessGUI::_try_undo_move() {
     bool success = m_game.undo_move();

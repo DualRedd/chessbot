@@ -76,6 +76,7 @@ add_library(chess_bots SHARED
     src/ai/registry.cpp
     src/ai/search_position.cpp
     src/ai/ai_random.cpp
+    src/ai/ai_minimax.cpp
 )
 
 # --- GUI executable ---

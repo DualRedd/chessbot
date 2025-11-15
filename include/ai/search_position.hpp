@@ -40,6 +40,12 @@ public:
     std::vector<Move> generate_legal_moves() const;
 
     /**
+     * @param side White or Black
+     * @return True if this side's king(s) is in check, else false.
+     */
+    bool in_check(const PlayerColor side) const;
+
+    /**
      * Make a move on the board.
      * @param move the move.
      * @note Illegal moves can cause internal state to become invalid.
@@ -49,9 +55,17 @@ public:
 
     /**
      * Undo the last move on this board.
-     * @return True if there was a previous move and it was undone, else false.
+     * @return True if there was a previous move (and it was undone), else false.
      */
     bool undo_move();
+
+    /**
+     * Convert UCI string to a Move on the current position.
+     * @throw invalid_argument if the UCI string is invalid.
+     * @return The move corresponding to the UCI string.
+     * @note The constructed move might not be legal!
+     */
+    Move move_from_uci(const UCI& uci) const;
 
 private:
     /**
