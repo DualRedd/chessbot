@@ -9,12 +9,15 @@ Algoritmit ja tekoäly -kurssin projekti
 
 [Määrittelydokumentti](https://github.com/DualRedd/chessbot/blob/main/docs/project-spefication.md)
 
+[Testausdokumentti](https://github.com/DualRedd/chessbot/blob/main/docs/testing-report.md)
 
 # Viikkoraportit
 
 [Viikko 1](https://github.com/DualRedd/chessbot/blob/main/docs/weekly-reports/week-1.md)
 
 [Viikko 2](https://github.com/DualRedd/chessbot/blob/main/docs/weekly-reports/week-2.md)
+
+[Viikko 3](https://github.com/DualRedd/chessbot/blob/main/docs/weekly-reports/week-3.md)
 
 
 # Building the project from source
