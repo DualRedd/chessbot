@@ -39,10 +39,11 @@ jobs:
         run: ctest --test-dir build --output-on-failure
 
       - name: Generate coverage
+        if: success() && matrix.compiler == 'gcc'
         run: ./build/coverage_report.sh
       
       - name: Upload coverage to Codecov
-        if: success()
+        if: success() && matrix.compiler == 'gcc'
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: bash <(curl -s https://codecov.io/bash) -f build/reports/xml/coverage.xml
