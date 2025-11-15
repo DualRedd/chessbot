@@ -1,7 +1,8 @@
-# Shakkibotti
+# Shakkitekoäly 
 
 Algoritmit ja tekoäly -kurssin projekti
 
+[![CI](https://github.com/DualRedd/chessbot/actions/workflows/CI.yml/badge.svg)](https://github.com/DualRedd/chessbot/actions/workflows/CI.yml)
 
 # Dokumentaatio
 
