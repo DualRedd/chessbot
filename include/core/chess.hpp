@@ -55,7 +55,7 @@ public:
      * Initializes the game with the standard starting position.
      */
     Chess();
-    ~Chess() = default;
+    ~Chess();
 
     /**
      * @param fen FEN notation string describing the board state. See: https://en.wikipedia.org/wiki/Forsyth%E2%80%93Edwards_Notation

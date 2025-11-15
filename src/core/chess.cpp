@@ -82,6 +82,7 @@ Chess::Chess() {
     m_legal_moves.reserve(218); // Max number of legal moves in any position
     new_board(CHESS_START_POSITION);
 }
+Chess::~Chess() = default;
 
 void Chess::new_board(const FEN& position) {
     m_board.set_from_fen(position);

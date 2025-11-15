@@ -19,8 +19,8 @@ struct AsyncMoveCompute {
  */
 class AIPlayer {
 public:
-    AIPlayer() = default;
-    virtual ~AIPlayer() = default;
+    AIPlayer();
+    virtual ~AIPlayer();
 
     /**
      * Set the board state.

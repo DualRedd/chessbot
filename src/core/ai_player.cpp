@@ -2,6 +2,9 @@
 
 #include <thread>
 
+AIPlayer::AIPlayer() = default;
+AIPlayer::~AIPlayer() = default;
+
 std::shared_ptr<AsyncMoveCompute> AIPlayer::compute_move_async() {
     auto task = std::make_shared<AsyncMoveCompute>();
 

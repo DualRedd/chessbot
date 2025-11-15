@@ -16,10 +16,13 @@ $GCOVR_EXEC \
     -r "@CMAKE_SOURCE_DIR@" \
     --filter "@CMAKE_SOURCE_DIR@/src/core/.*" \
     --filter "@CMAKE_SOURCE_DIR@/include/core/.*" \
+    --filter "@CMAKE_SOURCE_DIR@/src/ai/.*" \
+    --filter "@CMAKE_SOURCE_DIR@/src/ai/.*" \
     --html-details "@COVERAGE_REPORT_DIR@/html/coverage.html" \
     --xml "@COVERAGE_REPORT_DIR@/xml/coverage.xml" \
     --txt-metric branch \
     --exclude-throw-branches \
+    --sort uncovered-percent \
     --print-summary
 
 echo "Coverage report generated:"
