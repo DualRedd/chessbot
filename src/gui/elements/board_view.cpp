@@ -5,15 +5,15 @@ BoardView::BoardView(const Chess& game) : m_game(game) {
     _load_assets();
 }
 
-void BoardView::_set_on_move_callback(std::function<bool(const UCI&)> callback) {
+void BoardView::on_move(std::function<bool(const UCI&)> callback) {
     onMoveAttempt = std::move(callback);
 }
 
-void BoardView::set_position(const sf::Vector2f position) {
+void BoardView::set_position(sf::Vector2f position) {
     m_position = position;
 }
 
-void BoardView::set_size(const float size) {
+void BoardView::set_size(float size) {
     m_size = size;
     m_tile_size = size / 8.f;
 }
@@ -70,7 +70,7 @@ void BoardView::draw(sf::RenderWindow& window, bool is_human_turn) {
     }
 }
 
-void BoardView::_on_mouse_left_down(const sf::Vector2i& screen_position) {
+void BoardView::_on_mouse_left_down(sf::Vector2i screen_position) {
     if(const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))){
         if(m_promotion_prompt_active) {
             // Check if user pressed an option or not
@@ -102,7 +102,7 @@ void BoardView::_on_mouse_left_down(const sf::Vector2i& screen_position) {
     }
 }
 
-void BoardView::_on_mouse_left_up(const sf::Vector2i& screen_position){
+void BoardView::_on_mouse_left_up(sf::Vector2i screen_position){
     if(m_is_dragging){
         m_is_dragging = false;
         if(const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))){
@@ -114,13 +114,13 @@ void BoardView::_on_mouse_left_up(const sf::Vector2i& screen_position){
     }
 }
 
-void BoardView::_on_mouse_moved(const sf::Vector2i& screen_position) {
+void BoardView::_on_mouse_moved(sf::Vector2i screen_position) {
     if (m_is_dragging) {
         m_drag_screen_position = sf::Vector2f(screen_position);
     }
 }
 
-void BoardView::_on_piece_moved(const Chess::Tile& from, const Chess::Tile& to, const PieceType promotion) {
+void BoardView::_on_piece_moved(Chess::Tile from, Chess::Tile to, PieceType promotion) {
     if(promotion == PieceType::None){
         // Check if promotion prompt needs to be activated
         bool is_promotion_move = m_game.is_legal_move(Chess::uci_create(from, to, s_promotion_pieces[0]));
@@ -178,7 +178,7 @@ void BoardView::_draw_promotion_prompt(sf::RenderWindow& window) {
     window.draw(sprite);
 }
 
-void BoardView::_draw_legal_moves(sf::RenderWindow& window, const Chess::Tile& tile) {
+void BoardView::_draw_legal_moves(sf::RenderWindow& window, Chess::Tile tile) {
     std::vector<UCI> moves(m_game.get_legal_moves());
     if (moves.empty()) return;
 
@@ -208,7 +208,7 @@ void BoardView::_draw_legal_moves(sf::RenderWindow& window, const Chess::Tile& t
     }
 }
 
-void BoardView::_draw_piece(sf::RenderWindow& window, const Piece& piece, const sf::Vector2f& position) {
+void BoardView::_draw_piece(sf::RenderWindow& window, Piece piece, sf::Vector2f position) {
     if (piece.type == PieceType::None) return;
 
     sf::Sprite sprite(m_texture_pieces[piece]);
@@ -222,7 +222,7 @@ void BoardView::_draw_piece(sf::RenderWindow& window, const Piece& piece, const 
     window.draw(sprite);
 }
 
-sf::Color BoardView::_get_tile_color(const Chess::Tile& tile) {
+sf::Color BoardView::_get_tile_color(Chess::Tile tile) {
     sf::Color color = (tile.rank + tile.file) % 2 == 0 ? s_light_tile_color : s_dark_tile_color;
     
     // Select highligthing
@@ -263,7 +263,7 @@ void BoardView::_load_assets() {
     m_texture_x_icon = load_svg("x_icon.svg");
 }
 
-std::optional<Chess::Tile> BoardView::_screen_to_board_space(const sf::Vector2f& screen_pos) const {
+std::optional<Chess::Tile> BoardView::_screen_to_board_space(sf::Vector2f screen_pos) const {
     sf::FloatRect board_rect = sf::FloatRect(m_position, sf::Vector2f(m_size, m_size));
     if (!board_rect.contains(screen_pos)) return std::nullopt;
 
@@ -276,7 +276,7 @@ std::optional<Chess::Tile> BoardView::_screen_to_board_space(const sf::Vector2f&
     return Chess::Tile(file, rank);
 }
 
-sf::Vector2f BoardView::_board_to_screen_space(const Chess::Tile& tile) const {
+sf::Vector2f BoardView::_board_to_screen_space(Chess::Tile tile) const {
     return sf::Vector2f(m_position.x + (tile.file + 0.5f) *  m_tile_size,
                         m_position.y + (7-tile.rank + 0.5f) * m_tile_size);
 }

@@ -2,8 +2,10 @@
 #include "ai/registry.hpp"
 
 ChessGUI::ChessGUI(int window_width, int window_height)
-    : m_window(sf::VideoMode(sf::Vector2u(window_width, window_height)), "Chess"),
-      m_game(),
+    : m_game(),
+      m_window(sf::VideoMode(sf::Vector2u(window_width, window_height)), "Chess"),
+      m_tgui(m_window),
+      m_side_panel(m_tgui),
       m_board_view(m_game)
 {
     m_window.setFramerateLimit(60);
@@ -15,8 +17,20 @@ ChessGUI::ChessGUI(int window_width, int window_height)
     m_window.setPosition(sf::Vector2i(pos_x, pos_y));
 
     // Callbacks
-    m_board_view._set_on_move_callback([this](const UCI& uci){
+    m_board_view.on_move([this](const UCI& uci){
         return this->_on_gui_move(uci);
+    });
+    m_side_panel.on_new_game_pressed([this](){
+        m_game.new_board();
+        if(m_black_ai.has_value()){
+            m_black_ai.value()->set_board(m_game.get_board_as_fen());
+        }
+        if(m_white_ai.has_value()){
+            m_white_ai.value()->set_board(m_game.get_board_as_fen());
+        }
+    });
+    m_side_panel.on_undo_pressed([this](){
+        _try_undo_move();
     });
 
     // UI element setup
@@ -39,17 +53,13 @@ void ChessGUI::_handle_events() {
     bool resized = false;
 
     while (const std::optional event = m_window.pollEvent()) {
+        m_tgui.handleEvent(*event);
+
         if (event->is<sf::Event::Closed>()){
             m_window.close();
         }
         else if (const auto& resize_event = event->getIf<sf::Event::Resized>()) {
             resized = true;
-        }
-
-        else if (const auto& key_press_event = event->getIf<sf::Event::KeyPressed>()) {
-            if (key_press_event->scancode == sf::Keyboard::Scan::R) {
-                _try_undo_move(); /** DEBUGGING */
-            }
         }
 
         m_board_view.handle_event(event.value());
@@ -60,12 +70,21 @@ void ChessGUI::_handle_events() {
 
 void ChessGUI::_handle_ai_moves() {
     auto& cur_ai = m_game.get_side_to_move() == PlayerColor::White ? m_white_ai : m_black_ai;
+    if(!cur_ai.has_value()) return;
 
-    if(!m_ai_move.has_value() && cur_ai.has_value()) {
+    if(!cur_ai.value()->is_computing() && !m_ai_move.has_value()) {
+        // apply stored moves first to sync state
+        auto& moves = m_game.get_side_to_move() == PlayerColor::White ? m_white_ai_unapplied_moves : m_black_ai_unapplied_moves;
+        for(const UCI& move : moves) {
+            if(move == "UNDO") cur_ai.value()->undo_move();
+            else cur_ai.value()->apply_move(move);
+        }
+        moves.clear();
+
+        // Start move calculation
         m_ai_move = cur_ai.value()->compute_move_async();
     }
-
-    if (m_ai_move.has_value() && m_ai_move.value()->done) {
+    else if(m_ai_move.has_value() && m_ai_move.value()->done) {
         if (m_ai_move.value()->error){
             std::rethrow_exception(m_ai_move.value()->error);
         }
@@ -92,10 +111,10 @@ bool ChessGUI::_try_make_move(const UCI& move) {
     if(!success) return false;
 
     if(m_white_ai.has_value()) {
-        m_white_ai.value()->apply_move(move);
+        m_white_ai_unapplied_moves.push_back(move);
     }
     if(m_black_ai.has_value()) {
-        m_black_ai.value()->apply_move(move);
+        m_black_ai_unapplied_moves.push_back(move);
     }
     return true;
 }
@@ -104,11 +123,12 @@ bool ChessGUI::_try_undo_move() {
     bool success = m_game.undo_move();
     if(!success) return false;
 
+    m_ai_move.reset();
     if(m_white_ai.has_value()) {
-        m_white_ai.value()->undo_move();
+        m_white_ai_unapplied_moves.push_back("UNDO");
     }
     if(m_black_ai.has_value()) {
-        m_black_ai.value()->undo_move();
+        m_black_ai_unapplied_moves.push_back("UNDO");
     }
     return true;
 }
@@ -118,6 +138,8 @@ void ChessGUI::_draw() {
 
     bool is_human_turn = !m_ai_move.has_value();
     m_board_view.draw(m_window, is_human_turn);
+
+    m_tgui.draw();
 
     m_window.display();
 }
@@ -131,12 +153,26 @@ void ChessGUI::_on_window_resize() {
 }
 
 void ChessGUI::_update_element_transforms() {
-    sf::Vector2u window_size = m_window.getSize();
+    sf::Vector2f window_size = sf::Vector2f(m_window.getView().getSize());
+
+    float side_panel_width = std::clamp(window_size.x * 0.4f, 200.f, 320.f);
+    float board_size = std::min(window_size.x - side_panel_width, float(window_size.y));
 
     // Board
-    float board_size_pixels = std::min(window_size.x, window_size.y);
-    sf::Vector2f board_offset((window_size.x - board_size_pixels) / 2.f,
-                              (window_size.y - board_size_pixels) / 2.f);
+    sf::Vector2f board_offset((window_size.x - side_panel_width - board_size) / 2.f,
+                              (window_size.y - board_size) / 2.f);
     m_board_view.set_position(board_offset);
-    m_board_view.set_size(board_size_pixels);
+    m_board_view.set_size(board_size);
+
+
+    // Side panel
+    m_side_panel.set_position(sf::Vector2f(
+        board_offset.x + board_size - 0.1f,
+        0
+    ));
+    m_side_panel.set_size(sf::Vector2f(
+        side_panel_width,
+        window_size.y
+    ));
+
 }

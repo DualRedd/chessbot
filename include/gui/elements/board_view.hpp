@@ -1,10 +1,10 @@
 #pragma once
 
-#include "core/chess.hpp"
-
 #include <map>
 #include <functional>
-#include <SFML/Graphics.hpp>
+#include "SFML/Graphics.hpp"
+
+#include "core/chess.hpp"
 
 /**
  * Interactive board view for playing chess.
@@ -18,19 +18,19 @@ public:
      * @param callback Callback accepting the move as a UCI string.
      * The callback should return whether the move was actually applied.
      */
-    void _set_on_move_callback(std::function<bool(const UCI&)> callback);
+    void on_move(std::function<bool(const UCI&)> callback);
 
     /**
      * Set the position of the top left corner of the board.
      * @param position screen space position
      */
-    void set_position(const sf::Vector2f position);
+    void set_position(sf::Vector2f position);
 
     /**
      * Set the size of the board.
      * @param size width and height of the board
      */
-    void set_size(const float size);
+    void set_size(float size);
 
     /**
      * @param event the event to handle
@@ -45,10 +45,10 @@ public:
     void draw(sf::RenderWindow& window, bool is_human_turn = true);
 
 private:                                                             /** Events */
-    void _on_mouse_left_down(const sf::Vector2i& screen_position);
-    void _on_mouse_left_up(const sf::Vector2i& screen_position);
-    void _on_mouse_moved(const sf::Vector2i& screen_position);
-    void _on_piece_moved(const Chess::Tile& from, const Chess::Tile& to, const PieceType promotion = PieceType::None);
+    void _on_mouse_left_down(sf::Vector2i screen_position);
+    void _on_mouse_left_up(sf::Vector2i screen_position);
+    void _on_mouse_moved(sf::Vector2i screen_position);
+    void _on_piece_moved(Chess::Tile from, Chess::Tile to, PieceType promotion = PieceType::None);
 
 private:                                                             /** Drawing */
     /**
@@ -67,20 +67,20 @@ private:                                                             /** Drawing
      * @param window target for drawing
      * @param tile The tile which the moves are drawn for.
      */
-    void _draw_legal_moves(sf::RenderWindow& window, const Chess::Tile& tile);
+    void _draw_legal_moves(sf::RenderWindow& window, Chess::Tile tile);
 
     /**
      * @param window target for drawing
      * @param piece the piece to draw
      * @param position draw position in screen space
      */
-    void _draw_piece(sf::RenderWindow& window, const Piece& piece, const sf::Vector2f& position);
+    void _draw_piece(sf::RenderWindow& window, Piece piece, sf::Vector2f position);
 
     /**
      * @param tile A board tile.
      * @return The color this tile should be rendered with.
      */
-    sf::Color _get_tile_color(const Chess::Tile& tile);
+    sf::Color _get_tile_color(Chess::Tile tile);
 
 private:                                                             /** Private helpers */
     /**
@@ -94,7 +94,7 @@ private:                                                             /** Private
      * @return The tile containing the coordinate, or no value if out of bounds.
      * @note File 0 rank 0 = bottom left tile of the board
      */
-    std::optional<Chess::Tile> _screen_to_board_space(const sf::Vector2f& screen_pos) const;
+    std::optional<Chess::Tile> _screen_to_board_space(sf::Vector2f screen_pos) const;
 
     /**
      * Convert a board tile to a screen coordinate.
@@ -102,7 +102,7 @@ private:                                                             /** Private
      * @return The coordinate of the center of this tile.
      * @note File 0 rank 0 = bottom left tile of the board
      */
-    sf::Vector2f _board_to_screen_space(const Chess::Tile& tile) const;
+    sf::Vector2f _board_to_screen_space(Chess::Tile tile) const;
 
 private:
     const Chess& m_game;

@@ -1,11 +1,16 @@
 #pragma once
 
+#include <thread>
+
+#include "SFML/Graphics.hpp"
+#include "TGUI/TGUI.hpp"
+#include "TGUI/Backend/SFML-Graphics.hpp"
+
 #include "../core/chess.hpp"
 #include "../core/ai_player.hpp"
-#include "elements/board_view.hpp"
 
-#include <thread>
-#include <SFML/Graphics.hpp>
+#include "elements/board_view.hpp"
+#include "elements/side_panel_view.hpp"
 
 /**
  * GUI for configuring and playing chess interactively with bots.
@@ -67,14 +72,21 @@ private:
     void _update_element_transforms();
 
 private:
-    sf::RenderWindow m_window;
-
     // Game
     Chess m_game;
+
+    // AI
     std::optional<std::unique_ptr<AIPlayer>> m_white_ai;
     std::optional<std::unique_ptr<AIPlayer>> m_black_ai;
     std::optional<std::shared_ptr<AsyncMoveCompute>> m_ai_move;
+    std::vector<std::string> m_white_ai_unapplied_moves; // Special string "UNDO" for undo operations
+    std::vector<std::string> m_black_ai_unapplied_moves; // Special string "UNDO" for undo operations
 
-    // GUI elements
+    // Window and TGUI
+    sf::RenderWindow m_window;
+    tgui::Gui m_tgui;
+
+    // Views
+    SidePanelView m_side_panel;
     BoardView m_board_view;
 };
