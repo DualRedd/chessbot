@@ -15,7 +15,8 @@ void AIPlayer::set_board(const FEN& fen) {
     // Safe call (computing flag always cleared)
     try {
         _set_board(fen);
-    } catch (...) {
+    }
+    catch (...) {
         m_computing.store(false);
         throw;
     }
@@ -31,7 +32,8 @@ void AIPlayer::apply_move(const UCI& move) {
     // Safe call (computing flag always cleared)
     try {
         _apply_move(move);
-    } catch (...) {
+    }
+    catch (...) {
         m_computing.store(false);
         throw;
     }
@@ -47,7 +49,8 @@ void AIPlayer::undo_move() {
     // Safe call (computing flag always cleared)
     try {
         _undo_move();
-    } catch (...) {
+    }
+    catch (...) {
         m_computing.store(false);
         throw;
     }
@@ -67,7 +70,8 @@ UCI AIPlayer::compute_move() {
     UCI move;
     try {
         move = _compute_move();
-    } catch (...) {
+    }
+    catch (...) {
         m_computing.store(false);
         throw;
     }
@@ -77,16 +81,26 @@ UCI AIPlayer::compute_move() {
 }
 
 std::shared_ptr<AsyncMoveCompute> AIPlayer::compute_move_async() {
+    bool expected = false;
+    if (!m_computing.compare_exchange_strong(expected, true)) {
+        throw std::runtime_error("AIPlayer::compute_move_async() - too many concurrent requests!");
+    }
+
+    // Reset stop signal
+    m_stop_requested.store(false);
+
+    // Create shared compute state tracker
     auto task = std::make_shared<AsyncMoveCompute>();
 
     std::thread([this, task]() {
         try {
-            task->result = compute_move();
+            task->result = _compute_move();
         }
         catch (...) {
             task->error = std::current_exception();
         }
         task->done = true;
+        m_computing.store(false);
     }).detach();
 
     return task;
