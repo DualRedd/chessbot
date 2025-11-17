@@ -56,7 +56,20 @@ FetchContent_Declare(SFML
     GIT_SHALLOW ON
 )
 message(STATUS "Fetching SMFL lib - Version 3.0.2")
+set(SFML_BUILD_AUDIO OFF CACHE BOOL "" FORCE)
+set(SFML_BUILD_NETWORK OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(SFML)
+
+# --- TGUI ---
+FetchContent_Declare(TGUI
+    GIT_REPOSITORY https://github.com/texus/TGUI.git
+    GIT_TAG v1.11.0
+    GIT_SHALLOW ON
+)
+message(STATUS "Fetching TGUI lib - Version 1.11.0")
+set(TGUI_BACKEND "SFML_GRAPHICS" CACHE STRING "TGUI backend" FORCE)
+set(TGUI_BUILD_GUI_BUILDER OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(TGUI)
 
 # --- GoogleTest ---
 FetchContent_Declare(googletest
@@ -90,6 +103,7 @@ add_library(chess_bots SHARED
 # --- GUI executable ---
 add_executable(chess_gui
     src/gui/elements/board_view.cpp
+    src/gui/assets.cpp
     src/gui/chess_gui.cpp
     src/gui/gui_main.cpp
 )
@@ -97,6 +111,7 @@ target_link_libraries(chess_gui PRIVATE
     chess_core
     chess_bots
     SFML::Graphics
+    TGUI::TGUI
 )
 
 # --- Asset copying ---
