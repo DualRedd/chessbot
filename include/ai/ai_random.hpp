@@ -9,10 +9,10 @@ class RandomAI : public AIPlayer {
 public:
     RandomAI() = default;
 
-    virtual void set_board(const FEN& fen) override;
-    virtual void apply_move(const UCI& move) override;
-    virtual void undo_move() override;
-    virtual UCI compute_move() override;
+    void _set_board(const FEN& fen) override;
+    void _apply_move(const UCI& move) override;
+    void _undo_move() override;
+    UCI _compute_move() override;
 
 private:
     Board m_board;

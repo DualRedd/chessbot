@@ -10,11 +10,11 @@ void registerRandomAI() {
     AIRegistry::registerAI("Random", {}, createRandomAI);
 }
 
-void RandomAI::set_board(const FEN& fen) {
+void RandomAI::_set_board(const FEN& fen) {
     m_board.set_from_fen(fen);
 }
 
-void RandomAI::apply_move(const UCI& uci_move) {
+void RandomAI::_apply_move(const UCI& uci_move) {
     Move move = m_board.move_from_uci(uci_move);
     auto legal_moves = m_board.generate_legal_moves();
     if(std::find(legal_moves.begin(), legal_moves.end(), move) == legal_moves.end()){
@@ -23,13 +23,13 @@ void RandomAI::apply_move(const UCI& uci_move) {
     m_board.make_move(move);
 }
 
-void RandomAI::undo_move() {
+void RandomAI::_undo_move() {
     if(!m_board.undo_move()){
         throw std::invalid_argument("RandomAI::undo_move() - no previous move!");
     }
 }
 
-UCI RandomAI::compute_move() {
+UCI RandomAI::_compute_move() {
     auto moves = m_board.generate_legal_moves();
 
     if (moves.empty()) {
