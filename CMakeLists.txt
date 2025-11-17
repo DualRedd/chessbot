@@ -103,6 +103,7 @@ add_library(chess_bots SHARED
 # --- GUI executable ---
 add_executable(chess_gui
     src/gui/elements/board_view.cpp
+    src/gui/elements/side_panel_view.cpp
     src/gui/assets.cpp
     src/gui/chess_gui.cpp
     src/gui/gui_main.cpp
