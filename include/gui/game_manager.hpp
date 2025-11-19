@@ -5,7 +5,6 @@
 #include "../core/chess.hpp"
 #include "../core/ai_player.hpp"
 
-
 /**
  * Class handling game state playing human and/or AI moves.
  */
@@ -67,7 +66,14 @@ private:
     std::optional<std::unique_ptr<AIPlayer>> m_white_ai;
     std::optional<std::unique_ptr<AIPlayer>> m_black_ai;
     std::optional<std::shared_ptr<AsyncMoveCompute>> m_ai_move;
-    std::vector<std::string> m_white_ai_unapplied_moves; // Special string "UNDO" for undo operations
-    std::vector<std::string> m_black_ai_unapplied_moves; // Special string "UNDO" for undo operations
+
+    /** Represents an action on the board that needs to be communicated to AI players. */
+    enum class AiAction { 
+        MakeMove = 0,
+        UndoMove = 1,
+        NewGame = 2
+    };
+    std::vector<std::pair<AiAction, std::string>> m_white_ai_actions;
+    std::vector<std::pair<AiAction, std::string>> m_black_ai_actions;
 };
 

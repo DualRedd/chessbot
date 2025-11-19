@@ -13,12 +13,18 @@ void GameManager::update() {
 }
 
 void GameManager::new_game(const FEN& fen) {
-    m_game.new_board();
-    if(m_black_ai.has_value()){
-        m_black_ai.value()->set_board(m_game.get_board_as_fen());
-    }
+    m_game.new_board(fen);
+
+    m_ai_move.reset();
     if(m_white_ai.has_value()){
-        m_white_ai.value()->set_board(m_game.get_board_as_fen());
+        m_white_ai.value()->request_stop();
+        m_white_ai_actions.clear();
+        m_white_ai_actions.push_back(std::make_pair(AiAction::NewGame, fen));
+    }
+    if(m_black_ai.has_value()){
+        m_black_ai.value()->request_stop();
+        m_black_ai_actions.clear();
+        m_black_ai_actions.push_back(std::make_pair(AiAction::NewGame, fen));
     }
 }
 
@@ -39,11 +45,14 @@ bool GameManager::try_undo_move() {
 
     m_ai_move.reset();
     if(m_white_ai.has_value()) {
-        m_white_ai_unapplied_moves.push_back("UNDO");
+        m_white_ai.value()->request_stop();
+        m_white_ai_actions.push_back(std::make_pair(AiAction::UndoMove, ""));
     }
     if(m_black_ai.has_value()) {
-        m_black_ai_unapplied_moves.push_back("UNDO");
+        m_black_ai.value()->request_stop();
+        m_black_ai_actions.push_back(std::make_pair(AiAction::UndoMove, ""));
     }
+
     return true;
 }
 
@@ -53,13 +62,16 @@ void GameManager::_handle_ai_moves() {
     auto& ai = (m_game.get_side_to_move() == PlayerColor::White ? m_white_ai : m_black_ai).value();
 
     if(!ai->is_computing() && !m_ai_move.has_value()) {
-        // apply stored moves first to sync state
-        auto& moves = m_game.get_side_to_move() == PlayerColor::White ? m_white_ai_unapplied_moves : m_black_ai_unapplied_moves;
-        for(const UCI& move : moves) {
-            if(move == "UNDO") ai->undo_move();
-            else ai->apply_move(move);
+        // apply stored actions first to sync state
+        auto& actions = m_game.get_side_to_move() == PlayerColor::White ? m_white_ai_actions : m_black_ai_actions;
+        for(const auto&[action, desc] : actions) {
+            switch (action) {
+                case AiAction::MakeMove: ai->apply_move(desc); break;
+                case AiAction::UndoMove: ai->undo_move(); break;
+                case AiAction::NewGame: ai->set_board(desc); break;
+            }
         }
-        moves.clear();
+        actions.clear();
 
         // Start move calculation
         m_ai_move = ai->compute_move_async();
@@ -81,11 +93,12 @@ bool GameManager::_try_make_move(const UCI& move) {
     if(!success) return false;
 
     if(m_white_ai.has_value()) {
-        m_white_ai_unapplied_moves.push_back(move);
+        m_white_ai_actions.push_back(std::make_pair(AiAction::MakeMove, move));
     }
     if(m_black_ai.has_value()) {
-        m_black_ai_unapplied_moves.push_back(move);
+        m_black_ai_actions.push_back(std::make_pair(AiAction::MakeMove, move));
     }
+
     return true;
 }
 
