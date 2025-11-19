@@ -1,24 +1,24 @@
-#include "gui/elements/board_view.hpp"
+#include "gui/elements/chess_view.hpp"
 #include "gui/assets.hpp"
 
-BoardView::BoardView(const Chess& game) : m_game(game) {
+ChessView::ChessView(const Chess& game) : m_game(game) {
     _load_assets();
 }
 
-void BoardView::on_move(std::function<bool(const UCI&)> callback) {
+void ChessView::on_move(std::function<bool(const UCI&)> callback) {
     onMoveAttempt = std::move(callback);
 }
 
-void BoardView::set_position(sf::Vector2f position) {
+void ChessView::set_position(sf::Vector2f position) {
     m_position = position;
 }
 
-void BoardView::set_size(float size) {
+void ChessView::set_size(float size) {
     m_size = size;
     m_tile_size = size / 8.f;
 }
 
-void BoardView::handle_event(const sf::Event& event) {
+void ChessView::handle_event(const sf::Event& event) {
     m_move_applied = false;
 
     if (const auto& mouse_press_event = event.getIf<sf::Event::MouseButtonPressed>()) {
@@ -42,7 +42,7 @@ void BoardView::handle_event(const sf::Event& event) {
     }
 }
 
-void BoardView::draw(sf::RenderWindow& window, bool is_human_turn) {
+void ChessView::draw(sf::RenderWindow& window, bool is_human_turn) {
     _draw_board(window);
 
     // Stationary pieces
@@ -70,7 +70,7 @@ void BoardView::draw(sf::RenderWindow& window, bool is_human_turn) {
     }
 }
 
-void BoardView::_on_mouse_left_down(sf::Vector2i screen_position) {
+void ChessView::_on_mouse_left_down(sf::Vector2i screen_position) {
     if(const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))){
         if(m_promotion_prompt_active) {
             // Check if user pressed an option or not
@@ -102,7 +102,7 @@ void BoardView::_on_mouse_left_down(sf::Vector2i screen_position) {
     }
 }
 
-void BoardView::_on_mouse_left_up(sf::Vector2i screen_position){
+void ChessView::_on_mouse_left_up(sf::Vector2i screen_position){
     if(m_is_dragging){
         m_is_dragging = false;
         if(const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))){
@@ -114,13 +114,13 @@ void BoardView::_on_mouse_left_up(sf::Vector2i screen_position){
     }
 }
 
-void BoardView::_on_mouse_moved(sf::Vector2i screen_position) {
+void ChessView::_on_mouse_moved(sf::Vector2i screen_position) {
     if (m_is_dragging) {
         m_drag_screen_position = sf::Vector2f(screen_position);
     }
 }
 
-void BoardView::_on_piece_moved(Chess::Tile from, Chess::Tile to, PieceType promotion) {
+void ChessView::_on_piece_moved(Chess::Tile from, Chess::Tile to, PieceType promotion) {
     if(promotion == PieceType::None){
         // Check if promotion prompt needs to be activated
         bool is_promotion_move = m_game.is_legal_move(Chess::uci_create(from, to, s_promotion_pieces[0]));
@@ -136,7 +136,7 @@ void BoardView::_on_piece_moved(Chess::Tile from, Chess::Tile to, PieceType prom
 }
 
 
-void BoardView::_draw_board(sf::RenderWindow& window) {
+void ChessView::_draw_board(sf::RenderWindow& window) {
     sf::RectangleShape square(sf::Vector2f(m_tile_size, m_tile_size));
     for (int rank = 0; rank < 8; rank++) {
         for (int file = 0; file < 8; file++) {
@@ -149,7 +149,7 @@ void BoardView::_draw_board(sf::RenderWindow& window) {
     }
 }
 
-void BoardView::_draw_promotion_prompt(sf::RenderWindow& window) {
+void ChessView::_draw_promotion_prompt(sf::RenderWindow& window) {
     int dir = m_promotion_prompt_tile.rank == 7 ? -1 : 1;
     PlayerColor color = m_promotion_prompt_tile.rank == 7 ? PlayerColor::White : PlayerColor::Black;
 
@@ -178,7 +178,7 @@ void BoardView::_draw_promotion_prompt(sf::RenderWindow& window) {
     window.draw(sprite);
 }
 
-void BoardView::_draw_legal_moves(sf::RenderWindow& window, Chess::Tile tile) {
+void ChessView::_draw_legal_moves(sf::RenderWindow& window, Chess::Tile tile) {
     std::vector<UCI> moves(m_game.get_legal_moves());
     if (moves.empty()) return;
 
@@ -208,7 +208,7 @@ void BoardView::_draw_legal_moves(sf::RenderWindow& window, Chess::Tile tile) {
     }
 }
 
-void BoardView::_draw_piece(sf::RenderWindow& window, Piece piece, sf::Vector2f position) {
+void ChessView::_draw_piece(sf::RenderWindow& window, Piece piece, sf::Vector2f position) {
     if (piece.type == PieceType::None) return;
 
     sf::Sprite sprite(m_texture_pieces[piece]);
@@ -222,7 +222,7 @@ void BoardView::_draw_piece(sf::RenderWindow& window, Piece piece, sf::Vector2f 
     window.draw(sprite);
 }
 
-sf::Color BoardView::_get_tile_color(Chess::Tile tile) {
+sf::Color ChessView::_get_tile_color(Chess::Tile tile) {
     sf::Color color = (tile.rank + tile.file) % 2 == 0 ? s_light_tile_color : s_dark_tile_color;
     
     // Select highligthing
@@ -245,7 +245,7 @@ sf::Color BoardView::_get_tile_color(Chess::Tile tile) {
 }
 
 
-void BoardView::_load_assets() {
+void ChessView::_load_assets() {
     // Pieces
     for(PlayerColor color : {PlayerColor::White, PlayerColor::Black}){
         std::string prefix = (color == PlayerColor::White ? "w" : "b");
@@ -263,7 +263,7 @@ void BoardView::_load_assets() {
     m_texture_x_icon = load_svg("x_icon.svg");
 }
 
-std::optional<Chess::Tile> BoardView::_screen_to_board_space(sf::Vector2f screen_pos) const {
+std::optional<Chess::Tile> ChessView::_screen_to_board_space(sf::Vector2f screen_pos) const {
     sf::FloatRect board_rect = sf::FloatRect(m_position, sf::Vector2f(m_size, m_size));
     if (!board_rect.contains(screen_pos)) return std::nullopt;
 
@@ -276,7 +276,7 @@ std::optional<Chess::Tile> BoardView::_screen_to_board_space(sf::Vector2f screen
     return Chess::Tile(file, rank);
 }
 
-sf::Vector2f BoardView::_board_to_screen_space(Chess::Tile tile) const {
+sf::Vector2f ChessView::_board_to_screen_space(Chess::Tile tile) const {
     return sf::Vector2f(m_position.x + (tile.file + 0.5f) *  m_tile_size,
                         m_position.y + (7-tile.rank + 0.5f) * m_tile_size);
 }

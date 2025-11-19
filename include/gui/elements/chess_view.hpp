@@ -4,14 +4,14 @@
 #include <functional>
 #include "SFML/Graphics.hpp"
 
-#include "core/chess.hpp"
+#include "../../core/chess.hpp"
 
 /**
  * Interactive board view for playing chess.
  */
-class BoardView {
+class ChessView {
 public:
-    BoardView(const Chess& game);
+    ChessView(const Chess& game);
 
     /**
      * Set a callback for handling dragging moves.
