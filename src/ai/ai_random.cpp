@@ -1,13 +1,24 @@
 #include "ai/ai_random.hpp"
 
-#include <random>
-
 void registerRandomAI() {
     auto createRandomAI = [](const std::vector<ConfigField>& cfg) {
-        return std::make_unique<RandomAI>();
+        return std::make_unique<RandomAI>(cfg);
     };
 
-    AIRegistry::registerAI("Random", {}, createRandomAI);
+    std::vector<ConfigField> cfg = {
+        {"useseed", "Use seed", FieldType::Bool, false},
+        {"rngseed", "Seed", FieldType::Int, 0}
+    };
+
+    AIRegistry::registerAI("Random", cfg, createRandomAI);
+}
+
+RandomAI::RandomAI(const std::vector<ConfigField>& cfg) {
+    uint32_t seed = std::random_device{}();
+    if(getConfigValue<bool>(cfg, "useseed")){
+        seed = static_cast<uint32_t>(getConfigValue<int>(cfg, "rngseed"));
+    }
+    m_rng.seed(seed);
 }
 
 void RandomAI::_set_board(const FEN& fen) {
@@ -31,13 +42,10 @@ void RandomAI::_undo_move() {
 
 UCI RandomAI::_compute_move() {
     auto moves = m_board.generate_legal_moves();
-
     if (moves.empty()) {
         throw std::runtime_error("RandomAI::compute_move() - no legal moves!");
     }
 
-    static thread_local std::mt19937 rng(std::random_device{}());
     std::uniform_int_distribution<size_t> dist(0, moves.size() - 1);
-
-    return MoveEncoding::to_uci(moves[dist(rng)]);
+    return MoveEncoding::to_uci(moves[dist(m_rng)]);
 }
