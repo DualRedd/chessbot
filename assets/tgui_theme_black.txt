@@ -1,0 +1,101 @@
+TextColor = White;
+TextColorDisabled = rgb(155,155,155);
+TextColorHover = rgb(155,155,155);
+SelectedTextColor = rgb(162, 162, 243);
+
+BackgroundColor = rgb(40,40,40);
+BackgroundColorDisabled = rgb(30,30,30);
+BackgroundColorHover = rgb(50,50,50);
+BackgroundColorDown = rgb(80,80,80);
+
+Borders = 1;
+BorderColor = rgb(70,70,70);
+BorderColorHover = rgb(90,90,90);
+BorderColorDown = rgb(100,100,100);
+BorderColorDisabled = rgb(50,50,50);
+
+CaretColor = White;
+CaretWidth = 1;
+
+Padding = 4; 
+RoundedBorderRadius = 2;
+
+Button
+{
+    BackgroundColor = &BackgroundColor;
+    BackgroundColorDisabled = &BackgroundColorDisabled;
+    BackgroundColorHover = &BackgroundColorHover;
+    BackgroundColorDown = &BackgroundColorDown;
+    TextColor = &TextColor;
+    TextColorHover = &TextColor;
+    Borders = &Borders;
+    BorderColor = &BorderColor;
+    BorderColorHover = &BorderColorHover;
+    BorderColorDown = &BorderColorDown;
+    RoundedBorderRadius = &RoundedBorderRadius;
+}
+
+Panel
+{
+    BackgroundColor = &BackgroundColor;
+    Borders = 0;
+}
+
+CheckBox
+{
+    CheckColor = &TextColor;
+    CheckColorHover = &TextColor;
+    CheckColorDisabled = &TextColorDisabled;
+    TextColor = &TextColor;
+    TextColorDisabled = &TextColorDisabled;
+    TextColorHover = &TextColorHover;
+}
+
+EditBox
+{
+    BackgroundColor = &BackgroundColor;
+    BackgroundColorDisabled = &BackgroundColorDisabled;
+    BackgroundColorFocused = &BackgroundColorHover;
+    Borders = &Borders;
+    BorderColor = &BorderColor;
+    BorderColorFocused = &BorderColorHover;
+    CaretColor = &CaretColor;
+    CaretWidth = &CaretWidth;
+    TextColor = &TextColor;
+    TextColorDisabled = &TextColorDisabled;
+    DefaultTextColor = &TextColorDisabled;
+    SelectedTextColor = &SelectedTextColor;
+}
+
+ComboBox
+{
+    BackgroundColor = &BackgroundColor;
+    Borders = &Borders;
+    BorderColor = &BorderColor;
+    TextColor = &TextColor;
+    TextColorDisabled = &TextColorDisabled;
+    DefaultTextColor = &TextColorDisabled;
+    RoundedBorderRadius = &RoundedBorderRadius;
+    Padding = &Padding;
+}
+
+ListBox
+{
+    BackgroundColor = &BackgroundColor;
+    BackgroundColorHover = &BackgroundColorHover;
+    SelectedBackgroundColor = &BackgroundColorDown;
+    TextColor = &TextColor;
+    TextColorHover = &TextColor;
+    SelectedTextColor = &TextColor;
+    Borders = &Borders;
+    BorderColor = &BorderColor;
+    Padding = &Padding;
+}
+
+Scrollbar
+{
+    TrackColor = &BackgroundColor;
+    TrackColorHover = &BackgroundColorHover;
+    ThumbColor = &BorderColor;
+    ThumbColorHover = &BorderColorHover;
+}
