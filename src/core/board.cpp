@@ -335,6 +335,15 @@ PlayerColor Board::get_side_to_move() const {
     return m_side_to_move; 
 }
 
+std::optional<Move> Board::get_last_move() const {
+    if(m_state_history.size() == 0) return std::nullopt;
+    else return m_state_history.back().move;
+}
+
+uint Board::get_halfmove_clock() const {
+    return m_halfmoves;
+}
+
 Piece Board::get_piece_at(const int square) const {
     if(m_occupied[+PlayerColor::White] & MASK_SQUARE[square]){
         return Piece{m_piece_on_square[square], PlayerColor::White};
@@ -724,11 +733,6 @@ Move Board::move_from_uci(const UCI& uci) const {
     }
 
     return MoveEncoding::encode(from, to, piece, capture, promo, is_castle, is_ep);
-}
-
-std::optional<Move> Board::get_last_move() const {
-    if(m_state_history.size() == 0) return std::nullopt;
-    else return m_state_history.back().move;
 }
 
 Board::Bitboard Board::_attacks_from(const PieceType type, const PlayerColor color, const int square) const {

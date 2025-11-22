@@ -1,5 +1,6 @@
 #pragma once
 
+#include <unordered_map>
 #include "board.hpp"
 
 const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -9,9 +10,7 @@ const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w 
  */
 class Chess {
 public:
-    /**
-     * Represents a chessboard tile.
-     */
+    /** Tile on the chessboard. */
     struct Tile {
         int file;
         int rank;
@@ -30,6 +29,17 @@ public:
          * @return True if this is within a chessboard's bounds, else false.
          */
         bool valid() const;
+    };
+
+    /** Game state enumeration. */
+    enum class GameState {
+        NoCheck,                    // No check on the current player
+        Check,                      // Current player's king is in check
+        Checkmate,                  // Current player's king is in checkmate
+        Stalemate,                  // Current player has no legal moves but is not in check
+        DrawByFiftyMove,            // Draw by fifty-move rule
+        DrawByInsufficientMaterial, // Draw by insufficient material
+        DrawByThreefoldRepetition   // Draw by threefold repetition
     };
 
     /**
@@ -107,19 +117,11 @@ public:
     std::optional<UCI> get_last_move() const;
 
     /**
-     * @return True if the current side to move is in check, else false.
+     * Get current game status: check, checkmate, stalemate,
+     * draw by fifty-move rule, draw by insufficient material, draw by threefold repetition.
+     * @return The state of the game as a enum.
      */
-    bool is_check() const;
-
-    /**
-     * @return True if the current side to move is in a checkmate, else false.
-     */
-    bool is_checkmate() const;
-
-    /**
-     * @return True if the current side to move is in a stalemate, else false.
-     */
-    bool is_stalemate() const;
+    GameState get_game_state() const;
 
 private:
     /**
@@ -127,7 +129,24 @@ private:
      */
     void _update_legal_moves();
 
+    /**
+     * @return True if there is insufficient material on the board for checkmate, else false.
+     * @note This is not comprehensive, only basic cases are covered.
+     */
+    bool _is_insufficient_material() const;
+
+    /**
+     * @return True if the current position has occurred three times, else false.
+     */
+    bool _is_threefold_repetition() const;
+
 private:
     Board m_board;
     std::vector<UCI> m_legal_moves;
+
+    // Zobrist history for threefold-repetition detection
+    std::vector<uint64_t> m_zobrist_history;
+    std::unordered_map<uint64_t,int> m_zobrist_counts;
+    // FEN history for verification on suspected collisions (rare zobrist collisions)
+    std::vector<FEN> m_fen_history;
 };

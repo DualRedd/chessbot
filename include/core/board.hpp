@@ -58,6 +58,16 @@ public:
     PlayerColor get_side_to_move() const;
 
     /**
+     * @return The last move played if there is one.
+     */
+    std::optional<Move> get_last_move() const;
+
+    /**
+     * @return The number of halfmoves since the last capture or pawn move.
+     */
+    uint get_halfmove_clock() const;
+
+    /**
      * @param square index (8 * rank + file)
      * @return The piece at that square. If there is no piece the type field will be PieceType::None.
      */
@@ -107,11 +117,6 @@ public:
      * @note The constructed move might not be legal!
      */
     Move move_from_uci(const UCI& uci) const;
-
-    /**
-     * @return The last move played if there is one.
-     */
-    std::optional<Move> get_last_move() const;
 
 private:
     /**

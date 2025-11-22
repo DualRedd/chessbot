@@ -87,6 +87,13 @@ Chess::~Chess() = default;
 void Chess::new_board(const FEN& position) {
     m_board.set_from_fen(position);
     _update_legal_moves();
+
+    m_zobrist_history.clear();
+    m_zobrist_counts.clear();
+    m_fen_history.clear();
+    m_zobrist_history.push_back(m_board.get_zobrist_hash());
+    m_zobrist_counts[m_board.get_zobrist_hash()] = 1;
+    m_fen_history.push_back(m_board.to_fen());
 }
 
 FEN Chess::get_board_as_fen() const {
@@ -111,14 +118,39 @@ bool Chess::is_legal_move(const UCI& move) const {
 
 bool Chess::play_move(const UCI& move) {
     if(!is_legal_move(move)) return false;
+
     m_board.make_move(m_board.move_from_uci(move));
     _update_legal_moves();
+
+    uint64_t key = m_board.get_zobrist_hash();
+    m_zobrist_history.push_back(key);
+    m_zobrist_counts[key] += 1;
+    m_fen_history.push_back(m_board.to_fen());
+
     return true;
 }
 
 bool Chess::undo_move() {
     bool success = m_board.undo_move();
-    if(success) _update_legal_moves();
+    if(success) {
+        _update_legal_moves();
+
+        if (m_zobrist_history.empty()) {
+            throw std::runtime_error("Chess::undo_move() - Zobrist history underflow!");
+        }
+        if(m_fen_history.size() != m_zobrist_history.size()) {
+            throw std::runtime_error("Chess::undo_move() - FEN history corrupted!");
+        }
+
+        uint64_t last_key = m_zobrist_history.back();
+        auto it = m_zobrist_counts.find(last_key);
+        if(it == m_zobrist_counts.end()) {
+            throw std::runtime_error("Chess::undo_move() - Zobrist history corrupted!");
+        }
+        if (--(it->second) <= 0) m_zobrist_counts.erase(it);
+        m_fen_history.pop_back();
+        m_zobrist_history.pop_back();
+    }
     return success;
 }
 
@@ -128,16 +160,109 @@ std::optional<UCI> Chess::get_last_move() const {
     return MoveEncoding::to_uci(move.value());
 }
 
-bool Chess::is_check() const {
-    return m_board.in_check(get_side_to_move());
+Chess::GameState Chess::get_game_state() const {
+    if (m_board.in_check(get_side_to_move())) {
+        if (m_legal_moves.empty()) {
+            return GameState::Checkmate;
+        } else {
+            return GameState::Check;
+        }
+    } else {
+        if (m_legal_moves.empty()) {
+            return GameState::Stalemate;
+        } else if (m_board.get_halfmove_clock() >= 100) {
+            return GameState::DrawByFiftyMove;
+        } else if (_is_insufficient_material()) {
+            return GameState::DrawByInsufficientMaterial;
+        } else if (_is_threefold_repetition()) {
+            return GameState::DrawByThreefoldRepetition;
+        } else {
+            return GameState::NoCheck;
+        }
+    }
 }
 
-bool Chess::is_checkmate() const {
-    return is_check() && m_legal_moves.empty();
+bool Chess::_is_insufficient_material() const {
+    int white_bishops = 0;
+    int black_bishops = 0;
+    int white_knights = 0;
+    int black_knights = 0;
+    int white_other = 0;
+    int black_other = 0;
+
+    for(int square = 0; square < 64; ++square){
+        Piece piece = m_board.get_piece_at(square);
+        if(piece.type == PieceType::None) continue;
+
+        if(piece.color == PlayerColor::White){
+            switch(piece.type){
+                case PieceType::Bishop: white_bishops++; break;
+                case PieceType::Knight: white_knights++; break;
+                case PieceType::Pawn:
+                case PieceType::Rook:
+                case PieceType::Queen:
+                    white_other++; break;
+                default: break;
+            }
+        } else {
+            switch(piece.type){
+                case PieceType::Bishop: black_bishops++; break;
+                case PieceType::Knight: black_knights++; break;
+                case PieceType::Pawn:
+                case PieceType::Rook:
+                case PieceType::Queen:
+                    black_other++; break;
+                default: break;
+            }
+        }
+    }
+
+    if (white_other == 0 && black_other == 0){
+        if (white_bishops == 0 && black_bishops == 0) {
+            if (white_knights <= 1 && black_knights <= 1) {
+                return true;
+            }
+        } else if (white_knights == 0 && black_knights == 0) {
+            if (white_bishops <= 1 && black_bishops <= 1) {
+                return true;
+            }
+        }
+    }
+
+    // TODO: Add more cases?
+
+    return false;
 }
 
-bool Chess::is_stalemate() const {
-    return !is_check() && m_legal_moves.empty();
+bool Chess::_is_threefold_repetition() const {
+    uint64_t key = m_board.get_zobrist_hash();
+    auto it = m_zobrist_counts.find(key);
+    if (it == m_zobrist_counts.end() || it->second < 3) {
+        return false;
+    }
+
+    // Verify positions to be 100% safe against hash collision.
+    // Compare FENs without the last two move counters
+    auto strip_counters = [](const FEN& fen) -> FEN {
+        int spaces = 0;
+        for (size_t i = 0; i < fen.size(); ++i) {
+            if (fen[i] == ' ') {
+                if (++spaces == 4) {
+                    return fen.substr(0, i);
+                }
+            }
+        }
+        return fen;
+    };
+
+    const FEN cur = strip_counters(m_board.to_fen());
+    int exact = 0;
+    for (const auto &f : m_fen_history) {
+        if (strip_counters(f) == cur && ++exact >= 3) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void Chess::_update_legal_moves() {
