@@ -22,29 +22,13 @@ public:
     /**
      * @return Position evaluation from the perspective of side to move.
      */
-    int get_eval() const;
-
-    /**
-     * @return Current side to move.
-     */
-    PlayerColor get_side_to_move() const;
+    double get_eval() const;
 
     /**
      * @param ordered whether to apply move ordering
      * @return All pseudo-legal moves in the current position.
      */
-    std::vector<Move> generate_pseudo_legal_moves(bool ordered) const;
-
-    /**
-     * @return All legal moves in the current position.
-     */
-    std::vector<Move> generate_legal_moves() const;
-
-    /**
-     * @param side White or Black
-     * @return True if this side's king(s) is in check, else false.
-     */
-    bool in_check(const PlayerColor side) const;
+    std::vector<Move> get_ordered_pseudo_legal_moves() const;
 
     /**
      * Make a move on the board.
@@ -61,19 +45,16 @@ public:
     bool undo_move();
 
     /**
-     * Convert UCI string to a Move on the current position.
-     * @throw invalid_argument if the UCI string is invalid.
-     * @return The move corresponding to the UCI string.
-     * @note The constructed move might not be legal!
+     * @return The underlying board.
      */
-    Move move_from_uci(const UCI& uci) const;
+    const Board& get_board() const;
 
 private:
     /**
      * @param type piece type
      * @return Evaluation material value for the piece.
      */
-    int _material_value(PieceType type) const;
+    double _material_value(PieceType type) const;
 
     /**
      * Piece-Square Table value.
@@ -82,17 +63,17 @@ private:
      * @param square square index 0-63 (8 * rank + file)
      * @return Evaluation value for the piece on the square.
      */
-    int _pst_value(PieceType type, PlayerColor color, int square) const;
+    double _pst_value(PieceType type, PlayerColor color, int square) const;
 
     /**
      * Calculate the full evaluation from the current position.
      * @return The evaluation of the board (from white's perspective).
      */
-    int _compute_full_eval();
+    double _compute_full_eval();
 
 private:
     Board m_board;
 
-    int m_eval; // Evaluation from white's perspective
-    std::vector<int> m_eval_history;
+    double m_eval; // Evaluation from white's perspective
+    std::vector<double> m_eval_history;
 };

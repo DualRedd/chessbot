@@ -15,17 +15,12 @@ void SearchPosition::set_board(const FEN& fen) {
     m_eval = _compute_full_eval();
 }
 
-int SearchPosition::get_eval() const {
+double SearchPosition::get_eval() const {
     return (m_board.get_side_to_move() == PlayerColor::White) ? m_eval : -m_eval;
 }
 
-PlayerColor SearchPosition::get_side_to_move() const {
-    return m_board.get_side_to_move();
-}
-
-std::vector<Move> SearchPosition::generate_pseudo_legal_moves(bool ordered) const {
+std::vector<Move> SearchPosition::get_ordered_pseudo_legal_moves() const {
     std::vector<Move> moves = m_board.generate_pseudo_legal_moves();
-    if(!ordered) return moves;
 
     std::sort(moves.begin(), moves.end(), [](Move a, Move b) {
         // 1. Captures
@@ -43,14 +38,6 @@ std::vector<Move> SearchPosition::generate_pseudo_legal_moves(bool ordered) cons
     });
 
     return moves;
-}
-
-std::vector<Move> SearchPosition::generate_legal_moves() const {
-    return m_board.generate_legal_moves();
-}
-
-bool SearchPosition::in_check(const PlayerColor side) const {
-    return m_board.in_check(side);
 }
 
 void SearchPosition::make_move(Move move) {
@@ -98,23 +85,23 @@ bool SearchPosition::undo_move() {
     return true;
 }
 
-Move SearchPosition::move_from_uci(const UCI& uci) const {
-    return m_board.move_from_uci(uci);
+const Board& SearchPosition::get_board() const {
+    return m_board;
 }
 
-int SearchPosition::_material_value(PieceType type) const {
+double SearchPosition::_material_value(PieceType type) const {
     switch(type) {
-        case PieceType::Pawn:   return 100;
-        case PieceType::Knight: return 320;
-        case PieceType::Bishop: return 330;
-        case PieceType::Rook:   return 500;
-        case PieceType::Queen:  return 900;
-        default: return 0;
+        case PieceType::Pawn:   return 100.0;
+        case PieceType::Knight: return 320.0;
+        case PieceType::Bishop: return 330.0;
+        case PieceType::Rook:   return 500.0;
+        case PieceType::Queen:  return 900.0;
+        default: return 0.0;
     }
 }
 
-int SearchPosition::_pst_value(PieceType type, PlayerColor color, int square) const {
-    if (type == PieceType::None) return 0;
+double SearchPosition::_pst_value(PieceType type, PlayerColor color, int square) const {
+    if (type == PieceType::None) return 0.0;
 
     int idx = square_for_side(square, color);
     switch (type) {
@@ -128,8 +115,8 @@ int SearchPosition::_pst_value(PieceType type, PlayerColor color, int square) co
     }
 }
 
-int SearchPosition::_compute_full_eval() {
-    int eval = 0;
+double SearchPosition::_compute_full_eval() {
+    double eval = 0.0;
 
     for (int square = 0; square < 64; square++) {
         Piece piece = m_board.get_piece_at(square);

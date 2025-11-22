@@ -15,8 +15,8 @@ void MinimaxAI::_set_board(const FEN& fen) {
 }
 
 void MinimaxAI::_apply_move(const UCI& uci_move) {
-    Move move = m_position.move_from_uci(uci_move);
-    auto legal_moves = m_position.generate_legal_moves();
+    Move move = m_position.get_board().move_from_uci(uci_move);
+    auto legal_moves = m_position.get_board().generate_legal_moves();
     if(std::find(legal_moves.begin(), legal_moves.end(), move) == legal_moves.end()){
         throw std::invalid_argument("MinimaxAI::apply_move() - illegal move!");
     }
@@ -30,19 +30,16 @@ void MinimaxAI::_undo_move() {
 }
 
 UCI MinimaxAI::_compute_move() {
-    auto pseudo_moves = m_position.generate_pseudo_legal_moves(true);
-    if(pseudo_moves.size() == 0){
-        throw std::invalid_argument("MinimaxAI::compute_move() - no legal moves!");
-    }
-
-    PlayerColor side = m_position.get_side_to_move();
+    PlayerColor side = m_position.get_board().get_side_to_move();
     int alpha = -std::numeric_limits<int>::max();
     int beta = std::numeric_limits<int>::max();
     Move best_move;
 
-    for (const Move& move : pseudo_moves) {
+    int legal_move_count = 0;
+    for (const Move& move : m_position.get_ordered_pseudo_legal_moves()) {
         m_position.make_move(move);
-        if (!m_position.in_check(side)) {
+        if (!m_position.get_board().in_check(side)) {
+            legal_move_count++;
             int score = -_alpha_beta(-beta, -alpha, m_search_depth);
             if (score > alpha) {
                 alpha = score;
@@ -52,6 +49,9 @@ UCI MinimaxAI::_compute_move() {
         m_position.undo_move();
     }
 
+    if(legal_move_count == 0){
+        throw std::invalid_argument("MinimaxAI::compute_move() - no legal moves!");
+    }
     return MoveEncoding::to_uci(best_move);
 }
 
@@ -59,10 +59,13 @@ UCI MinimaxAI::_compute_move() {
 int MinimaxAI::_alpha_beta(int alpha, int beta, int depth_left) {
     if(depth_left == 0) return m_position.get_eval();
 
-    PlayerColor side = m_position.get_side_to_move();
-    for(const Move& move : m_position.generate_pseudo_legal_moves(true)){
+    PlayerColor side = m_position.get_board().get_side_to_move();
+    int legal_move_count = 0;
+    
+    for(const Move& move : m_position.get_ordered_pseudo_legal_moves()){
         m_position.make_move(move);
-        if(!m_position.in_check(side)){
+        if(!m_position.get_board().in_check(side)){
+            legal_move_count++;
             int score = -_alpha_beta(-beta, -alpha, depth_left - 1);
             if(score >= beta){
                 m_position.undo_move();
@@ -73,6 +76,15 @@ int MinimaxAI::_alpha_beta(int alpha, int beta, int depth_left) {
             }
         }
         m_position.undo_move();
+    }
+
+    if(legal_move_count == 0){
+        if(m_position.get_board().in_check(side)){
+            // checkmate, depth bonus to prefer faster mates
+            return -1e9 + (m_search_depth - depth_left);
+        } else {
+            return 0; // Stalemate
+        }
     }
 
     return alpha;
