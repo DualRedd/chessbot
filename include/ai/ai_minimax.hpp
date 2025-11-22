@@ -15,7 +15,7 @@ public:
     UCI _compute_move() override;
 
 private:
-    int _alpha_beta(int alpha, int beta, int depth_left);
+    double _alpha_beta(double alpha, double beta, int depth_left);
 
 private:
     SearchPosition m_position;

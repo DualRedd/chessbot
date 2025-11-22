@@ -31,8 +31,8 @@ void MinimaxAI::_undo_move() {
 
 UCI MinimaxAI::_compute_move() {
     PlayerColor side = m_position.get_board().get_side_to_move();
-    int alpha = -std::numeric_limits<int>::max();
-    int beta = std::numeric_limits<int>::max();
+    double alpha = -std::numeric_limits<double>::max();
+    double beta = std::numeric_limits<double>::max();
     Move best_move;
 
     int legal_move_count = 0;
@@ -40,7 +40,7 @@ UCI MinimaxAI::_compute_move() {
         m_position.make_move(move);
         if (!m_position.get_board().in_check(side)) {
             legal_move_count++;
-            int score = -_alpha_beta(-beta, -alpha, m_search_depth);
+            double score = -_alpha_beta(-beta, -alpha, m_search_depth);
             if (score > alpha) {
                 alpha = score;
                 best_move = move;
@@ -56,12 +56,12 @@ UCI MinimaxAI::_compute_move() {
 }
 
 
-int MinimaxAI::_alpha_beta(int alpha, int beta, int depth_left) {
+double MinimaxAI::_alpha_beta(double alpha, double beta, int depth_left) {
     if(depth_left == 0) return m_position.get_eval();
 
     PlayerColor side = m_position.get_board().get_side_to_move();
     int legal_move_count = 0;
-    
+
     for(const Move& move : m_position.get_ordered_pseudo_legal_moves()){
         m_position.make_move(move);
         if(!m_position.get_board().in_check(side)){
