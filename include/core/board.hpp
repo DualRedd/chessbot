@@ -65,7 +65,7 @@ public:
     /**
      * @return The number of halfmoves since the last capture or pawn move.
      */
-    uint get_halfmove_clock() const;
+    uint32_t get_halfmove_clock() const;
 
     /**
      * @param square index (8 * rank + file)
@@ -127,9 +127,9 @@ private:
         uint8_t castling_rights;
         int8_t en_passant_square;
         uint64_t zobrist;
-        uint halfmoves;
+        uint32_t halfmoves;
         StoredState(Move move, uint8_t castling_rights,
-            int8_t en_passant_square, uint64_t zobrist, int halfmoves);
+            int8_t en_passant_square, uint64_t zobrist, uint32_t halfmoves);
     };
 
     /**
@@ -157,8 +157,8 @@ private:
     PlayerColor m_side_to_move;
     uint8_t m_castling_rights;       // bitmask: WK=1, WQ=2, BK=4, BQ=8
     int8_t m_en_passant_square;      // 0–63 or -1 if none
-    uint m_halfmoves;
-    uint m_fullmoves;
+    uint32_t m_halfmoves;
+    uint32_t m_fullmoves;
     uint64_t m_zobrist;
 
 private:

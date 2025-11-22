@@ -18,6 +18,9 @@ if (ENABLE_ASAN)
 endif()
 
 if(ENABLE_COVERAGE)
+    if(MSVC)
+        message(FATAL_ERROR "Code coverage is not supported on MSVC")
+    endif()
     message(STATUS "Coverage instrumentation enabled")
     add_compile_options(--coverage -O0 -g)
     add_link_options(--coverage)
@@ -99,6 +102,9 @@ add_library(chess_bots SHARED
     src/ai/ai_random.cpp
     src/ai/ai_minimax.cpp
 )
+target_link_libraries(chess_bots PRIVATE
+    chess_core
+)
 
 # --- GUI executable ---
 add_executable(chess_gui
@@ -117,6 +123,14 @@ target_link_libraries(chess_gui PRIVATE
     TGUI::TGUI
 )
 
+# MSVC specific settings
+if(MSVC)
+    set_target_properties(chess_gui PROPERTIES WIN32_EXECUTABLE TRUE)
+    target_link_libraries(chess_gui PRIVATE SFML::Main)
+    set_target_properties(chess_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    set_target_properties(chess_bots PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 # --- Asset copying ---
 add_custom_command(TARGET chess_gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -128,15 +142,15 @@ if (BUILD_TESTS)
     include(CTest)
     enable_testing()
     
-    add_executable(run_tests
+    add_executable(unit_tests
         tests/test_board.cpp
     )
-    target_link_libraries(run_tests PRIVATE
+    target_link_libraries(unit_tests PRIVATE
         gtest_main
         chess_core
     )
 
     # Register to CTest
     include(GoogleTest)
-    gtest_discover_tests(run_tests)
+    gtest_discover_tests(unit_tests)
 endif()

@@ -50,8 +50,23 @@ fs::path get_executable_dir() {
 sf::Texture load_svg(const fs::path& asset_path) {
     fs::path file = get_executable_dir() / "assets" / asset_path;
 
+#if defined(_WIN32)
+    // Convert wide path to UTF-8 std::string on Windows
+    std::wstring wpath = file.native();
+    int needed = WideCharToMultiByte(CP_UTF8, 0, wpath.c_str(), (int)wpath.size(), nullptr, 0, nullptr, nullptr);
+    std::string file_utf8;
+    if (needed > 0) {
+        file_utf8.resize(needed);
+        WideCharToMultiByte(CP_UTF8, 0, wpath.c_str(), (int)wpath.size(), file_utf8.data(), needed, nullptr, nullptr);
+    } else {
+        file_utf8 = file.string(); // fallback
+    }
+#else
+    std::string file_utf8 = file.u8string();
+#endif
+
     // Parse SVG
-    NSVGimage* image = nsvgParseFromFile(file.c_str(), "px", 96.0f);
+    NSVGimage* image = nsvgParseFromFile(file_utf8.c_str(), "px", 96.0f);
     if (!image) {
         throw std::runtime_error("Failed to parse SVG: " + file.string());
     }

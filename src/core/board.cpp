@@ -5,6 +5,10 @@
 #include <sstream>
 #include <cassert>
 
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
+
 // Assert enums match what the implementation expects
 // This order allows some optimizations to loop bounds
 static_assert(static_cast<int>(PieceType::Pawn)   == 0, "Bitboard: Pawn enum index must be 0");
@@ -33,13 +37,17 @@ constexpr inline int square_index(int file, int rank)   { return rank * 8 + file
 constexpr inline int square_index(char file, char rank) { return (rank - '1') * 8 + (file - 'a'); }
 constexpr inline int rank_of(int square)                { return square / 8; }
 constexpr inline int file_of(int square)                { return square % 8; }
-constexpr inline int lsb(Board::Bitboard b)             { return __builtin_ctzll(b); }
 constexpr inline void pop_lsb(Board::Bitboard &b)       { b &= b - 1; }
+#ifdef _MSC_VER
+inline int lsb(Board::Bitboard b) { unsigned long index; _BitScanForward64(&index, b); return static_cast<int>(index); }
+#else
+constexpr int lsb(Board::Bitboard b) { return __builtin_ctzll(b); }
+#endif
 
 
 Board::StoredState::StoredState(Move move_, uint8_t castling_rights_,
                                 int8_t en_passant_square_, uint64_t zobrist_,
-                                int halfmoves_) 
+                                uint32_t halfmoves_) 
   : move(move_),
     castling_rights(castling_rights_),
     en_passant_square(en_passant_square_),
@@ -340,7 +348,7 @@ std::optional<Move> Board::get_last_move() const {
     else return m_state_history.back().move;
 }
 
-uint Board::get_halfmove_clock() const {
+uint32_t Board::get_halfmove_clock() const {
     return m_halfmoves;
 }
 
