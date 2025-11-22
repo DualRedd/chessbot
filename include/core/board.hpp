@@ -48,6 +48,11 @@ public:
     FEN to_fen() const;
 
     /**
+     * @return Current Zobrist hash of the board state.
+     */
+    uint64_t get_zobrist_hash() const;
+
+    /**
      * @return Which sides turn to move it is currently.
      */
     PlayerColor get_side_to_move() const;
@@ -116,8 +121,10 @@ private:
         Move move;
         uint8_t castling_rights;
         int8_t en_passant_square;
+        uint64_t zobrist;
         uint halfmoves;
-        StoredState(Move move, uint8_t castling_rights, int8_t en_passant_square, int halfmoves);
+        StoredState(Move move, uint8_t castling_rights,
+            int8_t en_passant_square, uint64_t zobrist, int halfmoves);
     };
 
     /**
@@ -147,6 +154,7 @@ private:
     int8_t m_en_passant_square;      // 0–63 or -1 if none
     uint m_halfmoves;
     uint m_fullmoves;
+    uint64_t m_zobrist;
 
 private:
     // Precalculated masks and values
@@ -161,6 +169,11 @@ private:
     static inline uint8_t CASTLE_FLAG[2][2];         // [color][0=queenside,1=kingside]
     static inline uint8_t ROOK_SQUARE[2][2];         // [color][0=queenside,1=kingside]
     static inline uint8_t KING_SQUARE[2];            // [color]
+
+    static inline uint64_t ZOBRIST_PIECE[2][6][64]; // [color][piece][square]
+    static inline uint64_t ZOBRIST_CASTLING[16];    // [castling rights bitmask]
+    static inline uint64_t ZOBRIST_EP[8];           // [file of en passant square]
+    static inline uint64_t ZOBRIST_SIDE;            // side to move
 
     struct Initializer {
         Initializer() {

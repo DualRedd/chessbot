@@ -1,5 +1,6 @@
 #include "core/board.hpp"
 
+#include <random>
 #include <cstring>
 #include <sstream>
 #include <cassert>
@@ -36,8 +37,14 @@ constexpr inline int lsb(Board::Bitboard b)             { return __builtin_ctzll
 constexpr inline void pop_lsb(Board::Bitboard &b)       { b &= b - 1; }
 
 
-Board::StoredState::StoredState(Move move_, uint8_t castling_rights_, int8_t en_passant_square_, int halfmoves_) 
-    : move(move_), castling_rights(castling_rights_), en_passant_square(en_passant_square_), halfmoves(halfmoves_) {}
+Board::StoredState::StoredState(Move move_, uint8_t castling_rights_,
+                                int8_t en_passant_square_, uint64_t zobrist_,
+                                int halfmoves_) 
+  : move(move_),
+    castling_rights(castling_rights_),
+    en_passant_square(en_passant_square_),
+    zobrist(zobrist_),
+    halfmoves(halfmoves_) {}
 
 Board::Board(const FEN& fen, bool allow_illegal_position){
     set_from_fen(fen, allow_illegal_position);
@@ -236,6 +243,22 @@ void Board::set_from_fen(const FEN& fen, bool allow_illegal_position) {
             throw std::invalid_argument("Board::set_from_fen() - illegal FEN! Unpromoted pawn on last rank.");
         }
     }
+
+    // Compute Zobrist hash for current position
+    m_zobrist = 0;
+    for (int color = 0; color < 2; ++color) {
+        for (int piece = 0; piece < 6; ++piece) {
+            Bitboard bb = m_pieces[color][piece];
+            while (bb) {
+                int square = lsb(bb);
+                m_zobrist ^= ZOBRIST_PIECE[color][piece][square];
+                pop_lsb(bb);
+            }
+        }
+    }
+    m_zobrist ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F];
+    if (m_en_passant_square != -1) m_zobrist ^= ZOBRIST_EP[file_of(m_en_passant_square)];
+    if (m_side_to_move == PlayerColor::Black) m_zobrist ^= ZOBRIST_SIDE;
 }
 
 FEN Board::to_fen() const {
@@ -302,6 +325,10 @@ FEN Board::to_fen() const {
     oss << ' ' << m_halfmoves << ' ' << m_fullmoves;
 
     return oss.str();
+}
+
+uint64_t Board::get_zobrist_hash() const {
+    return m_zobrist;
 }
 
 PlayerColor Board::get_side_to_move() const {
@@ -491,12 +518,13 @@ void Board::make_move(const Move move) {
     bool is_ep = MoveEncoding::is_en_passant(move);
 
     // Store to state history
-    m_state_history.emplace_back(StoredState(move, m_castling_rights, m_en_passant_square, m_halfmoves));
+    m_state_history.emplace_back(StoredState(move, m_castling_rights, m_en_passant_square, m_zobrist, m_halfmoves));
 
     // Remove moved piece from the origin square
     m_pieces[+m_side_to_move][+piece] &= ~MASK_SQUARE[from];
     m_occupied[+m_side_to_move] &= ~MASK_SQUARE[from];
     m_piece_on_square[from] = PieceType::None;
+    m_zobrist ^= ZOBRIST_PIECE[+m_side_to_move][+piece][from];
 
     // Remove captured piece (and handle en passant)
     if (captured != PieceType::None) {
@@ -504,6 +532,7 @@ void Board::make_move(const Move move) {
         m_pieces[1-(+m_side_to_move)][+captured] &= ~MASK_SQUARE[capture_square];
         m_occupied[1-(+m_side_to_move)] &= ~MASK_SQUARE[capture_square];
         m_piece_on_square[capture_square] = PieceType::None;
+        m_zobrist ^= ZOBRIST_PIECE[1-(+m_side_to_move)][+captured][capture_square];
     }
 
     // Place moved piece / promotion on target square
@@ -511,45 +540,53 @@ void Board::make_move(const Move move) {
     if (promo == PieceType::None) {
         m_pieces[+m_side_to_move][+piece] |= MASK_SQUARE[to]; // Place original piece
         m_piece_on_square[to] = piece;
+        m_zobrist ^= ZOBRIST_PIECE[+m_side_to_move][+piece][to];
     }
     else {
         m_pieces[+m_side_to_move][+promo] |= MASK_SQUARE[to]; // Place promoted piece
         m_piece_on_square[to] = promo;
+        m_zobrist ^= ZOBRIST_PIECE[+m_side_to_move][+promo][to];
     }
 
     // Handle castling
     if(is_castle) {
         // Remove rook
-        int rook_square = to > from ? from + 3 : from - 4;
-        m_pieces[+m_side_to_move][+PieceType::Rook] &= ~MASK_SQUARE[rook_square];
-        m_occupied[+m_side_to_move] &= ~MASK_SQUARE[rook_square];
-        m_piece_on_square[rook_square] = PieceType::None;
+        int rook_from = to > from ? from + 3 : from - 4;
+        m_pieces[+m_side_to_move][+PieceType::Rook] &= ~MASK_SQUARE[rook_from];
+        m_occupied[+m_side_to_move] &= ~MASK_SQUARE[rook_from];
+        m_piece_on_square[rook_from] = PieceType::None;
+        m_zobrist ^= ZOBRIST_PIECE[+m_side_to_move][+PieceType::Rook][rook_from];
 
         // Add rook
-        rook_square = (to + from) >> 1;
-        m_pieces[+m_side_to_move][+PieceType::Rook] |= MASK_SQUARE[rook_square];
-        m_occupied[+m_side_to_move] |= MASK_SQUARE[rook_square];
-        m_piece_on_square[rook_square] = PieceType::Rook;
+        int rook_to = (to + from) >> 1;
+        m_pieces[+m_side_to_move][+PieceType::Rook] |= MASK_SQUARE[rook_to];
+        m_occupied[+m_side_to_move] |= MASK_SQUARE[rook_to];
+        m_piece_on_square[rook_to] = PieceType::Rook;
+        m_zobrist ^= ZOBRIST_PIECE[+m_side_to_move][+PieceType::Rook][rook_to];
     }
 
     // Update all occupancy status
     m_occupied_all = m_occupied[0] | m_occupied[1];
 
     // Update castling rights
+    m_zobrist ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F]; // remove old castling rights from hash
     if(piece == PieceType::King) {
         m_castling_rights &= ~CASTLE_FLAG[+m_side_to_move][KING_SIDE];
         m_castling_rights &= ~CASTLE_FLAG[+m_side_to_move][QUEEN_SIDE];
     }
-
     if(from == ROOK_SQUARE[+m_side_to_move][QUEEN_SIDE])       m_castling_rights &= ~CASTLE_FLAG[+m_side_to_move][QUEEN_SIDE];
     else if(from == ROOK_SQUARE[+m_side_to_move][KING_SIDE])   m_castling_rights &= ~CASTLE_FLAG[+m_side_to_move][KING_SIDE];
-
     if(to == ROOK_SQUARE[1-(+m_side_to_move)][QUEEN_SIDE])     m_castling_rights &= ~CASTLE_FLAG[1-(+m_side_to_move)][QUEEN_SIDE];
     else if(to == ROOK_SQUARE[1-(+m_side_to_move)][KING_SIDE]) m_castling_rights &= ~CASTLE_FLAG[1-(+m_side_to_move)][KING_SIDE];
+    m_zobrist ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F]; // add new castling rights to hash
 
-    // Update en passant square
+    // Update en passant square 
+    if(m_en_passant_square != -1) {
+        m_zobrist ^= ZOBRIST_EP[file_of(m_en_passant_square)];
+    }
     if(piece == PieceType::Pawn && std::abs(to-from) == 16) {
         m_en_passant_square = (to + from) >> 1;
+        m_zobrist ^= ZOBRIST_EP[file_of(m_en_passant_square)];
     }
     else{
         m_en_passant_square = -1;
@@ -565,6 +602,7 @@ void Board::make_move(const Move move) {
 
     // Next turn
     m_side_to_move = (m_side_to_move == PlayerColor::White) ? PlayerColor::Black: PlayerColor::White;
+    m_zobrist ^= ZOBRIST_SIDE;
 }
 
 bool Board::undo_move() {
@@ -636,6 +674,9 @@ bool Board::undo_move() {
         m_fullmoves--;
     }
     m_halfmoves = state.halfmoves;
+
+    // restore zobrist from saved state
+    m_zobrist = state.zobrist;
 
     m_state_history.pop_back(); // remove used history
     return true;
@@ -839,4 +880,24 @@ void Board::_precalc() {
             }
         }
     }
+
+    // Zobrist hashing keys
+    std::random_device rd;
+    std::mt19937_64 rng(rd());
+    std::uniform_int_distribution<uint64_t> distr;
+
+    for (int color = 0; color < 2; ++color) {
+        for (int piece = 0; piece < 6; ++piece) {
+            for (int square = 0; square < 64; ++square) {
+                ZOBRIST_PIECE[color][piece][square] = distr(rng);
+            }
+        }
+    }
+    for (int i = 0; i < 16; ++i) {
+        ZOBRIST_CASTLING[i] = distr(rng);
+    }
+    for (int f = 0; f < 8; ++f) {
+        ZOBRIST_EP[f] = distr(rng);
+    }
+    ZOBRIST_SIDE = distr(rng);
 }
