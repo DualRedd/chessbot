@@ -4,9 +4,10 @@
 
 #include "../core/chess.hpp"
 #include "../core/ai_player.hpp"
+#include "player_configuration.hpp"
 
 /**
- * Class handling game state playing human and/or AI moves.
+ * Class handling game state and players, both human and AI.
  */
 class GameManager : Chess {
 public:
@@ -20,9 +21,11 @@ public:
 
     /**
      * Start a new game.
+     * @param white_cfg white players configuration
+     * @param black_cfg black players configuration
      * @param fen FEN string describing the starting position
      */
-    void new_game(const FEN& fen = CHESS_START_POSITION);
+    void new_game(const PlayerConfiguration& white_cfg, const PlayerConfiguration& black_cfg, const FEN& fen = CHESS_START_POSITION);
 
     /**
      * @return True if it is *not* an AI's turn, else false.
@@ -61,13 +64,17 @@ private:
     
 private:
     Chess m_game;
+    PlayerConfiguration m_white_config;
+    PlayerConfiguration m_black_config;
 
     // AI
-    std::optional<std::unique_ptr<AIPlayer>> m_white_ai;
-    std::optional<std::unique_ptr<AIPlayer>> m_black_ai;
-    std::optional<std::shared_ptr<AsyncMoveCompute>> m_ai_move;
+    std::unique_ptr<AIPlayer> m_white_ai;
+    std::unique_ptr<AIPlayer> m_black_ai;
+    std::shared_ptr<AsyncMoveCompute> m_ai_move;
 
-    /** Represents an action on the board that needs to be communicated to AI players. */
+    /**
+     * Represents an action on the board that needs to be communicated to AI players.
+     */
     enum class AiAction { 
         MakeMove = 0,
         UndoMove = 1,

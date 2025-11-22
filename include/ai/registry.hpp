@@ -7,19 +7,20 @@
 #include <variant>
 #include <stdexcept>
 
-enum class FieldType { Bool, Int, Float, String };
+enum class FieldType { Bool, Int, Double };
 struct ConfigField {
-    std::string name;
+    std::string id;
+    std::string description;
     FieldType type;
-    std::variant<bool, int, double, std::string> value;
+    std::variant<bool, int, double> value;
 };
 
 template<typename T>
-T getConfigValue(const std::vector<ConfigField>& cfg, const std::string& name) {
+T getConfigValue(const std::vector<ConfigField>& cfg, const std::string& id) {
     for (const auto& field : cfg) {
-        if (field.name == name) return std::get<T>(field.value);
+        if (field.id == id) return std::get<T>(field.value);
     }
-    throw std::invalid_argument("getConfigValue() - missing field: " + name);
+    throw std::invalid_argument("getConfigValue() - missing field id: " + id);
 }
 
 class AIRegistry {

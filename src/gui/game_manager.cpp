@@ -1,9 +1,9 @@
 #include "gui/game_manager.hpp"
 #include "ai/registry.hpp"
 
-GameManager::GameManager() : m_game() {
-    m_black_ai = AIRegistry::create("Minimax");  // configurable ai later
-    m_black_ai.value()->set_board(m_game.get_board_as_fen());
+GameManager::GameManager() : m_game(), m_white_config(), m_black_config() {
+    m_white_config.is_human = true;
+    m_black_config.is_human = true;
 }
 
 GameManager::~GameManager() = default;
@@ -12,29 +12,30 @@ void GameManager::update() {
     _handle_ai_moves();
 }
 
-void GameManager::new_game(const FEN& fen) {
-    m_game.new_board(fen);
-
+void GameManager::new_game(const PlayerConfiguration& white_cfg, const PlayerConfiguration& black_cfg, const FEN& fen) {
     m_ai_move.reset();
-    if(m_white_ai.has_value()){
-        m_white_ai.value()->request_stop();
-        m_white_ai_actions.clear();
+    m_white_ai_actions.clear();
+    m_black_ai_actions.clear();
+    if(m_white_ai) m_white_ai->request_stop();
+    if(m_black_ai) m_black_ai->request_stop();
+
+    m_white_config = white_cfg;
+    m_black_config = black_cfg;
+    if(!m_white_config.is_human) {
         m_white_ai_actions.push_back(std::make_pair(AiAction::NewGame, fen));
     }
-    if(m_black_ai.has_value()){
-        m_black_ai.value()->request_stop();
-        m_black_ai_actions.clear();
+    if(!m_black_config.is_human) {
         m_black_ai_actions.push_back(std::make_pair(AiAction::NewGame, fen));
     }
+    m_game.new_board(fen);
 }
 
 bool GameManager::is_human_turn() const {
     PlayerColor turn = m_game.get_side_to_move();
-    return !(turn == PlayerColor::White ? m_white_ai : m_black_ai).has_value();
+    return (turn == PlayerColor::White ? m_white_config : m_black_config).is_human;
 }
 
 bool GameManager::try_play_human_move(const UCI& uci) {
-    PlayerColor turn = m_game.get_side_to_move();
     if(!is_human_turn()) return false;
     return _try_make_move(uci);
 }
@@ -44,31 +45,35 @@ bool GameManager::try_undo_move() {
     if(!success) return false;
 
     m_ai_move.reset();
-    if(m_white_ai.has_value()) {
-        m_white_ai.value()->request_stop();
+    if(!m_white_config.is_human) {
+        if(m_white_ai) m_white_ai->request_stop();
         m_white_ai_actions.push_back(std::make_pair(AiAction::UndoMove, ""));
     }
-    if(m_black_ai.has_value()) {
-        m_black_ai.value()->request_stop();
+    if(!m_black_config.is_human) {
+        if(m_black_ai) m_black_ai->request_stop();
         m_black_ai_actions.push_back(std::make_pair(AiAction::UndoMove, ""));
     }
 
     return true;
 }
 
-
 void GameManager::_handle_ai_moves() {
     if(is_human_turn()) return;
-    auto& ai = (m_game.get_side_to_move() == PlayerColor::White ? m_white_ai : m_black_ai).value();
+    auto& ai = m_game.get_side_to_move() == PlayerColor::White ? m_white_ai : m_black_ai;
 
-    if(!ai->is_computing() && !m_ai_move.has_value()) {
+    if((!ai || !ai->is_computing()) && !m_ai_move) {
         // apply stored actions first to sync state
         auto& actions = m_game.get_side_to_move() == PlayerColor::White ? m_white_ai_actions : m_black_ai_actions;
         for(const auto&[action, desc] : actions) {
             switch (action) {
                 case AiAction::MakeMove: ai->apply_move(desc); break;
                 case AiAction::UndoMove: ai->undo_move(); break;
-                case AiAction::NewGame: ai->set_board(desc); break;
+                case AiAction::NewGame: {
+                    auto& player = m_game.get_side_to_move() == PlayerColor::White ? m_white_config : m_black_config;
+                    ai = AIRegistry::create(player.ai_name, player.ai_config);
+                    ai->set_board(desc);
+                    break;
+                }
             }
         }
         actions.clear();
@@ -76,13 +81,13 @@ void GameManager::_handle_ai_moves() {
         // Start move calculation
         m_ai_move = ai->compute_move_async();
     }
-    else if(m_ai_move.has_value() && m_ai_move.value()->done) {
+    else if(m_ai_move && m_ai_move->done) {
         // Move computation finished
-        if (m_ai_move.value()->error){
-            std::rethrow_exception(m_ai_move.value()->error);
+        if (m_ai_move->error){
+            std::rethrow_exception(m_ai_move->error);
         }
-        if(!_try_make_move(m_ai_move.value()->result)){
-            throw std::runtime_error(std::string("GameManager::_handle_ai_moves() - AI gave illegal move '") + m_ai_move.value()->result + "'!");
+        if(!_try_make_move(m_ai_move->result)){
+            throw std::runtime_error(std::string("GameManager::_handle_ai_moves() - AI gave illegal move '") + m_ai_move->result + "'!");
         }
         m_ai_move.reset();
     }
@@ -92,10 +97,10 @@ bool GameManager::_try_make_move(const UCI& move) {
     bool success = m_game.play_move(move);
     if(!success) return false;
 
-    if(m_white_ai.has_value()) {
+    if(!m_white_config.is_human) {
         m_white_ai_actions.push_back(std::make_pair(AiAction::MakeMove, move));
     }
-    if(m_black_ai.has_value()) {
+    if(!m_black_config.is_human) {
         m_black_ai_actions.push_back(std::make_pair(AiAction::MakeMove, move));
     }
 

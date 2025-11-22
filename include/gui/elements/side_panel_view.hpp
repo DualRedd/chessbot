@@ -1,9 +1,10 @@
 #pragma once
 
 #include <functional>
-
 #include "TGUI/TGUI.hpp"
 #include "TGUI/Backend/SFML-Graphics.hpp"
+
+#include "player_config_view.hpp"
 
 /**
  * TODO
@@ -40,8 +41,23 @@ public:
      */
     void on_new_game_pressed(std::function<void()> callback);
 
+    /**
+     * @param side Which player (black or white) to get the configuration for
+     * @return PlayerConfiguration representing the current configurations selected in in the GUI for this player.
+     */
+    PlayerConfiguration get_player_configuration(PlayerColor side);
+
 private:
+    // Background panel
     tgui::Panel::Ptr m_panel;
+
+    // Layout top
     tgui::Button::Ptr m_undo_button;
     tgui::Button::Ptr m_new_game_button;
+
+    // Layout middle
+    tgui::ScrollablePanel::Ptr m_middle_scroll_panel;
+    tgui::GrowVerticalLayout::Ptr m_middle_grow_panel;
+    PlayerConfigView m_black_player_config;
+    PlayerConfigView m_white_player_config;
 };

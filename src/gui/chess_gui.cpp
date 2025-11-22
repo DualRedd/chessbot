@@ -21,7 +21,11 @@ ChessGUI::ChessGUI(int window_width, int window_height)
         return m_game_manager.try_play_human_move(uci);
     });
     m_side_panel.on_new_game_pressed([this](){
-        m_game_manager.new_game();
+        m_game_manager.new_game(
+            m_side_panel.get_player_configuration(PlayerColor::White),
+            m_side_panel.get_player_configuration(PlayerColor::Black),
+            CHESS_START_POSITION
+        );
     });
     m_side_panel.on_undo_pressed([this](){
         m_game_manager.try_undo_move();

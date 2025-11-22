@@ -108,6 +108,7 @@ add_executable(chess_gui
     src/gui/assets.cpp
     src/gui/elements/chess_view.cpp
     src/gui/elements/side_panel_view.cpp
+    src/gui/elements/player_config_view.cpp
 )
 target_link_libraries(chess_gui PRIVATE
     chess_core
