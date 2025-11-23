@@ -62,7 +62,7 @@ sf::Texture load_svg(const fs::path& asset_path) {
         file_utf8 = file.string(); // fallback
     }
 #else
-    std::string file_utf8 = file.u8string();
+    std::string file_utf8 = file.string();
 #endif
 
     // Parse SVG
