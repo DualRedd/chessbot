@@ -1,12 +1,25 @@
 #include "gui/game_manager.hpp"
 #include "ai/registry.hpp"
 
+// Helper: check if state is terminal
+static inline bool _is_terminal_state(Chess::GameState s) {
+    return !(s == Chess::GameState::NoCheck || s == Chess::GameState::Check);
+}
+
 GameManager::GameManager() : m_game(), m_white_config(), m_black_config() {
     m_white_config.is_human = true;
     m_black_config.is_human = true;
 }
 
 GameManager::~GameManager() = default;
+
+void GameManager::on_game_end(std::function<void(Chess::GameState)> cb) { 
+    m_on_game_end = std::move(cb); 
+}
+
+bool GameManager::game_ended() const {
+    return m_game_ended;
+}
 
 void GameManager::update() {
     _handle_ai_moves();
@@ -28,6 +41,14 @@ void GameManager::new_game(const PlayerConfiguration& white_cfg, const PlayerCon
         m_black_ai_actions.push_back(std::make_pair(AiAction::NewGame, fen));
     }
     m_game.new_board(fen);
+
+    // reset end state and notify if starting pos is already terminal
+    m_game_ended = false;
+    GameState state = m_game.get_game_state();
+    if(_is_terminal_state(state)) {
+        if (m_on_game_end) m_on_game_end(state);
+        m_game_ended = true;
+    }
 }
 
 bool GameManager::is_human_turn() const {
@@ -44,6 +65,7 @@ bool GameManager::try_undo_move() {
     bool success = m_game.undo_move();
     if(!success) return false;
 
+    m_game_ended = false;
     m_ai_move.reset();
     if(!m_white_config.is_human) {
         if(m_white_ai) m_white_ai->request_stop();
@@ -58,7 +80,7 @@ bool GameManager::try_undo_move() {
 }
 
 void GameManager::_handle_ai_moves() {
-    if(is_human_turn()) return;
+    if(is_human_turn() || m_game_ended) return;
     auto& ai = m_game.get_side_to_move() == PlayerColor::White ? m_white_ai : m_black_ai;
 
     if((!ai || !ai->is_computing()) && !m_ai_move) {
@@ -94,6 +116,8 @@ void GameManager::_handle_ai_moves() {
 }
 
 bool GameManager::_try_make_move(const UCI& move) {
+    if(m_game_ended) return false;
+
     bool success = m_game.play_move(move);
     if(!success) return false;
 
@@ -102,6 +126,12 @@ bool GameManager::_try_make_move(const UCI& move) {
     }
     if(!m_black_config.is_human) {
         m_black_ai_actions.push_back(std::make_pair(AiAction::MakeMove, move));
+    }
+
+    Chess::GameState state = m_game.get_game_state();
+    if(_is_terminal_state(state) && !m_game_ended) {
+        if (m_on_game_end) m_on_game_end(state);
+        m_game_ended = true;
     }
 
     return true;

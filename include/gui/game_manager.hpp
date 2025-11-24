@@ -1,6 +1,7 @@
 #pragma once
 
 #include <thread>
+#include <functional>
 
 #include "../core/chess.hpp"
 #include "../core/ai_player.hpp"
@@ -13,6 +14,17 @@ class GameManager : Chess {
 public:
     GameManager();
     ~GameManager();
+
+    /**
+     * Set the callback which is called once when the game ends.
+     * @param callback the callback with the final game state as parameter
+     */
+    void on_game_end(std::function<void(Chess::GameState)> cb);
+
+    /**
+     * @return True if the game has ended, else false.
+     */
+    bool game_ended() const;
 
     /**
      * Update manager status. Call consistently to handle internal events.
@@ -39,7 +51,7 @@ public:
      */
     bool try_play_human_move(const UCI& uci);
 
-     /**
+    /**
      * Try undoing a move on the board.
      * @return true if succesfull
      */
@@ -66,6 +78,10 @@ private:
     Chess m_game;
     PlayerConfiguration m_white_config;
     PlayerConfiguration m_black_config;
+
+    // Invoked once when the game ends. Parameter: final game state.
+    std::function<void(Chess::GameState)> m_on_game_end = nullptr;
+    bool m_game_ended = false;
 
     // AI
     std::unique_ptr<AIPlayer> m_white_ai;

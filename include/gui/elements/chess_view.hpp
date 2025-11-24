@@ -4,21 +4,17 @@
 #include <functional>
 #include "SFML/Graphics.hpp"
 
-#include "../../core/chess.hpp"
+#include "../game_manager.hpp"
 
 /**
  * Interactive board view for playing chess.
  */
 class ChessView {
 public:
-    ChessView(const Chess& game);
-
     /**
-     * Set a callback for handling dragging moves.
-     * @param callback Callback accepting the move as a UCI string.
-     * The callback should return whether the move was actually applied.
+     * @param game_manager the game manager this view is associated with.
      */
-    void on_move(std::function<bool(const UCI&)> callback);
+    ChessView(GameManager& game_manager);
 
     /**
      * Set the position of the top left corner of the board.
@@ -33,22 +29,23 @@ public:
     void set_size(float size);
 
     /**
-     * @param event the event to handle
-     * */
-    void handle_event(const sf::Event& event);
-
-    /**
      * Draw the board.
      * @param window target for drawing
      * @param is_human_turn conditional drawing for human moves
      * */
-    void draw(sf::RenderWindow& window, bool is_human_turn = true);
+    void draw(sf::RenderWindow& window);
+
+    /**
+     * @param event the event to handle
+     * */
+    void handle_event(const sf::Event& event);
 
 private:                                                             /** Events */
     void _on_mouse_left_down(sf::Vector2i screen_position);
     void _on_mouse_left_up(sf::Vector2i screen_position);
     void _on_mouse_moved(sf::Vector2i screen_position);
     void _on_piece_moved(Chess::Tile from, Chess::Tile to, PieceType promotion = PieceType::None);
+    void _on_game_end(Chess::GameState state);
 
 private:                                                             /** Drawing */
     /**
@@ -75,6 +72,11 @@ private:                                                             /** Drawing
      * @param position draw position in screen space
      */
     void _draw_piece(sf::RenderWindow& window, Piece piece, sf::Vector2f position);
+
+    /**
+     * @param window target for drawing
+     */
+    void _draw_game_over_popup(sf::RenderWindow& window);
 
     /**
      * @param tile A board tile.
@@ -104,8 +106,12 @@ private:                                                             /** Private
      */
     sf::Vector2f _board_to_screen_space(Chess::Tile tile) const;
 
+    // Game over popup
+    void _close_game_over_popup();
+    std::string _game_state_to_message(Chess::GameState state) const;
+
 private:
-    const Chess& m_game;
+    GameManager& m_game_manager;
 
     // Transform
     sf::Vector2f m_position;
@@ -122,13 +128,17 @@ private:
     bool m_is_dragging = false;
     sf::Vector2f m_drag_screen_position;
     std::optional<Chess::Tile> m_selected_tile;
-    std::function<bool(const UCI&)> onMoveAttempt = [](const UCI&) { return false; };
-    bool m_move_applied = false;
+    bool m_move_was_applied = false;
 
     // Promotion
     const static inline PieceType s_promotion_pieces[4] = { PieceType::Queen, PieceType::Rook, PieceType::Knight, PieceType::Bishop };
     bool m_promotion_prompt_active = false;
     Chess::Tile m_promotion_prompt_tile;
+
+    // Game over status popup
+    bool m_game_over_popup_active = false;
+    std::string m_game_over_message;
+    sf::Font m_font;
 
     // Colors
     const static inline sf::Color s_light_tile_color = sf::Color(240, 217, 181);

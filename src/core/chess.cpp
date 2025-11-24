@@ -171,7 +171,7 @@ Chess::GameState Chess::get_game_state() const {
         if (m_legal_moves.empty()) {
             return GameState::Stalemate;
         } else if (m_board.get_halfmove_clock() >= 100) {
-            return GameState::DrawByFiftyMove;
+            return GameState::DrawByFiftyMoveRule;
         } else if (_is_insufficient_material()) {
             return GameState::DrawByInsufficientMaterial;
         } else if (_is_threefold_repetition()) {

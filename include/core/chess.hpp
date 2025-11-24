@@ -37,7 +37,7 @@ public:
         Check,                      // Current player's king is in check
         Checkmate,                  // Current player's king is in checkmate
         Stalemate,                  // Current player has no legal moves but is not in check
-        DrawByFiftyMove,            // Draw by fifty-move rule
+        DrawByFiftyMoveRule,        // Draw by fifty-move rule
         DrawByInsufficientMaterial, // Draw by insufficient material
         DrawByThreefoldRepetition   // Draw by threefold repetition
     };

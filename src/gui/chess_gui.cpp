@@ -6,7 +6,7 @@ ChessGUI::ChessGUI(int window_width, int window_height)
       m_window(sf::VideoMode(sf::Vector2u(window_width, window_height)), "Chess"),
       m_tgui(m_window),
       m_side_panel(m_tgui),
-      m_chess_view(m_game_manager.get_game())
+      m_chess_view(m_game_manager)
 {
     m_window.setFramerateLimit(60);
 
@@ -17,9 +17,6 @@ ChessGUI::ChessGUI(int window_width, int window_height)
     m_window.setPosition(sf::Vector2i(pos_x, pos_y));
 
     // Callbacks
-    m_chess_view.on_move([this](const UCI& uci){
-        return m_game_manager.try_play_human_move(uci);
-    });
     m_side_panel.on_new_game_pressed([this](){
         m_game_manager.new_game(
             m_side_panel.get_player_configuration(PlayerColor::White),
@@ -67,8 +64,8 @@ void ChessGUI::_handle_events() {
 void ChessGUI::_draw() {
     m_window.clear();
 
-    m_chess_view.draw(m_window, m_game_manager.is_human_turn());
     m_tgui.draw();
+    m_chess_view.draw(m_window);
 
     m_window.display();
 }
