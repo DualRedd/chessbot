@@ -144,6 +144,7 @@ if (BUILD_TESTS)
     
     add_executable(unit_tests
         tests/test_board.cpp
+        tests/test_zobrist.cpp
     )
     target_link_libraries(unit_tests PRIVATE
         gtest_main

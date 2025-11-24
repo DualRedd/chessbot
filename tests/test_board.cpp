@@ -10,7 +10,7 @@ TEST(BoardCopyTests, CopyConstructor) {
     const int moves = 100;
     Board original(CHESS_START_POSITION);
     Board copy(original, false /* copy_history */);
-    EXPECT_EQ(copy.to_fen(), CHESS_START_POSITION) << "Case: the copy returns same FEN as the original was set to.";
+    EXPECT_EQ(copy.to_fen(), CHESS_START_POSITION) << "the copy does not return the same FEN as the original was set to.";
 }
 
 TEST(BoardCopyTests, CopyConstructorWithHistory) {
@@ -19,7 +19,8 @@ TEST(BoardCopyTests, CopyConstructorWithHistory) {
     Board original(CHESS_START_POSITION);
     for (int i = 0; i < moves; i++) {
         auto moves = original.generate_legal_moves();
-        int r = rand() % moves.size();
+        ASSERT_FALSE(moves.empty());
+        int r = std::rand() % static_cast<int>(moves.size());
         original.make_move(moves[r]);
     }
 
@@ -29,7 +30,7 @@ TEST(BoardCopyTests, CopyConstructorWithHistory) {
         EXPECT_TRUE(copy.undo_move());
     }
     EXPECT_EQ(copy.to_fen(), CHESS_START_POSITION)
-        << "Case: Do moves on original board, copy the board, undo moves on the copy, the copy returns same FEN as the original was set to.";
+        << "After doing moves on original board, copying the board and undoing moves on the copy, the copy does not return the same FEN as the original was set to.";
 }
 
 TEST(BitboardTests, FromValidLegalFEN) {
@@ -152,16 +153,18 @@ TEST(BitboardTests, GetLastMove) {
     // Make random moves on a board
     const int moves = 50;
     Board board(CHESS_START_POSITION);
-    EXPECT_EQ(board.get_last_move(), std::nullopt) << "Case: returns std::nullopt with no moves made.";
+    EXPECT_EQ(board.get_last_move(), std::nullopt) << "should return std::nullopt with no moves made.";
     for (int i = 0; i < moves; i++) {
         auto moves = board.generate_legal_moves();
-        int r = rand() % moves.size();
+        ASSERT_FALSE(moves.empty());
+        int r = std::rand() % static_cast<int>(moves.size());
         board.make_move(moves[r]);
-        EXPECT_EQ(board.get_last_move(), moves[r]) << "Case: last move is correct.";
+        EXPECT_EQ(board.get_last_move(), moves[r]) << "get last move does not match the move just made.";
     }
-    for (int i = 0; i < moves; i++)
+    for (int i = 0; i < moves; i++) {
         board.undo_move();
-    EXPECT_EQ(board.get_last_move(), std::nullopt) << "Case: returns std::nullopt after undoing all moves.";
+    }
+    EXPECT_EQ(board.get_last_move(), std::nullopt) << "should return std::nullopt after undoing all moves.";
 }
 
 TEST(BitboardTests, Perft) {
