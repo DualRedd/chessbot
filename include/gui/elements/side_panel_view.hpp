@@ -30,6 +30,12 @@ public:
     void set_size(sf::Vector2f size);
 
     /**
+     * Set a callback to called when the flip board button is pressed.
+     * @param callback the callback
+     */
+    void on_flip_board_pressed(std::function<void()> callback);
+
+    /**
      * Set a callback to called when the undo button is pressed.
      * @param callback the callback
      */
@@ -54,6 +60,7 @@ private:
     // Layout top
     tgui::Button::Ptr m_undo_button;
     tgui::Button::Ptr m_new_game_button;
+    tgui::Button::Ptr m_flip_board_button;
 
     // Layout middle
     tgui::ScrollablePanel::Ptr m_middle_scroll_panel;

@@ -29,6 +29,11 @@ public:
     void set_size(float size);
 
     /**
+     * Flip the board (rotate 180 degrees).
+     */
+    void flip_board();
+
+    /**
      * Draw the board.
      * @param window target for drawing
      * @param is_human_turn conditional drawing for human moves
@@ -106,14 +111,18 @@ private:                                                             /** Private
      */
     sf::Vector2f _board_to_screen_space(Chess::Tile tile) const;
 
-    // Game over popup
-    void _close_game_over_popup();
+    /**
+     * Convert a game state to a user friendly message.
+     * @param state the game state
+     * @return message describing the game state
+     */
     std::string _game_state_to_message(Chess::GameState state) const;
 
 private:
     GameManager& m_game_manager;
 
     // Transform
+    bool m_flipped = false;
     sf::Vector2f m_position;
     float m_size;
     float m_tile_size;

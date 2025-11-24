@@ -9,6 +9,7 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
   : m_panel(tgui::Panel::create()),
     m_undo_button(tgui::Button::create("Undo Move")),
     m_new_game_button(tgui::Button::create("New Game")),
+    m_flip_board_button(tgui::Button::create("Flip Board")),
     m_middle_scroll_panel(tgui::ScrollablePanel::create()),
     m_middle_grow_panel(tgui::GrowVerticalLayout::create()),
     m_black_player_config(m_middle_grow_panel, PlayerColor::Black),
@@ -17,14 +18,14 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
     // Main panel
     gui.add(m_panel);
 
-    // Undo button
-    m_panel->add(m_undo_button);
-    m_undo_button->setPosition(button_margin, button_margin);
-    m_undo_button->setSize("50%" - button_spacing - button_margin, button_height);
-    std::weak_ptr<tgui::Button> weak_undo_button_ptr = m_undo_button; // weak pointer to avoid sptr cycle
-    m_undo_button->onSizeChange([weak_undo_button_ptr](tgui::Vector2f size){
-        if(auto btn = weak_undo_button_ptr.lock()) {
-            btn->setTextSize(size.x * 0.14f);
+    // Flip board button
+    m_panel->add(m_flip_board_button);
+    m_flip_board_button->setPosition(button_margin, button_margin);
+    m_flip_board_button->setSize("50%" - button_spacing - button_margin, button_height);
+    std::weak_ptr<tgui::Button> weak_flip_board_button_ptr = m_flip_board_button; // weak pointer to avoid sptr cycle
+    m_flip_board_button->onSizeChange([weak_flip_board_button_ptr](tgui::Vector2f size){
+        if(auto btn = weak_flip_board_button_ptr.lock()) {
+            btn->setTextSize(std::min(size.x * 0.14f, size.y * 0.4f));
         }
     });
 
@@ -35,13 +36,25 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
     std::weak_ptr<tgui::Button> weak_new_game_button_ptr = m_new_game_button; // weak pointer to avoid sptr cycle
     m_new_game_button->onSizeChange([weak_new_game_button_ptr](tgui::Vector2f size){
         if(auto btn = weak_new_game_button_ptr.lock()) {
-            btn->setTextSize(size.x * 0.14f); 
+            btn->setTextSize(std::min(size.x * 0.14f, size.y * 0.4f));
         }
     });
 
+    // Undo button
+    m_panel->add(m_undo_button);
+    m_undo_button->setPosition(button_margin, button_height + 2 * button_margin);
+    m_undo_button->setSize("100%" - 2 * button_margin, button_height);
+    std::weak_ptr<tgui::Button> weak_undo_button_ptr = m_undo_button; // weak pointer to avoid sptr cycle
+    m_undo_button->onSizeChange([weak_undo_button_ptr](tgui::Vector2f size){
+        if(auto btn = weak_undo_button_ptr.lock()) {
+            btn->setTextSize(std::min(size.x * 0.14f, size.y * 0.42f));
+        }
+    });
+
+
     // Scroll panel
     m_panel->add(m_middle_scroll_panel);
-    m_middle_scroll_panel->setPosition(0, button_height + 2 * button_margin);
+    m_middle_scroll_panel->setPosition(0, 2 * button_height + 3 * button_margin);
     m_middle_scroll_panel->setSize("100%", "100%" - button_height - 2 * button_margin);
     m_middle_scroll_panel->getHorizontalScrollbar()->setPolicy(tgui::Scrollbar::Policy::Never);
     m_middle_scroll_panel->getVerticalScrollbar()->setPolicy(tgui::Scrollbar::Policy::Automatic);
@@ -60,6 +73,10 @@ void SidePanelView::set_position(sf::Vector2f position) {
 
 void SidePanelView::set_size(sf::Vector2f size) {
     m_panel->setSize(tgui::Layout2d(size));
+}
+
+void SidePanelView::on_flip_board_pressed(std::function<void()> callback) {
+    m_flip_board_button->onPress(callback);
 }
 
 void SidePanelView::on_undo_pressed(std::function<void()> callback) {

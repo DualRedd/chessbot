@@ -18,6 +18,10 @@ void ChessView::set_size(float size) {
     m_tile_size = size / 8.f;
 }
 
+void ChessView::flip_board() {
+    m_flipped = !m_flipped;
+}
+
 void ChessView::draw(sf::RenderWindow& window) {
     _draw_board(window);
 
@@ -62,7 +66,7 @@ void ChessView::handle_event(const sf::Event& event) {
     if (m_game_over_popup_active) {
         if (const auto& mouse_press_event = event.getIf<sf::Event::MouseButtonPressed>()) {
             if (mouse_press_event->button == sf::Mouse::Button::Left) {
-                _close_game_over_popup();
+                m_game_over_popup_active = false;
             }
         }
         return;
@@ -188,7 +192,8 @@ void ChessView::_draw_promotion_prompt(sf::RenderWindow& window) {
     background.setFillColor(sf::Color(233, 233, 233, 255));
     background.setSize(sf::Vector2f(m_tile_size, m_tile_size * background_height));
     background.setOrigin(sf::Vector2f(background.getSize()) / 2.0f);
-    background.setPosition(_board_to_screen_space(m_promotion_prompt_tile) - sf::Vector2f(0.f, m_tile_size * (background_height-1.f) / 2.f * dir));
+    background.setPosition(_board_to_screen_space(m_promotion_prompt_tile)
+                        + (m_flipped ? 1.f : -1.f) * sf::Vector2f(0.f, m_tile_size * (background_height-1.f) / 2.f * dir));
     window.draw(background);
 
     // Draw pieces
@@ -201,7 +206,8 @@ void ChessView::_draw_promotion_prompt(sf::RenderWindow& window) {
     sf::Sprite sprite(m_texture_x_icon);
     float scale = m_tile_size / sprite.getTexture().getSize().x * 0.2f; 
     sprite.setOrigin(sf::Vector2f(sprite.getTexture().getSize()) / 2.0f);
-    sprite.setPosition(_board_to_screen_space(m_promotion_prompt_tile) - sf::Vector2f(0.f, m_tile_size * (background_height - 0.75f) * dir));
+    sprite.setPosition(_board_to_screen_space(m_promotion_prompt_tile)
+                    + (m_flipped ? 1.f : -1.f) * sf::Vector2f(0.f, m_tile_size * (background_height - 0.75f) * dir));
     sprite.setScale(sf::Vector2f(scale, scale));
     sprite.setColor(sf::Color(255, 255, 255, 195));
     window.draw(sprite);
@@ -338,36 +344,36 @@ std::optional<Chess::Tile> ChessView::_screen_to_board_space(sf::Vector2f screen
     sf::FloatRect board_rect = sf::FloatRect(m_position, sf::Vector2f(m_size, m_size));
     if (!board_rect.contains(screen_pos)) return std::nullopt;
 
-    int file = static_cast<int>((screen_pos.x - board_rect.position.x) / m_tile_size);    
-    int rank = 7-static_cast<int>((screen_pos.y - board_rect.position.y) / m_tile_size);
-    // safety check in case of rounding
-    if (file < 0 || file >= 8 || rank < 0 || rank >= 8){
-        return std::nullopt;
+    int file = static_cast<int>((screen_pos.x - board_rect.position.x) / m_tile_size);
+    int rank = static_cast<int>((screen_pos.y - board_rect.position.y) / m_tile_size);
+    
+    // clamp in case of rounding
+    file = std::clamp(file, 0, 7);
+    rank = std::clamp(rank, 0, 7);
+
+    if (!m_flipped) {
+        file = file;
+        rank = 7 - rank;
+    } else {
+        file = 7 - file;
+        rank = rank;
     }
+
     return Chess::Tile(file, rank);
 }
 
 sf::Vector2f ChessView::_board_to_screen_space(Chess::Tile tile) const {
-    return sf::Vector2f(m_position.x + (tile.file + 0.5f) *  m_tile_size,
-                        m_position.y + (7-tile.rank + 0.5f) * m_tile_size);
+    int file, rank;
+    if (!m_flipped) {
+        file = tile.file;
+        rank = 7 - tile.rank;
+    } else {
+        file = 7 - tile.file;
+        rank = tile.rank;
+    }
+    return sf::Vector2f(m_position.x + (file + 0.5f) * m_tile_size,
+                        m_position.y + (rank + 0.5f) * m_tile_size);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 std::string ChessView::_game_state_to_message(Chess::GameState state) const {
     switch(state) {
@@ -388,8 +394,4 @@ std::string ChessView::_game_state_to_message(Chess::GameState state) const {
         default:
             return "Game over";
     }
-}
-
-void ChessView::_close_game_over_popup() {
-    m_game_over_popup_active = false;
 }

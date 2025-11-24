@@ -27,6 +27,9 @@ ChessGUI::ChessGUI(int window_width, int window_height)
     m_side_panel.on_undo_pressed([this](){
         m_game_manager.try_undo_move();
     });
+    m_side_panel.on_flip_board_pressed([this](){
+        m_chess_view.flip_board();
+    });
 
     // UI element setup
     _update_element_transforms();
