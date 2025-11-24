@@ -17,17 +17,17 @@ ChessGUI::ChessGUI(int window_width, int window_height)
     m_window.setPosition(sf::Vector2i(pos_x, pos_y));
 
     // Callbacks
-    m_side_panel.on_new_game_pressed([this](){
+    m_side_panel.on_new_game_pressed([this]() {
         m_game_manager.new_game(
             m_side_panel.get_player_configuration(PlayerColor::White),
             m_side_panel.get_player_configuration(PlayerColor::Black),
             CHESS_START_POSITION
         );
     });
-    m_side_panel.on_undo_pressed([this](){
+    m_side_panel.on_undo_pressed([this]() {
         m_game_manager.try_undo_move();
     });
-    m_side_panel.on_flip_board_pressed([this](){
+    m_side_panel.on_flip_board_pressed([this]() {
         m_chess_view.flip_board();
     });
 
@@ -51,17 +51,16 @@ void ChessGUI::_handle_events() {
     while (const std::optional event = m_window.pollEvent()) {
         m_tgui.handleEvent(*event);
 
-        if (event->is<sf::Event::Closed>()){
+        if (event->is<sf::Event::Closed>()) {
             m_window.close();
-        }
-        else if (const auto& resize_event = event->getIf<sf::Event::Resized>()) {
+        } else if (const auto& resize_event = event->getIf<sf::Event::Resized>()) {
             resized = true;
         }
 
         m_chess_view.handle_event(event.value());
     }
 
-    if(resized) _on_window_resize();
+    if (resized) _on_window_resize();
 }
 
 void ChessGUI::_draw() {
@@ -74,7 +73,7 @@ void ChessGUI::_draw() {
 }
 
 void ChessGUI::_on_window_resize() {
-    sf::Vector2u size = m_window.getSize(); 
+    sf::Vector2u size = m_window.getSize();
     sf::FloatRect rect(sf::Vector2f(0.0, 0.0), sf::Vector2f(static_cast<float>(size.x), static_cast<float>(size.y)));
     m_window.setView(sf::View(rect));
 
@@ -93,15 +92,7 @@ void ChessGUI::_update_element_transforms() {
     m_chess_view.set_position(board_offset);
     m_chess_view.set_size(board_size);
 
-
     // Side panel
-    m_side_panel.set_position(sf::Vector2f(
-        board_offset.x + board_size - 0.1f,
-        0
-    ));
-    m_side_panel.set_size(sf::Vector2f(
-        side_panel_width,
-        window_size.y
-    ));
-
+    m_side_panel.set_position(sf::Vector2f(board_offset.x + board_size - 0.1f, 0));
+    m_side_panel.set_size(sf::Vector2f(side_panel_width, window_size.y));
 }

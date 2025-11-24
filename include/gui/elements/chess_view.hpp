@@ -65,7 +65,7 @@ private:                                                             /** Drawing
      */
     void _draw_promotion_prompt(sf::RenderWindow& window);
 
-    /** 
+    /**
      * @param window target for drawing
      * @param tile The tile which the moves are drawn for.
      */
@@ -140,7 +140,7 @@ private:
     bool m_move_was_applied = false;
 
     // Promotion
-    const static inline PieceType s_promotion_pieces[4] = { PieceType::Queen, PieceType::Rook, PieceType::Knight, PieceType::Bishop };
+    const static inline PieceType s_promotion_pieces[4] = {PieceType::Queen, PieceType::Rook, PieceType::Knight, PieceType::Bishop};
     bool m_promotion_prompt_active = false;
     Chess::Tile m_promotion_prompt_tile;
 

@@ -23,7 +23,7 @@ public:
      * Create a board from a FEN description.
      * @param fen FEN string
      * @param allow_illegal_position if true, an illegal position according to normal chess rules can be set without a thrown exception
-     * @throw std::invalid_argument if the FEN string is not valid OR the position is illegal and allow_illegal_positions is false. 
+     * @throw std::invalid_argument if the FEN string is not valid OR the position is illegal and allow_illegal_positions is false.
      */
     explicit Board(const FEN& fen, bool allow_illegal_position = false);
 
@@ -38,7 +38,7 @@ public:
      * Set board configuration from a FEN description. Resets all board state.
      * @param fen FEN string
      * @param allow_illegal_position if true, an illegal position according to normal chess rules can be set without a thrown exception
-     * @throw std::invalid_argument if the FEN string is not valid OR the position is illegal and allow_illegal_positions is false. 
+     * @throw std::invalid_argument if the FEN string is not valid OR the position is illegal and allow_illegal_positions is false.
      */
     void set_from_fen(const FEN& fen, bool allow_illegal_position = false);
 
@@ -128,8 +128,8 @@ private:
         int8_t en_passant_square;
         uint64_t zobrist;
         uint32_t halfmoves;
-        StoredState(Move move, uint8_t castling_rights,
-            int8_t en_passant_square, uint64_t zobrist, uint32_t halfmoves);
+        StoredState(Move move, uint8_t castling_rights, int8_t en_passant_square,
+                    uint64_t zobrist, uint32_t halfmoves);
     };
 
     /**

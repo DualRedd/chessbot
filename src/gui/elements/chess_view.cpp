@@ -4,7 +4,7 @@
 ChessView::ChessView(GameManager& game_manager) : m_game_manager(game_manager) {
     _load_assets();
 
-    m_game_manager.on_game_end([this](Chess::GameState state){
+    m_game_manager.on_game_end([this](Chess::GameState state) {
         _on_game_end(state);
     });
 }
@@ -29,32 +29,32 @@ void ChessView::draw(sf::RenderWindow& window) {
     for (int rank = 0; rank < 8; rank++) {
         for (int file = 0; file < 8; file++) {
             Chess::Tile tile(file, rank);
-            if((m_is_dragging || m_promotion_prompt_active) && tile == m_selected_tile) continue;
+            if ((m_is_dragging || m_promotion_prompt_active) && tile == m_selected_tile) continue;
             _draw_piece(window, m_game_manager.get_game().get_piece_at(tile), _board_to_screen_space(tile));
         }
     }
 
-    if(!m_game_manager.game_ended()) {
+    if (!m_game_manager.game_ended()) {
         // Legal move highlights
-        if(m_game_manager.is_human_turn() && m_selected_tile.has_value()){
+        if (m_game_manager.is_human_turn() && m_selected_tile.has_value()) {
             _draw_legal_moves(window, m_selected_tile.value());
         }
 
         // Promotion prompt
-        if(m_promotion_prompt_active){
+        if (m_promotion_prompt_active) {
             _draw_promotion_prompt(window);
         }
     }
 
     // Dragged piece
-    if(m_is_dragging && m_selected_tile.has_value()){
+    if (m_is_dragging && m_selected_tile.has_value()) {
         sf::Vector2f draw_position = sf::Vector2f(
             std::clamp(m_drag_screen_position.x, m_position.x, m_position.x + m_size),
             std::clamp(m_drag_screen_position.y, m_position.y, m_position.y + m_size)
         );
         _draw_piece(window, m_game_manager.get_game().get_piece_at(m_selected_tile.value()), draw_position);
     }
-    
+
     // Game over popup
     if (m_game_over_popup_active) {
         _draw_game_over_popup(window);
@@ -73,7 +73,7 @@ void ChessView::handle_event(const sf::Event& event) {
     }
 
     m_move_was_applied = false;
-    if (const auto& mouse_press_event = event.getIf<sf::Event::MouseButtonPressed>()) {
+    if (const auto& mouse_press_event = event.getIf<sf::Event::MouseButtonPressed>()){
         if (mouse_press_event->button == sf::Mouse::Button::Left) {
             _on_mouse_left_down(mouse_press_event->position);
         }
@@ -87,18 +87,18 @@ void ChessView::handle_event(const sf::Event& event) {
         _on_mouse_moved(mouse_move_event->position);
     }
 
-    if(m_move_was_applied) {
-        // Selection should be reset when a move was applied. 
+    if (m_move_was_applied) {
+        // Selection should be reset when a move was applied.
         // This prevents the user from immediately dragging the just moved piece.
         m_selected_tile.reset();
     }
 }
 
 void ChessView::_on_mouse_left_down(sf::Vector2i screen_position) {
-    if(const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))){
-        if(m_promotion_prompt_active) {
+    if (const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))) {
+        if (m_promotion_prompt_active) {
             // Check if user pressed an option or not
-            if(tile.value().file == m_promotion_prompt_tile.file && std::abs(tile.value().rank - m_promotion_prompt_tile.rank) <= 3) {
+            if (tile.value().file == m_promotion_prompt_tile.file && std::abs(tile.value().rank - m_promotion_prompt_tile.rank) <= 3) {
                 // Make move with the promotion piece chosen from the list
                 _on_piece_moved(m_selected_tile.value(), m_promotion_prompt_tile,
                                 s_promotion_pieces[std::abs(tile.value().rank - m_promotion_prompt_tile.rank)]);
@@ -106,10 +106,9 @@ void ChessView::_on_mouse_left_down(sf::Vector2i screen_position) {
             // In both cases the prompt should be closed
             m_promotion_prompt_active = false;
             m_selected_tile.reset();
-        }
-        else{
+        } else {
             // If there is a previous selection, make a move between these tiles
-            if(m_selected_tile.has_value()){
+            if (m_selected_tile.has_value()) {
                 _on_piece_moved(m_selected_tile.value(), tile.value());
             }
 
@@ -118,22 +117,20 @@ void ChessView::_on_mouse_left_down(sf::Vector2i screen_position) {
                 m_is_dragging = true;
                 m_selected_tile = tile;
                 m_drag_screen_position = sf::Vector2f(screen_position);
-            }
-            else { // else empty tile was pressed, so reset selection
+            } else { // else empty tile was pressed, so reset selection
                 m_selected_tile.reset();
             }
         }
     }
 }
 
-void ChessView::_on_mouse_left_up(sf::Vector2i screen_position){
-    if(m_is_dragging){
-        m_is_dragging = false;
-        if(const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))){
-            // If there is a previous selection, make a move between these tiles
-            if(m_selected_tile.has_value()){
-                _on_piece_moved(m_selected_tile.value(), tile.value());
-            }
+void ChessView::_on_mouse_left_up(sf::Vector2i screen_position) {
+    if (!m_is_dragging) return;
+    m_is_dragging = false;
+    if (const auto tile = _screen_to_board_space(sf::Vector2f(screen_position))) {
+        // If there is a previous selection, make a move between these tiles
+        if (m_selected_tile.has_value()) {
+            _on_piece_moved(m_selected_tile.value(), tile.value());
         }
     }
 }
@@ -145,11 +142,11 @@ void ChessView::_on_mouse_moved(sf::Vector2i screen_position) {
 }
 
 void ChessView::_on_piece_moved(Chess::Tile from, Chess::Tile to, PieceType promotion) {
-    if(promotion == PieceType::None){
+    if (promotion == PieceType::None) {
         // Check if promotion prompt needs to be activated
         UCI move = Chess::uci_create(from, to, s_promotion_pieces[0]);
         bool is_promotion_move = m_game_manager.get_game().is_legal_move(move);
-        if(is_promotion_move) {
+        if (is_promotion_move) {
             m_promotion_prompt_active = true;
             m_promotion_prompt_tile = to;
             return;
@@ -192,8 +189,7 @@ void ChessView::_draw_promotion_prompt(sf::RenderWindow& window) {
     background.setFillColor(sf::Color(233, 233, 233, 255));
     background.setSize(sf::Vector2f(m_tile_size, m_tile_size * background_height));
     background.setOrigin(sf::Vector2f(background.getSize()) / 2.0f);
-    background.setPosition(_board_to_screen_space(m_promotion_prompt_tile)
-                        + (m_flipped ? 1.f : -1.f) * sf::Vector2f(0.f, m_tile_size * (background_height-1.f) / 2.f * dir));
+    background.setPosition(_board_to_screen_space(m_promotion_prompt_tile) + (m_flipped ? 1.f : -1.f) * sf::Vector2f(0.f, m_tile_size * (background_height - 1.f) / 2.f * dir));
     window.draw(background);
 
     // Draw pieces
@@ -204,10 +200,9 @@ void ChessView::_draw_promotion_prompt(sf::RenderWindow& window) {
 
     // Draw x icon
     sf::Sprite sprite(m_texture_x_icon);
-    float scale = m_tile_size / sprite.getTexture().getSize().x * 0.2f; 
+    float scale = m_tile_size / sprite.getTexture().getSize().x * 0.2f;
     sprite.setOrigin(sf::Vector2f(sprite.getTexture().getSize()) / 2.0f);
-    sprite.setPosition(_board_to_screen_space(m_promotion_prompt_tile)
-                    + (m_flipped ? 1.f : -1.f) * sf::Vector2f(0.f, m_tile_size * (background_height - 0.75f) * dir));
+    sprite.setPosition(_board_to_screen_space(m_promotion_prompt_tile) + (m_flipped ? 1.f : -1.f) * sf::Vector2f(0.f, m_tile_size * (background_height - 0.75f) * dir));
     sprite.setScale(sf::Vector2f(scale, scale));
     sprite.setColor(sf::Color(255, 255, 255, 195));
     window.draw(sprite);
@@ -219,21 +214,21 @@ void ChessView::_draw_legal_moves(sf::RenderWindow& window, Chess::Tile tile) {
 
     PieceType selected_piece = m_game_manager.get_game().get_piece_at(tile).type;
     for (const UCI& move : moves) {
-        auto[from, to, promo] = Chess::uci_parse(move);
-        if(from != tile) continue;
+        auto [from, to, promo] = Chess::uci_parse(move);
+        if (from != tile) continue;
 
-        if(promo != PieceType::None && promo != PieceType::Queen){
+        if (promo != PieceType::None && promo != PieceType::Queen) {
             // Avoid duplicating sprites on promotion moves. There are
             // multiple legal moves to this square differing only in promotion.
-            continue; 
+            continue;
         }
-        
+
         PieceType target_piece = m_game_manager.get_game().get_piece_at(to).type;
         bool is_capture = (target_piece != PieceType::None)                             // normal capture
                         || (selected_piece == PieceType::Pawn && from.file != to.file); // en passant / pawn capture
 
         sf::Sprite sprite(is_capture ? m_texture_circle_hollow : m_texture_circle);
-        float scale = m_tile_size / sprite.getTexture().getSize().x * (is_capture ? 0.95f : 0.3f); 
+        float scale = m_tile_size / sprite.getTexture().getSize().x * (is_capture ? 0.95f : 0.3f);
 
         sprite.setOrigin(sf::Vector2f(sprite.getTexture().getSize()) / 2.0f);
         sprite.setPosition(_board_to_screen_space(to));
@@ -250,7 +245,7 @@ void ChessView::_draw_piece(sf::RenderWindow& window, Piece piece, sf::Vector2f 
 
     sprite.setOrigin(sf::Vector2f(sprite.getTexture().getSize()) / 2.0f);
     sprite.setPosition(position);
-    
+
     float scale = m_tile_size / sprite.getTexture().getSize().x;
     sprite.setScale(sf::Vector2f(scale, scale));
 
@@ -260,8 +255,8 @@ void ChessView::_draw_piece(sf::RenderWindow& window, Piece piece, sf::Vector2f 
 void ChessView::_draw_game_over_popup(sf::RenderWindow& window) {
     // Popup box
     sf::RectangleShape popup_box;
-    popup_box.setFillColor(sf::Color(40,40,40));
-    popup_box.setOutlineColor(sf::Color(20,20,20));
+    popup_box.setFillColor(sf::Color(40, 40, 40));
+    popup_box.setOutlineColor(sf::Color(20, 20, 20));
     popup_box.setOutlineThickness(4.f);
 
     // Text
@@ -296,15 +291,15 @@ void ChessView::_draw_game_over_popup(sf::RenderWindow& window) {
 
 sf::Color ChessView::_get_tile_color(Chess::Tile tile) {
     sf::Color color = (tile.rank + tile.file) % 2 == 0 ? s_light_tile_color : s_dark_tile_color;
-    
+
     // Select highligting
     bool is_selected = m_selected_tile.has_value() && m_selected_tile == tile;
 
     // Move highlighting
     bool is_previous_move_tile = false;
     auto last_move = m_game_manager.get_game().get_last_move();
-    if(last_move.has_value()){
-        auto[from, to, promo] = Chess::uci_parse(last_move.value());
+    if (last_move.has_value()) {
+        auto [from, to, promo] = Chess::uci_parse(last_move.value());
         is_previous_move_tile = from == tile || to == tile;
     }
 
@@ -316,7 +311,6 @@ sf::Color ChessView::_get_tile_color(Chess::Tile tile) {
     return color;
 }
 
-
 void ChessView::_load_assets() {
     // Font
     if (!m_font.openFromFile(get_executable_dir() / "assets/fonts/Roboto-Regular.ttf")) {
@@ -324,14 +318,14 @@ void ChessView::_load_assets() {
     }
 
     // Pieces
-    for(PlayerColor color : {PlayerColor::White, PlayerColor::Black}){
+    for (PlayerColor color : {PlayerColor::White, PlayerColor::Black}) {
         std::string prefix = (color == PlayerColor::White ? "w" : "b");
-        m_texture_pieces[{PieceType::Pawn,   color}] = load_svg("pieces/" + prefix + "P.svg");
+        m_texture_pieces[{PieceType::Pawn, color}] = load_svg("pieces/" + prefix + "P.svg");
         m_texture_pieces[{PieceType::Knight, color}] = load_svg("pieces/" + prefix + "N.svg");
         m_texture_pieces[{PieceType::Bishop, color}] = load_svg("pieces/" + prefix + "B.svg");
-        m_texture_pieces[{PieceType::Rook,   color}] = load_svg("pieces/" + prefix + "R.svg");
-        m_texture_pieces[{PieceType::Queen,  color}] = load_svg("pieces/" + prefix + "Q.svg");
-        m_texture_pieces[{PieceType::King,   color}] = load_svg("pieces/" + prefix + "K.svg");
+        m_texture_pieces[{PieceType::Rook, color}] = load_svg("pieces/" + prefix + "R.svg");
+        m_texture_pieces[{PieceType::Queen, color}] = load_svg("pieces/" + prefix + "Q.svg");
+        m_texture_pieces[{PieceType::King, color}] = load_svg("pieces/" + prefix + "K.svg");
     }
 
     // Other
@@ -346,7 +340,7 @@ std::optional<Chess::Tile> ChessView::_screen_to_board_space(sf::Vector2f screen
 
     int file = static_cast<int>((screen_pos.x - board_rect.position.x) / m_tile_size);
     int rank = static_cast<int>((screen_pos.y - board_rect.position.y) / m_tile_size);
-    
+
     // clamp in case of rounding
     file = std::clamp(file, 0, 7);
     rank = std::clamp(rank, 0, 7);

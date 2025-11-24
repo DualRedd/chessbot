@@ -8,7 +8,7 @@ Chess::Tile::Tile(int file_, int rank_) : file(file_), rank(rank_) {}
 
 bool Chess::Tile::operator==(const Tile& other) const {
     return file == other.file && rank == other.rank;
-}  
+}
 
 bool Chess::Tile::operator!=(const Tile& other) const {
     return !(operator==(other));
@@ -23,10 +23,10 @@ bool Chess::Tile::valid() const {
 }
 
 UCI Chess::uci_create(const Tile& from, const Tile& to, PieceType promotion) {
-    if(!from.valid()){
+    if (!from.valid()) {
         throw std::invalid_argument("Chess::uci_create() - invalid origin tile!");
     }
-    if(!to.valid()){
+    if (!to.valid()) {
         throw std::invalid_argument("Chess::uci_create() - invalid target tile!");
     }
 
@@ -35,7 +35,7 @@ UCI Chess::uci_create(const Tile& from, const Tile& to, PieceType promotion) {
     uci += ('1' + from.rank);
     uci += ('a' + to.file);
     uci += ('1' + to.rank);
-    
+
     switch (promotion) {
         case PieceType::Queen:  uci += 'q'; break;
         case PieceType::Rook:   uci += 'r'; break;
@@ -48,23 +48,23 @@ UCI Chess::uci_create(const Tile& from, const Tile& to, PieceType promotion) {
     return uci;
 }
 
-std::tuple<Chess::Tile,Chess::Tile,PieceType> Chess::uci_parse(const UCI& uci) {
-    if(uci.size() < 4 || uci.size() > 5){
+std::tuple<Chess::Tile, Chess::Tile, PieceType> Chess::uci_parse(const UCI& uci) {
+    if (uci.size() < 4 || uci.size() > 5) {
         throw std::invalid_argument("Chess::uci_parse() - invalid input UCI!");
     }
 
-    Chess::Tile from(uci[0]-'a', uci[1]-'1');
-    if(!from.valid()) {
+    Chess::Tile from(uci[0] - 'a', uci[1] - '1');
+    if (!from.valid()) {
         throw std::invalid_argument("Chess::uci_parse() - invalid input UCI!");
     }
 
-    Chess::Tile to(uci[2]-'a', uci[3]-'1');
-    if(!to.valid()) {
+    Chess::Tile to(uci[2] - 'a', uci[3] - '1');
+    if (!to.valid()) {
         throw std::invalid_argument("Chess::uci_parse() - invalid input UCI!");
     }
 
     PieceType promotion = PieceType::None;
-    if(uci.size() == 5){
+    if (uci.size() == 5) {
         switch (uci[4]) {
             case 'q': promotion = PieceType::Queen; break;
             case 'r': promotion = PieceType::Rook; break;
@@ -76,7 +76,6 @@ std::tuple<Chess::Tile,Chess::Tile,PieceType> Chess::uci_parse(const UCI& uci) {
 
     return {from, to, promotion};
 }
-
 
 Chess::Chess() {
     m_legal_moves.reserve(218); // Max number of legal moves in any position
@@ -117,7 +116,7 @@ bool Chess::is_legal_move(const UCI& move) const {
 }
 
 bool Chess::play_move(const UCI& move) {
-    if(!is_legal_move(move)) return false;
+    if (!is_legal_move(move)) return false;
 
     m_board.make_move(m_board.move_from_uci(move));
     _update_legal_moves();
@@ -132,19 +131,19 @@ bool Chess::play_move(const UCI& move) {
 
 bool Chess::undo_move() {
     bool success = m_board.undo_move();
-    if(success) {
+    if (success) {
         _update_legal_moves();
 
         if (m_zobrist_history.empty()) {
             throw std::runtime_error("Chess::undo_move() - Zobrist history underflow!");
         }
-        if(m_fen_history.size() != m_zobrist_history.size()) {
+        if (m_fen_history.size() != m_zobrist_history.size()) {
             throw std::runtime_error("Chess::undo_move() - FEN history corrupted!");
         }
 
         uint64_t last_key = m_zobrist_history.back();
         auto it = m_zobrist_counts.find(last_key);
-        if(it == m_zobrist_counts.end()) {
+        if (it == m_zobrist_counts.end()) {
             throw std::runtime_error("Chess::undo_move() - Zobrist history corrupted!");
         }
         if (--(it->second) <= 0) m_zobrist_counts.erase(it);
@@ -156,7 +155,7 @@ bool Chess::undo_move() {
 
 std::optional<UCI> Chess::get_last_move() const {
     auto move = m_board.get_last_move();
-    if(!move.has_value()) return std::nullopt;
+    if (!move.has_value()) return std::nullopt;
     return MoveEncoding::to_uci(move.value());
 }
 
@@ -190,9 +189,9 @@ bool Chess::_is_insufficient_material() const {
     int white_other = 0;
     int black_other = 0;
 
-    for(int square = 0; square < 64; ++square){
+    for (int square = 0; square < 64; ++square) {
         Piece piece = m_board.get_piece_at(square);
-        if(piece.type == PieceType::None) continue;
+        if (piece.type == PieceType::None) continue;
 
         if(piece.color == PlayerColor::White){
             switch(piece.type){
@@ -217,7 +216,7 @@ bool Chess::_is_insufficient_material() const {
         }
     }
 
-    if (white_other == 0 && black_other == 0){
+    if (white_other == 0 && black_other == 0) {
         if (white_bishops == 0 && black_bishops == 0) {
             if (white_knights <= 1 && black_knights <= 1) {
                 return true;
@@ -257,7 +256,7 @@ bool Chess::_is_threefold_repetition() const {
 
     const FEN cur = strip_counters(m_board.to_fen());
     int exact = 0;
-    for (const auto &f : m_fen_history) {
+    for (const auto& f : m_fen_history) {
         if (strip_counters(f) == cur && ++exact >= 3) {
             return true;
         }
@@ -267,7 +266,7 @@ bool Chess::_is_threefold_repetition() const {
 
 void Chess::_update_legal_moves() {
     m_legal_moves.clear();
-    for(const Move& move : m_board.generate_legal_moves()){
+    for (const Move& move : m_board.generate_legal_moves()) {
         m_legal_moves.push_back(MoveEncoding::to_uci(move));
     }
 }

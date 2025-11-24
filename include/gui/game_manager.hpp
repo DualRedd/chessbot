@@ -73,7 +73,7 @@ private:
      * @return true if succesfull
      */
     bool _try_make_move(const UCI& move);
-    
+
 private:
     Chess m_game;
     PlayerConfiguration m_white_config;
@@ -91,7 +91,7 @@ private:
     /**
      * Represents an action on the board that needs to be communicated to AI players.
      */
-    enum class AiAction { 
+    enum class AiAction {
         MakeMove = 0,
         UndoMove = 1,
         NewGame = 2
@@ -99,4 +99,3 @@ private:
     std::vector<std::pair<AiAction, std::string>> m_white_ai_actions;
     std::vector<std::pair<AiAction, std::string>> m_black_ai_actions;
 };
-

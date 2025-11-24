@@ -1,7 +1,7 @@
 #include "gui/elements/player_config_view.hpp"
 
-const tgui::Layout config_widget_label_width{"50%"}; 
-const tgui::Layout config_widget_height{"35.0"}; 
+const tgui::Layout config_widget_label_width{"50%"};
+const tgui::Layout config_widget_height{"35.0"};
 const tgui::Layout config_widget_margin_left{"20.0"};
 const tgui::Layout config_widget_margin_right{"5.0"};
 const tgui::Layout config_widget_margin_vertical{"5.0"};
@@ -37,13 +37,13 @@ PlayerConfigView::PlayerConfigView(tgui::GrowVerticalLayout::Ptr parent, PlayerC
     // Dropdown label
     auto label = tgui::Label::create();
     label->setText(color == PlayerColor::White ? "White" : "Black");
-    label->setPosition(dropdown_margin_left, dropdown_margin_vertical+1);
+    label->setPosition(dropdown_margin_left, dropdown_margin_vertical + 1);
     label->setSize(dropdown_label_width, dropdown_height);
     label->setHorizontalAlignment(tgui::HorizontalAlignment::Left);
     label->setVerticalAlignment(tgui::VerticalAlignment::Center);
     std::weak_ptr<tgui::Label> weak_label_ptr = label; // weak pointer to avoid sptr cycle
-    label->onSizeChange([weak_label_ptr](tgui::Vector2f size){
-        if(auto lbl = weak_label_ptr.lock()) {
+    label->onSizeChange([weak_label_ptr](tgui::Vector2f size) {
+        if (auto lbl = weak_label_ptr.lock()) {
             lbl->setTextSize(std::min(size.x * text_size * 0.11f, size.y * text_size * 0.22f));
         }
     });
@@ -51,17 +51,19 @@ PlayerConfigView::PlayerConfigView(tgui::GrowVerticalLayout::Ptr parent, PlayerC
     // Dropdown itself
     m_dropdown->addItem("Human");
     m_dropdown->setSelectedItem("Human");
-    for (auto& ai : AIRegistry::listAINames()) m_dropdown->addItem(ai);
+    for (auto& ai : AIRegistry::listAINames()) {
+        m_dropdown->addItem(ai);
+    }
     m_dropdown->setSize("100%" - dropdown_label_width - dropdown_margin_left - dropdown_margin_right, dropdown_height);
     m_dropdown->setPosition(dropdown_label_width + dropdown_margin_left, dropdown_margin_vertical);
     m_dropdown->getRenderer()->setPadding(8);
     std::weak_ptr<tgui::ComboBox> weak_dropdown_ptr = m_dropdown; // weak pointer to avoid sptr cycle
-    m_dropdown->onSizeChange([weak_dropdown_ptr](tgui::Vector2f size){
-        if(auto drp = weak_dropdown_ptr.lock()) {
+    m_dropdown->onSizeChange([weak_dropdown_ptr](tgui::Vector2f size) {
+        if (auto drp = weak_dropdown_ptr.lock()) {
             drp->setTextSize(std::min(size.x * text_size * 0.1f, size.y * text_size * 0.17f));
         }
     });
-    m_dropdown->onItemSelect([this](const tgui::String& selected){
+    m_dropdown->onItemSelect([this](const tgui::String& selected) {
         _apply_item_selected(selected);
     });
 
@@ -160,7 +162,7 @@ PlayerConfiguration PlayerConfigView::get_current_configuration() {
     const auto& fields = it_fields->second;
     const auto& inputs = it_inputs->second;
     assert(inputs.size() == fields.size());
-    
+
     for (size_t i = 0; i < fields.size(); i++) {
         tgui::Widget::Ptr widget = inputs[i];
 

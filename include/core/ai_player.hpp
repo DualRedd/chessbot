@@ -55,7 +55,7 @@ public:
 
     /**
      * Compute a move on the current board asynchronously.
-     * @return AsyncMoveCompute indicating response status. 
+     * @return AsyncMoveCompute indicating response status.
      * @note AsyncMoveCompute::done will be set to true after an error occured or the result was succesfully computed.
      */
     std::shared_ptr<AsyncMoveCompute> compute_move_async();
@@ -64,7 +64,7 @@ public:
      * Request the current move compute to stop (if there is one).
      * This can be used to stop async move computes.
      * @warning This does not quarantee when the AI will stop. It is up to the implementation.
-     * @note Use is_computing() to track when the move compute has stopped. 
+     * @note Use is_computing() to track when the move compute has stopped.
      */
     void request_stop();
 

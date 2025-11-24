@@ -10,5 +10,3 @@ struct PlayerConfiguration {
     std::string ai_name;
     std::vector<ConfigField> ai_config;
 };
-
-

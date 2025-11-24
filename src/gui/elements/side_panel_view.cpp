@@ -2,8 +2,7 @@
 
 const tgui::Layout button_margin{"10.0"};
 const tgui::Layout button_spacing{"1.5%"};
-const tgui::Layout button_height{"40.0"}; 
-
+const tgui::Layout button_height{"40.0"};
 
 SidePanelView::SidePanelView(tgui::Gui& gui)
   : m_panel(tgui::Panel::create()),
@@ -23,8 +22,8 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
     m_flip_board_button->setPosition(button_margin, button_margin);
     m_flip_board_button->setSize("50%" - button_spacing - button_margin, button_height);
     std::weak_ptr<tgui::Button> weak_flip_board_button_ptr = m_flip_board_button; // weak pointer to avoid sptr cycle
-    m_flip_board_button->onSizeChange([weak_flip_board_button_ptr](tgui::Vector2f size){
-        if(auto btn = weak_flip_board_button_ptr.lock()) {
+    m_flip_board_button->onSizeChange([weak_flip_board_button_ptr](tgui::Vector2f size) {
+        if (auto btn = weak_flip_board_button_ptr.lock()) {
             btn->setTextSize(std::min(size.x * 0.14f, size.y * 0.4f));
         }
     });
@@ -34,8 +33,8 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
     m_new_game_button->setPosition("50%" + button_spacing, button_margin);
     m_new_game_button->setSize("50%" - button_spacing - button_margin, button_height);
     std::weak_ptr<tgui::Button> weak_new_game_button_ptr = m_new_game_button; // weak pointer to avoid sptr cycle
-    m_new_game_button->onSizeChange([weak_new_game_button_ptr](tgui::Vector2f size){
-        if(auto btn = weak_new_game_button_ptr.lock()) {
+    m_new_game_button->onSizeChange([weak_new_game_button_ptr](tgui::Vector2f size) {
+        if (auto btn = weak_new_game_button_ptr.lock()) {
             btn->setTextSize(std::min(size.x * 0.14f, size.y * 0.4f));
         }
     });
@@ -45,12 +44,11 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
     m_undo_button->setPosition(button_margin, button_height + 2 * button_margin);
     m_undo_button->setSize("100%" - 2 * button_margin, button_height);
     std::weak_ptr<tgui::Button> weak_undo_button_ptr = m_undo_button; // weak pointer to avoid sptr cycle
-    m_undo_button->onSizeChange([weak_undo_button_ptr](tgui::Vector2f size){
-        if(auto btn = weak_undo_button_ptr.lock()) {
+    m_undo_button->onSizeChange([weak_undo_button_ptr](tgui::Vector2f size) {
+        if (auto btn = weak_undo_button_ptr.lock()) {
             btn->setTextSize(std::min(size.x * 0.14f, size.y * 0.42f));
         }
     });
-
 
     // Scroll panel
     m_panel->add(m_middle_scroll_panel);
@@ -90,8 +88,7 @@ void SidePanelView::on_new_game_pressed(std::function<void()> callback) {
 PlayerConfiguration SidePanelView::get_player_configuration(PlayerColor side) {
     if (side == PlayerColor::Black) {
         return m_black_player_config.get_current_configuration();
-    }
-    else {
+    } else {
         return m_white_player_config.get_current_configuration();
     }
 }

@@ -23,7 +23,7 @@ std::string square_name(int sq) {
 
 UCI MoveEncoding::to_uci(const Move& move) {
     int from = MoveEncoding::from_sq(move);
-    int to   = MoveEncoding::to_sq(move);
+    int to = MoveEncoding::to_sq(move);
     PieceType promo = MoveEncoding::promo(move);
 
     std::string uci = square_name(from) + square_name(to);

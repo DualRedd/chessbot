@@ -58,7 +58,7 @@ public:
      * @return Parsed origin tile, target tile and promotion piece.
      * @throw invalid_argument if the UCI is not valid.
      */
-    static std::tuple<Tile,Tile,PieceType> uci_parse(const UCI& uci);
+    static std::tuple<Tile, Tile, PieceType> uci_parse(const UCI& uci);
 
 public:
     /**
@@ -146,7 +146,7 @@ private:
 
     // Zobrist history for threefold-repetition detection
     std::vector<uint64_t> m_zobrist_history;
-    std::unordered_map<uint64_t,int> m_zobrist_counts;
+    std::unordered_map<uint64_t, int> m_zobrist_counts;
     // FEN history for verification on suspected collisions (rare zobrist collisions)
     std::vector<FEN> m_fen_history;
 };

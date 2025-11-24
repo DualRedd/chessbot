@@ -7,7 +7,6 @@
 constexpr inline PlayerColor opponent(PlayerColor side) { return side == PlayerColor::White ? PlayerColor::Black : PlayerColor::White; };
 constexpr inline int square_for_side(int square, PlayerColor side) { return (side == PlayerColor::White) ? square : (63 - square); };
 
-
 SearchPosition::SearchPosition() : m_board() {}
 
 void SearchPosition::set_board(const FEN& fen) {
@@ -53,20 +52,20 @@ void SearchPosition::make_move(Move move) {
     int delta = 0;
 
     // Move piece and handle promo
-    delta +=  _pst_value(piece, side, to) - _pst_value(piece, side, from);
-    if(promo != PieceType::None) {
+    delta += _pst_value(piece, side, to) - _pst_value(piece, side, from);
+    if (promo != PieceType::None) {
         delta += _material_value(promo) - _material_value(piece);
     }
 
     // Handle capture and en passant
-    if(captured != PieceType::None) {
+    if (captured != PieceType::None) {
         int capture_square = is_ep ? (from & 0b111000 /* rank of from */) | (to & 0b000111 /* file of to */) : to;
         delta += _material_value(captured);
         delta += _pst_value(captured, opponent(side), capture_square);
     }
 
     // Handle castling
-    if(is_castle){
+    if (is_castle) {
         int rook_from = to > from ? from + 3 : from - 4;
         int rook_to = (to + from) >> 1;
         delta += _pst_value(PieceType::Rook, side, rook_to) + _pst_value(PieceType::Rook, side, rook_from);
@@ -78,7 +77,7 @@ void SearchPosition::make_move(Move move) {
 }
 
 bool SearchPosition::undo_move() {
-    if(m_eval_history.size() == 0) return false;
+    if (m_eval_history.size() == 0) return false;
     m_eval = m_eval_history.back();
     m_eval_history.pop_back();
     m_board.undo_move();

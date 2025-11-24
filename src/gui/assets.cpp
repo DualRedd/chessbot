@@ -19,7 +19,6 @@
 #include <limits.h>
 #endif
 
-
 fs::path get_executable_dir() {
     fs::path exePath = fs::current_path(); // fallback
 #if defined(_WIN32)
@@ -37,7 +36,7 @@ fs::path get_executable_dir() {
     }
 #elif defined(__linux__)
     char buf[1024];
-    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf)-1);
+    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
     if (len != -1) {
         buf[len] = '\0';
         exePath = fs::path(buf).parent_path();
@@ -45,7 +44,6 @@ fs::path get_executable_dir() {
 #endif
     return exePath;
 }
-
 
 sf::Texture load_svg(const fs::path& asset_path) {
     fs::path file = get_executable_dir() / "assets" / asset_path;
@@ -76,18 +74,17 @@ sf::Texture load_svg(const fs::path& asset_path) {
     constexpr int render_size = 128;
     std::vector<unsigned char> bitmap(render_size * render_size * 4);
     nsvgRasterize(rast, image, 0, 0, (float)render_size / image->width,
-                    bitmap.data(), render_size, render_size, render_size * 4);
+                  bitmap.data(), render_size, render_size, render_size * 4);
     nsvgDelete(image);
     nsvgDeleteRasterizer(rast);
 
     // Create texture
     sf::Image img(sf::Vector2u(render_size, render_size), bitmap.data());
     sf::Texture tex;
-    if(!tex.loadFromImage(img)){
+    if (!tex.loadFromImage(img)) {
         throw std::runtime_error("Failed to create image from rasterized svg: " + file.string());
     }
     tex.setSmooth(true);
 
     return tex;
 }
-

@@ -15,7 +15,7 @@ struct ConfigField {
     std::variant<bool, int, double> value;
 };
 
-template<typename T>
+template <typename T>
 T getConfigValue(const std::vector<ConfigField>& cfg, const std::string& id) {
     for (const auto& field : cfg) {
         if (field.id == id) return std::get<T>(field.value);

@@ -15,7 +15,7 @@ void registerRandomAI() {
 
 RandomAI::RandomAI(const std::vector<ConfigField>& cfg) {
     uint32_t seed = std::random_device{}();
-    if(getConfigValue<bool>(cfg, "useseed")){
+    if (getConfigValue<bool>(cfg, "useseed")) {
         seed = static_cast<uint32_t>(getConfigValue<int>(cfg, "rngseed"));
     }
     m_rng.seed(seed);
@@ -28,14 +28,14 @@ void RandomAI::_set_board(const FEN& fen) {
 void RandomAI::_apply_move(const UCI& uci_move) {
     Move move = m_board.move_from_uci(uci_move);
     auto legal_moves = m_board.generate_legal_moves();
-    if(std::find(legal_moves.begin(), legal_moves.end(), move) == legal_moves.end()){
+    if (std::find(legal_moves.begin(), legal_moves.end(), move) == legal_moves.end()) {
         throw std::invalid_argument("RandomAI::apply_move() - illegal move!");
     }
     m_board.make_move(move);
 }
 
 void RandomAI::_undo_move() {
-    if(!m_board.undo_move()){
+    if (!m_board.undo_move()) {
         throw std::invalid_argument("RandomAI::undo_move() - no previous move!");
     }
 }

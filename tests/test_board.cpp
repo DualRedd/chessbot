@@ -17,7 +17,7 @@ TEST(BoardCopyTests, CopyConstructorWithHistory) {
     // Make random moves on a board
     const int moves = 100;
     Board original(CHESS_START_POSITION);
-    for(int i = 0; i < moves; i++){
+    for (int i = 0; i < moves; i++) {
         auto moves = original.generate_legal_moves();
         int r = rand() % moves.size();
         original.make_move(moves[r]);
@@ -34,10 +34,10 @@ TEST(BoardCopyTests, CopyConstructorWithHistory) {
 
 TEST(BitboardTests, FromValidLegalFEN) {
     Board board;
-    auto test_no_throw = [&board] (const FEN& fen, bool allow_illegal) {
+    auto test_no_throw = [&board](const FEN& fen, bool allow_illegal) {
         EXPECT_NO_THROW(board.set_from_fen(fen, allow_illegal)) << "Case: " << fen;
     };
-    
+
     test_no_throw("k1K5/8/8/4pP2/8/8/8/8", false); // Only board
     test_no_throw("k1K5/8/8/4pP2/8/8/8/8 w - e6", false); // Valid white en passant
     test_no_throw("k1K5/8/8/8/4pP2/8/8/8 b - f3", false); // Valid black en passant
@@ -46,7 +46,7 @@ TEST(BitboardTests, FromValidLegalFEN) {
 
 TEST(BitboardTests, FromValidIllegalFEN) {
     Board board;
-    auto test_illegal_but_valid = [&board] (const FEN& fen) {
+    auto test_illegal_but_valid = [&board](const FEN& fen) {
         EXPECT_THROW(board.set_from_fen(fen, false), std::invalid_argument) << "Case: " << fen;
         EXPECT_NO_THROW(board.set_from_fen(fen, true)) << "Case: " << fen;
     };
@@ -63,10 +63,10 @@ TEST(BitboardTests, FromValidIllegalFEN) {
 
 TEST(BitboardTests, FromInvalidFEN) {
     Board board;
-    auto test_throw = [&board] (const FEN& fen) {
+    auto test_throw = [&board](const FEN& fen) {
         EXPECT_THROW(board.set_from_fen(fen), std::invalid_argument) << "Case: " << fen;
     };
-    
+
     // Board
     test_throw(""); // Empty string
     test_throw("k1K5/8/8/8/8/8/8"); // Missing rank
@@ -84,13 +84,13 @@ TEST(BitboardTests, FromInvalidFEN) {
     // Castling
     test_throw("4k3/8/8/8/8/8/8/4K3 w KQkqqq"); // Too many chars
     test_throw("4k3/8/8/8/8/8/8/4K3 w ABab"); // Unknown char
-    for(char c : {'K', 'Q', 'k', 'q'}){
+    for (char c : {'K', 'Q', 'k', 'q'}) {
         test_throw(std::string("4k3/8/8/8/8/8/8/4K3 w ") + c); // Missing rook for castling
         test_throw(std::string("r2k3R/8/8/8/8/8/8/r2K3R w ") + c); // Missing king for castling
     }
 
     // En passant
-    for(char s : {'w', 'b'}){
+    for (char s : {'w', 'b'}) {
         test_throw(std::string("4k3/8/8/8/8/8/8/4K3 ") + s + " - e3x"); // Too many chars
         test_throw(std::string("4k3/8/8/8/8/8/8/4K3 ") + s + " - e"); // Too few chars
         test_throw(std::string("4k3/8/8/8/8/8/8/4K3 ") + s + " - j6"); // Invalid file
@@ -108,7 +108,7 @@ TEST(BitboardTests, FromInvalidFEN) {
 
 TEST(BitboardTests, ToFEN) {
     Board board;
-    auto test_fen = [&board] (const FEN& fen) {
+    auto test_fen = [&board](const FEN& fen) {
         EXPECT_NO_THROW(board.set_from_fen(fen)) << "Case: " << fen;
         EXPECT_EQ(board.to_fen(), fen) << "Case: " << fen;
     };
@@ -136,10 +136,10 @@ TEST(BitboardTests, MoveFromUCI) {
     EXPECT_THROW(board.move_from_uci("a0a6"), std::invalid_argument) << "Case: UCI invalid rank";
     EXPECT_THROW(board.move_from_uci("a5a0"), std::invalid_argument) << "Case: UCI invalid rank";
 
-    auto test_fen = [&board] (const FEN& fen) {
+    auto test_fen = [&board](const FEN& fen) {
         board.set_from_fen(fen);
         auto moves = board.generate_legal_moves();
-        for(const Move& move : moves) {
+        for (const Move& move : moves) {
             EXPECT_EQ(board.move_from_uci(MoveEncoding::to_uci(move)), move) << "Case: Move to UCI back to Move";
         }
     };
@@ -150,33 +150,33 @@ TEST(BitboardTests, MoveFromUCI) {
 
 TEST(BitboardTests, GetLastMove) {
     // Make random moves on a board
-    const int moves = 50    ;
+    const int moves = 50;
     Board board(CHESS_START_POSITION);
     EXPECT_EQ(board.get_last_move(), std::nullopt) << "Case: returns std::nullopt with no moves made.";
-    for(int i = 0; i < moves; i++){
+    for (int i = 0; i < moves; i++) {
         auto moves = board.generate_legal_moves();
         int r = rand() % moves.size();
         board.make_move(moves[r]);
         EXPECT_EQ(board.get_last_move(), moves[r]) << "Case: last move is correct.";
     }
-    for(int i = 0; i < moves; i++) board.undo_move();
+    for (int i = 0; i < moves; i++)
+        board.undo_move();
     EXPECT_EQ(board.get_last_move(), std::nullopt) << "Case: returns std::nullopt after undoing all moves.";
 }
-
 
 TEST(BitboardTests, Perft) {
     Board board;
     std::function<uint64_t(int)> perft = [&perft, &board](int depth) {
-        if(depth == 0)
+        if (depth == 0)
             return uint64_t(1);
 
         uint64_t node_count = 0;
         auto moves = board.generate_legal_moves();
 
-        if(depth == 1)
+        if (depth == 1)
             return uint64_t(moves.size());
 
-        for(const Move& move : moves) {
+        for (const Move& move : moves) {
             board.make_move(move);
             node_count += perft(depth - 1);
             board.undo_move();
