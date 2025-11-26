@@ -65,7 +65,7 @@ double MinimaxAI::_alpha_beta(double alpha, double beta, int depth_left) {
         m_position.make_move(move);
         if (!m_position.get_board().in_check(side)) {
             legal_move_count++;
-            int score = -_alpha_beta(-beta, -alpha, depth_left - 1);
+            double score = -_alpha_beta(-beta, -alpha, depth_left - 1);
             if (score >= beta) {
                 m_position.undo_move();
                 return beta; // refutation move found, fail-high node
