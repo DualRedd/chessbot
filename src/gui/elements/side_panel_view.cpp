@@ -1,8 +1,5 @@
 #include "gui/elements/side_panel_view.hpp"
-
-const tgui::Layout button_margin{"10.0"};
-const tgui::Layout button_spacing{"1.5%"};
-const tgui::Layout button_height{"40.0"};
+#include "gui/elements/style.hpp"
 
 SidePanelView::SidePanelView(tgui::Gui& gui)
   : m_panel(tgui::Panel::create()),
@@ -50,10 +47,24 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
         }
     });
 
+    // AI speed configuration field
+    ConfigField speed_field {
+        .id = "ai_speed",
+        .description = "AI minimum time per move (s)",
+        .type = FieldType::Double,
+        .value = 1.0
+    };
+    m_ai_speed_field = create_config_field_widget(speed_field);
+    m_panel->add(m_ai_speed_field->get_container());
+    m_ai_speed_field->get_container()->setPosition(button_margin, 2 * button_height + 3 * button_margin);
+    m_ai_speed_field->get_container()->setSize("100%" - 2 * button_margin, m_ai_speed_field->get_container()->getSize().y);
+
     // Scroll panel
     m_panel->add(m_middle_scroll_panel);
-    m_middle_scroll_panel->setPosition(0, 2 * button_height + 3 * button_margin);
-    m_middle_scroll_panel->setSize("100%", "100%" - button_height - 2 * button_margin);
+    tgui::Layout reserved_top = m_ai_speed_field->get_container()->getPosition().y
+                                + m_ai_speed_field->get_container()->getSize().y + button_margin;
+    m_middle_scroll_panel->setPosition(0, reserved_top);
+    m_middle_scroll_panel->setSize("100%", "100%" - reserved_top);
     m_middle_scroll_panel->getHorizontalScrollbar()->setPolicy(tgui::Scrollbar::Policy::Never);
     m_middle_scroll_panel->getVerticalScrollbar()->setPolicy(tgui::Scrollbar::Policy::Automatic);
 
@@ -63,6 +74,7 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
     // updateWidget() which then trashes its m_widgetLayouts vector while it's still being iterated.
     m_middle_grow_panel->setSize("parent.width - 16", "100%");
     m_middle_scroll_panel->add(m_middle_grow_panel);
+    m_middle_scroll_panel->getRenderer()->setBackgroundColor(tgui::Color::Red);
 }
 
 void SidePanelView::set_position(sf::Vector2f position) {
@@ -83,6 +95,13 @@ void SidePanelView::on_undo_pressed(std::function<void()> callback) {
 
 void SidePanelView::on_new_game_pressed(std::function<void()> callback) {
     m_new_game_button->onPress(callback);
+}
+
+void SidePanelView::on_ai_speed_changed(std::function<void(double)> callback) {
+    /*m_ai_speed_field->set_on_change_callback([callback](const ConfigField& field) {
+        double speed = std::get<double>(field.value);
+        callback(speed);
+    });*/
 }
 
 PlayerConfiguration SidePanelView::get_player_configuration(PlayerColor side) {

@@ -1,11 +1,5 @@
 #include "gui/elements/player_config_view.hpp"
 
-const tgui::Layout config_widget_label_width{"50%"};
-const tgui::Layout config_widget_height{"35.0"};
-const tgui::Layout config_widget_margin_left{"20.0"};
-const tgui::Layout config_widget_margin_right{"5.0"};
-const tgui::Layout config_widget_margin_vertical{"5.0"};
-
 const tgui::Layout dropdown_margin_left{"15.0"};
 const tgui::Layout dropdown_margin_right{"5.0"};
 const tgui::Layout dropdown_margin_vertical{"10.0"};
@@ -75,68 +69,17 @@ PlayerConfigView::PlayerConfigView(tgui::GrowVerticalLayout::Ptr parent, PlayerC
     // Pre-create per-AI panels and fields
     for (const auto& ai_name : AIRegistry::listAINames()) {
         auto fields = AIRegistry::listConfig(ai_name);
-        m_ai_fields[ai_name] = fields;
 
-        std::vector<tgui::Widget::Ptr> input_widgets;
-        std::vector<tgui::Widget::Ptr> field_panels;
-
+        std::vector<ConfigFieldView::Ptr> input_views;
         for (const auto& field : fields) {
-            auto field_container = tgui::Panel::create();
-            field_container->setSize("100%", config_widget_height + 2 * config_widget_margin_vertical);
-            field_container->setVisible(false);
-
-            // label
-            auto label_field = tgui::Label::create();
-            label_field->setSize(config_widget_label_width, "100%");
-            label_field->setPosition(config_widget_margin_left, config_widget_margin_vertical);
-            label_field->setText(field.description + ":");
-            label_field->setHorizontalAlignment(tgui::HorizontalAlignment::Left);
-            label_field->setVerticalAlignment(tgui::VerticalAlignment::Center);
-            field_container->add(label_field);
-
-            // input
-            tgui::Widget::Ptr input;
-            switch (field.type) {
-                case FieldType::Bool: {
-                    auto checkbox = tgui::CheckBox::create();
-                    checkbox->setChecked(std::get<bool>(field.value));
-                    checkbox->setSize("height", config_widget_height);
-                    checkbox->setPosition("100% - height" - config_widget_margin_right, config_widget_margin_vertical);
-                    input = checkbox;
-                    break;
-                }
-                case FieldType::Int: {
-                    auto edit = tgui::EditBox::create();
-                    edit->setText(std::to_string(std::get<int>(field.value)));
-                    edit->setSize("100%" - config_widget_label_width - config_widget_margin_left - config_widget_margin_right, config_widget_height);
-                    edit->setPosition(config_widget_label_width + config_widget_margin_left, config_widget_margin_vertical);
-                    edit->setInputValidator(tgui::EditBox::Validator::Int);
-                    input = edit;
-                    break;
-                }
-                case FieldType::Double: {
-                    auto edit = tgui::EditBox::create();
-                    edit->setText(float_to_string(std::get<double>(field.value)));
-                    edit->setSize("100%" - config_widget_label_width - config_widget_margin_left - config_widget_margin_right, config_widget_height);
-                    edit->setPosition(config_widget_label_width + config_widget_margin_left, config_widget_margin_vertical);
-                    edit->setInputValidator(tgui::EditBox::Validator::Float);
-                    input = edit;
-                    break;
-                }
-                default:
-                    continue;
-            }
-
-            field_container->add(input);
-            m_container->add(field_container);
-
-            input_widgets.push_back(input);
-            field_panels.push_back(field_container);
-            m_all_field_containers.push_back(field_container);
+            auto input_view = create_config_field_widget(field);
+            m_container->add(input_view->get_container());
+            input_view->get_container()->setVisible(false);
+            input_views.push_back(input_view);
+            m_all_field_views.push_back(input_view);
         }
 
-        m_ai_field_inputs[ai_name] = std::move(input_widgets);
-        m_ai_field_containers[ai_name] = std::move(field_panels);
+        m_ai_field_views[ai_name] = std::move(input_views);
     }
 
     // initial recalculation
@@ -153,53 +96,14 @@ PlayerConfiguration PlayerConfigView::get_current_configuration() {
         return cfg; // no configuration for human players
 
     cfg.ai_name = selected.toStdString();
-    auto it_fields = m_ai_fields.find(cfg.ai_name);
-    auto it_inputs = m_ai_field_inputs.find(cfg.ai_name);
-    if (it_fields == m_ai_fields.end() || it_inputs == m_ai_field_inputs.end()) {
+    auto it_inputs = m_ai_field_views.find(cfg.ai_name);
+    if (it_inputs == m_ai_field_views.end()) {
         throw std::runtime_error("PlayerConfigView::get_current_configuration() - unknown selection: " + selected.toStdString());
     }
 
-    const auto& fields = it_fields->second;
     const auto& inputs = it_inputs->second;
-    assert(inputs.size() == fields.size());
-
-    for (size_t i = 0; i < fields.size(); i++) {
-        tgui::Widget::Ptr widget = inputs[i];
-
-        ConfigField result = fields[i];
-        switch (fields[i].type) {
-            case FieldType::Bool: {
-                auto checkbox = widget->cast<tgui::CheckBox>();
-                result.value = checkbox->isChecked();
-                break;
-            }
-            case FieldType::Int: {
-                auto edit = widget->cast<tgui::EditBox>();
-                try {
-                    result.value = std::stoi(edit->getText().toStdString());
-                }
-                catch (...) {
-                    edit->setText("0");
-                    result.value = 0;
-                }
-                break;
-            }
-            case FieldType::Double: {
-                auto edit = widget->cast<tgui::EditBox>();
-                try {
-                    result.value = std::stod(edit->getText().toStdString());
-                }
-                catch (...) {
-                    edit->setText("0.0");
-                    result.value = 0.0;
-                }
-                break;
-            }
-            default:
-                assert(false);
-                break;
-        }
-
+    for (size_t i = 0; i < inputs.size(); ++i) {
+        ConfigField result = inputs[i]->get_state();
         cfg.ai_config.push_back(result);
     }
 
@@ -208,8 +112,8 @@ PlayerConfiguration PlayerConfigView::get_current_configuration() {
 
 void PlayerConfigView::_apply_item_selected(const tgui::String& selected) {
     // hide all field panels first
-    for (auto& panel : m_all_field_containers) {
-        if (panel) panel->setVisible(false);
+    for (auto& panel : m_all_field_views) {
+        if (panel) panel->get_container()->setVisible(false);
     }
 
     // Human selected, no fields to show
@@ -218,13 +122,11 @@ void PlayerConfigView::_apply_item_selected(const tgui::String& selected) {
         return;
     }
 
-    std::string name = selected.toStdString();
-    auto it_containers = m_ai_field_containers.find(name);
-
-    if (it_containers != m_ai_field_containers.end()) {
-        // show panels for the selected AI
+    // show panels for the selected AI
+    auto it_containers = m_ai_field_views.find(selected.toStdString());
+    if (it_containers != m_ai_field_views.end()) {
         for (auto& panel : it_containers->second) {
-            if (panel) panel->setVisible(true);
+            if (panel) panel->get_container()->setVisible(true);
         }
     }
 
@@ -236,11 +138,12 @@ void PlayerConfigView::_recalculate_internal_panel() {
     float y = dropdown_height.getValue() + (dropdown_margin_vertical * 2).getValue();
 
     // Position each field panel in the same order they were added
-    for (auto& container : m_all_field_containers) {
-        if (!container) continue;
+    for (auto& view : m_all_field_views) {
+        if (!view) continue;
+        auto container = view->get_container();
         if (container->isVisible()) {
             container->setPosition(0, y);
-            y += (config_widget_height + 2 * config_widget_margin_vertical).getValue();
+            y += container->getSize().y;
         } else {
             container->setPosition(0, 0);
         }

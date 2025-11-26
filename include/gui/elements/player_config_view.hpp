@@ -5,6 +5,7 @@
 
 #include "../../core/types.hpp"
 #include "../player_configuration.hpp"
+#include "config_widgets.hpp"
 
 #include <optional>
 #include <unordered_map>
@@ -44,8 +45,6 @@ private:
     tgui::ComboBox::Ptr m_dropdown;
 
     // Pre-created per-AI field panels and inputs
-    std::unordered_map<std::string, std::vector<tgui::Widget::Ptr>> m_ai_field_containers;
-    std::unordered_map<std::string, std::vector<tgui::Widget::Ptr>> m_ai_field_inputs;
-    std::unordered_map<std::string, std::vector<ConfigField>> m_ai_fields;
-    std::vector<tgui::Widget::Ptr> m_all_field_containers;
+    std::unordered_map<std::string, std::vector<ConfigFieldView::Ptr>> m_ai_field_views;
+    std::vector<ConfigFieldView::Ptr> m_all_field_views;
 };

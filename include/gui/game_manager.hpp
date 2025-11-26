@@ -2,6 +2,7 @@
 
 #include <thread>
 #include <functional>
+#include <chrono>
 
 #include "../core/chess.hpp"
 #include "../core/ai_player.hpp"
@@ -14,6 +15,12 @@ class GameManager : Chess {
 public:
     GameManager();
     ~GameManager();
+
+    /**
+     * Set the minimum delay before applying an AI move each turn.
+     * @param seconds delay in seconds
+     */
+    void set_ai_move_delay(double seconds);
 
     /**
      * Set the callback which is called once when the game ends.
@@ -87,6 +94,10 @@ private:
     std::unique_ptr<AIPlayer> m_white_ai;
     std::unique_ptr<AIPlayer> m_black_ai;
     std::shared_ptr<AsyncMoveCompute> m_ai_move;
+
+    // configurable minimum delay before applying a AI move
+    double m_ai_move_delay_seconds = 0.5;
+    std::chrono::steady_clock::time_point m_ai_move_start_time{};
 
     /**
      * Represents an action on the board that needs to be communicated to AI players.

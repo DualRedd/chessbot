@@ -16,11 +16,11 @@ struct ConfigField {
 };
 
 template <typename T>
-T getConfigValue(const std::vector<ConfigField>& cfg, const std::string& id) {
+T get_config_field_value(const std::vector<ConfigField>& cfg, const std::string& id) {
     for (const auto& field : cfg) {
         if (field.id == id) return std::get<T>(field.value);
     }
-    throw std::invalid_argument("getConfigValue() - missing field id: " + id);
+    throw std::invalid_argument("get_config_field_value() - missing field id: " + id);
 }
 
 class AIRegistry {

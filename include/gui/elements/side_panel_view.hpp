@@ -48,6 +48,12 @@ public:
     void on_new_game_pressed(std::function<void()> callback);
 
     /**
+     * Set a callback to be called when the AI speed configuration is changed.
+     * @param callback the callback
+     */
+    void on_ai_speed_changed(std::function<void(double)> callback);
+
+    /**
      * @param side Which player (black or white) to get the configuration for
      * @return PlayerConfiguration representing the current configurations selected in in the GUI for this player.
      */
@@ -61,6 +67,7 @@ private:
     tgui::Button::Ptr m_undo_button;
     tgui::Button::Ptr m_new_game_button;
     tgui::Button::Ptr m_flip_board_button;
+    ConfigFieldView::Ptr m_ai_speed_field;
 
     // Layout middle
     tgui::ScrollablePanel::Ptr m_middle_scroll_panel;

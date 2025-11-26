@@ -13,6 +13,10 @@ GameManager::GameManager() : m_game(), m_white_config(), m_black_config() {
 
 GameManager::~GameManager() = default;
 
+void GameManager::set_ai_move_delay(double seconds) {
+    m_ai_move_delay_seconds = seconds;
+}
+
 void GameManager::on_game_end(std::function<void(Chess::GameState)> cb) {
     m_on_game_end = std::move(cb);
 }
@@ -62,7 +66,7 @@ bool GameManager::try_play_human_move(const UCI& uci) {
 }
 
 bool GameManager::try_undo_move() {
-    bool success = m_game.undo_move();
+    const bool success = m_game.undo_move();
     if (!success) return false;
 
     m_game_ended = false;
@@ -105,12 +109,20 @@ void GameManager::_handle_ai_moves() {
 
         // Start move calculation
         m_ai_move = ai->compute_move_async();
+        m_ai_move_start_time = std::chrono::steady_clock::now();
     }
     else if (m_ai_move && m_ai_move->done) {
         // Move computation finished
         if (m_ai_move->error) {
             std::rethrow_exception(m_ai_move->error);
         }
+
+        const auto min_time = m_ai_move_start_time + std::chrono::duration<double>(m_ai_move_delay_seconds);
+        if (std::chrono::steady_clock::now() < min_time) {
+            // Not ready yet; try again later.
+            return;
+        }
+
         if (!_try_make_move(m_ai_move->result)) {
             throw std::runtime_error(std::string("GameManager::_handle_ai_moves() - AI gave illegal move '") + m_ai_move->result + "'!");
         }
@@ -121,7 +133,7 @@ void GameManager::_handle_ai_moves() {
 bool GameManager::_try_make_move(const UCI& move) {
     if (m_game_ended) return false;
 
-    bool success = m_game.play_move(move);
+    const bool success = m_game.play_move(move);
     if (!success) return false;
 
     if (!m_white_config.is_human) {

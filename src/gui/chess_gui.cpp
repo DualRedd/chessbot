@@ -30,6 +30,9 @@ ChessGUI::ChessGUI(int window_width, int window_height)
     m_side_panel.on_flip_board_pressed([this]() {
         m_chess_view.flip_board();
     });
+    m_side_panel.on_ai_speed_changed([this](double speed) {
+        m_game_manager.set_ai_move_delay(speed);
+    });
 
     // UI element setup
     _update_element_transforms();

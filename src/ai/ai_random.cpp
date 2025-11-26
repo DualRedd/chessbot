@@ -15,8 +15,8 @@ void registerRandomAI() {
 
 RandomAI::RandomAI(const std::vector<ConfigField>& cfg) {
     uint32_t seed = std::random_device{}();
-    if (getConfigValue<bool>(cfg, "useseed")) {
-        seed = static_cast<uint32_t>(getConfigValue<int>(cfg, "rngseed"));
+    if (get_config_field_value<bool>(cfg, "useseed")) {
+        seed = static_cast<uint32_t>(get_config_field_value<int>(cfg, "rngseed"));
     }
     m_rng.seed(seed);
 }
