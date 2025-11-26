@@ -68,7 +68,7 @@ void SearchPosition::make_move(Move move) {
     if (is_castle) {
         int rook_from = to > from ? from + 3 : from - 4;
         int rook_to = (to + from) >> 1;
-        delta += _pst_value(PieceType::Rook, side, rook_to) + _pst_value(PieceType::Rook, side, rook_from);
+        delta += _pst_value(PieceType::Rook, side, rook_to) - _pst_value(PieceType::Rook, side, rook_from);
     }
 
     m_eval_history.push_back(m_eval);
