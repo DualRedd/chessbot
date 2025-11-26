@@ -96,7 +96,7 @@ private:
     std::shared_ptr<AsyncMoveCompute> m_ai_move;
 
     // configurable minimum delay before applying a AI move
-    double m_ai_move_delay_seconds = 0.5;
+    double m_ai_move_delay_seconds = 1.0;
     std::chrono::steady_clock::time_point m_ai_move_start_time{};
 
     /**

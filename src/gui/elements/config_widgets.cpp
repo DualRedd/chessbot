@@ -8,16 +8,15 @@ ConfigFieldView::ConfigFieldView(const ConfigField& field)
 {
     // container panel
     m_container->setSize("100%", config_widget_height + 2 * config_widget_margin_vertical);
-    m_container->getRenderer()->setBackgroundColor(tgui::Color::Green);
 
     // label widget
-    m_label->setSize(config_widget_label_width, "100%" - 2 * config_widget_margin_vertical);
+    m_label->setSize(config_widget_label_width - config_widget_label_padding_right,
+                    "100%" - 2 * config_widget_margin_vertical);
     m_label->setPosition(config_widget_margin_left, config_widget_margin_vertical);
     m_label->setText(field.description + ":");
     m_label->setHorizontalAlignment(tgui::HorizontalAlignment::Left);
     m_label->setVerticalAlignment(tgui::VerticalAlignment::Center);
     m_container->add(m_label);
-    m_label->getRenderer()->setBackgroundColor(tgui::Color::Blue);
 } 
 
 tgui::Widget::Ptr ConfigFieldView::get_container() {

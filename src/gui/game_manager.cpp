@@ -119,7 +119,7 @@ void GameManager::_handle_ai_moves() {
 
         const auto min_time = m_ai_move_start_time + std::chrono::duration<double>(m_ai_move_delay_seconds);
         if (std::chrono::steady_clock::now() < min_time) {
-            // Not ready yet; try again later.
+            // Enforce minimum delay
             return;
         }
 

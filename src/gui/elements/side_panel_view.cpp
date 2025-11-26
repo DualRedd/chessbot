@@ -56,8 +56,8 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
     };
     m_ai_speed_field = create_config_field_widget(speed_field);
     m_panel->add(m_ai_speed_field->get_container());
-    m_ai_speed_field->get_container()->setPosition(button_margin, 2 * button_height + 3 * button_margin);
-    m_ai_speed_field->get_container()->setSize("100%" - 2 * button_margin, m_ai_speed_field->get_container()->getSize().y);
+    m_ai_speed_field->get_container()->setPosition(0, 2 * button_height + 3 * button_margin);
+    m_ai_speed_field->get_container()->setSize("100%" - button_margin, m_ai_speed_field->get_container()->getSize().y);
 
     // Scroll panel
     m_panel->add(m_middle_scroll_panel);
@@ -74,7 +74,6 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
     // updateWidget() which then trashes its m_widgetLayouts vector while it's still being iterated.
     m_middle_grow_panel->setSize("parent.width - 16", "100%");
     m_middle_scroll_panel->add(m_middle_grow_panel);
-    m_middle_scroll_panel->getRenderer()->setBackgroundColor(tgui::Color::Red);
 }
 
 void SidePanelView::set_position(sf::Vector2f position) {
@@ -98,10 +97,10 @@ void SidePanelView::on_new_game_pressed(std::function<void()> callback) {
 }
 
 void SidePanelView::on_ai_speed_changed(std::function<void(double)> callback) {
-    /*m_ai_speed_field->set_on_change_callback([callback](const ConfigField& field) {
+    m_ai_speed_field->set_on_change_callback([callback](const ConfigField& field) {
         double speed = std::get<double>(field.value);
         callback(speed);
-    });*/
+    });
 }
 
 PlayerConfiguration SidePanelView::get_player_configuration(PlayerColor side) {
