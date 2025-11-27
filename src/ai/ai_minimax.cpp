@@ -51,21 +51,50 @@ void MinimaxAI::_undo_move() {
 }
 
 UCI MinimaxAI::_compute_move() {
+    if(m_position.get_board().generate_legal_moves().empty()) {
+        throw std::invalid_argument("MinimaxAI::compute_move() - no legal moves!");
+    }
+
     m_tt.new_search_iteration();
     uint64_t zobrist_key = m_position.get_board().get_zobrist_hash();
-    PlayerColor side = m_position.get_board().get_side_to_move();
-    int32_t alpha = -INF_SCORE;
-    int32_t beta = INF_SCORE;
     Move best_move = 0;
 
-    int legal_move_count = 0;
+    int32_t prev_score = 0;
+    const int32_t aspiration_window = 50;
+    
+    for (int target_depth = 1; target_depth <= m_search_depth; ++target_depth) {
+        int32_t alpha = std::max(-INF_SCORE, prev_score - aspiration_window);
+        int32_t beta  = std::min(INF_SCORE,  prev_score + aspiration_window);
+
+        // Aspiration window search
+        auto [score, move] = _root_search(alpha, beta);
+
+        // failed low or high, do a full window search
+        if (score <= alpha || score >= beta) {
+            std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE);
+        }
+
+        int32_t store_score = normalize_score_for_tt(score, 0);
+        m_tt.store(zobrist_key, store_score, target_depth, Bound::Exact, move);
+
+        prev_score = score;
+        best_move = move;
+    }
+    
+    return MoveEncoding::to_uci(best_move);
+}
+
+std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta) {
+    uint64_t zobrist_key = m_position.get_board().get_zobrist_hash();
+    PlayerColor side = m_position.get_board().get_side_to_move();
+    Move best_move = 0;
+
     auto moves = m_position.get_board().generate_pseudo_legal_moves();
     _order_moves(moves, m_tt.find(zobrist_key));
     
     for (const Move& move : moves) {
         m_position.make_move(move); 
         if (!m_position.get_board().in_check(side)) {
-            legal_move_count++;
             int32_t score = -_alpha_beta(-beta, -alpha, m_search_depth - 1, 1);
             if (score > alpha) {
                 alpha = score;
@@ -75,13 +104,7 @@ UCI MinimaxAI::_compute_move() {
         m_position.undo_move();
     }
 
-    if (legal_move_count == 0) {
-        throw std::invalid_argument("MinimaxAI::compute_move() - no legal moves!");
-    }
-
-    int32_t store_score = normalize_score_for_tt(alpha, 0);
-    m_tt.store(zobrist_key, store_score, m_search_depth, Bound::Exact, best_move);
-    return MoveEncoding::to_uci(best_move);
+    return {alpha, best_move};
 }
 
 int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) {
