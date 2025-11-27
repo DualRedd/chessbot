@@ -1,6 +1,24 @@
 #include "ai/ai_minimax.hpp"
-
 #include <limits>
+
+static constexpr int32_t INF_SCORE = 100000000;
+static constexpr int32_t MATE_SCORE = 100000;
+
+static inline int32_t normalize_score_for_tt(int32_t score, int ply) {
+    if (score > MATE_SCORE - 1000)
+        return score + ply;
+    if (score < -MATE_SCORE + 1000)
+        return score - ply;
+    return score;
+}
+
+static inline int32_t adjust_score_from_tt(int32_t stored_score, int ply) {
+    if (stored_score > MATE_SCORE - 1000)
+        return stored_score - ply;
+    if (stored_score < -MATE_SCORE + 1000)
+        return stored_score + ply;
+    return stored_score;
+}
 
 void registerMinimaxAI() {
     auto createMinimaxAI = [](const std::vector<ConfigField>& cfg) {
@@ -30,17 +48,18 @@ void MinimaxAI::_undo_move() {
 }
 
 UCI MinimaxAI::_compute_move() {
+    m_tt.new_search_iteration();
     PlayerColor side = m_position.get_board().get_side_to_move();
-    double alpha = -std::numeric_limits<double>::max();
-    double beta = std::numeric_limits<double>::max();
-    Move best_move;
+    int32_t alpha = -INF_SCORE;
+    int32_t beta = INF_SCORE;
+    Move best_move = 0;
 
     int legal_move_count = 0;
     for (const Move& move : m_position.get_ordered_pseudo_legal_moves()) {
         m_position.make_move(move);
         if (!m_position.get_board().in_check(side)) {
             legal_move_count++;
-            double score = -_alpha_beta(-beta, -alpha, m_search_depth);
+            int32_t score = -_alpha_beta(-beta, -alpha, m_search_depth - 1, 1);
             if (score > alpha) {
                 alpha = score;
                 best_move = move;
@@ -55,23 +74,43 @@ UCI MinimaxAI::_compute_move() {
     return MoveEncoding::to_uci(best_move);
 }
 
-double MinimaxAI::_alpha_beta(double alpha, double beta, int depth_left) {
-    if (depth_left == 0) return m_position.get_eval();
+int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) {
+    if (depth == 0) return m_position.get_eval();
+    
+    uint64_t zobrist_key = m_position.get_board().get_zobrist_hash();
+    const TTEntry* tt_entry = m_tt.find(zobrist_key);
+    
+    if (tt_entry != nullptr && tt_entry->depth >= depth) {
+        // use stored entry (adjusted mate-distance for current ply)
+        int32_t stored = adjust_score_from_tt(tt_entry->score, ply);
+        Bound bound = static_cast<Bound>(tt_entry->bound);
+        if (bound == Bound::Exact) return stored;
+        if (bound == Bound::Lower) alpha = std::max(alpha, stored);
+        else if (bound == Bound::Upper) beta = std::min(beta, stored);
+        if (alpha >= beta) return stored;
+    }
 
     PlayerColor side = m_position.get_board().get_side_to_move();
     int legal_move_count = 0;
+    int32_t starting_alpha = alpha;
+    Move best_move;
 
     for (const Move& move : m_position.get_ordered_pseudo_legal_moves()) {
         m_position.make_move(move);
         if (!m_position.get_board().in_check(side)) {
             legal_move_count++;
-            double score = -_alpha_beta(-beta, -alpha, depth_left - 1);
-            if (score >= beta) {
-                m_position.undo_move();
-                return beta; // refutation move found, fail-high node
-            }
+            int32_t score = -_alpha_beta(-beta, -alpha, depth - 1, ply + 1);
             if (score > alpha) {
-                alpha = score; // best move found so far
+                // best move found so far
+                alpha = score;
+                best_move = move;
+            }
+            if (alpha >= beta) {
+                // refutation move found, fail-high node
+                m_position.undo_move();
+                int32_t store_score = normalize_score_for_tt(alpha, ply);
+                m_tt.store(zobrist_key, store_score, depth, Bound::Lower, best_move);
+                return alpha;
             }
         }
         m_position.undo_move();
@@ -79,11 +118,20 @@ double MinimaxAI::_alpha_beta(double alpha, double beta, int depth_left) {
 
     if (legal_move_count == 0) {
         if (m_position.get_board().in_check(side)) {
-            // checkmate, depth bonus to prefer faster mates
-            return -1e9 + (m_search_depth - depth_left);
+            // Checkmate with ply bonus to prefer faster mates
+            int32_t mate_score = -MATE_SCORE + ply;
+            m_tt.store(zobrist_key, normalize_score_for_tt(mate_score, ply), depth, Bound::Exact, 0);
+            return mate_score;
         } else {
             return 0; // Stalemate
         }
+    }
+
+    int32_t store_score = normalize_score_for_tt(alpha, ply);
+    if (alpha > starting_alpha) {
+        m_tt.store(zobrist_key, store_score, depth, Bound::Exact, best_move);
+    } else {
+        m_tt.store(zobrist_key, store_score, depth, Bound::Upper, best_move);
     }
 
     return alpha;

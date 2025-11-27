@@ -14,7 +14,7 @@ void SearchPosition::set_board(const FEN& fen) {
     m_eval = _compute_full_eval();
 }
 
-double SearchPosition::get_eval() const {
+int32_t SearchPosition::get_eval() const {
     return (m_board.get_side_to_move() == PlayerColor::White) ? m_eval : -m_eval;
 }
 
@@ -49,7 +49,7 @@ void SearchPosition::make_move(Move move) {
     bool is_ep = MoveEncoding::is_en_passant(move);
 
     PlayerColor side = m_board.get_side_to_move();
-    int delta = 0;
+    int32_t delta = 0;
 
     // Move piece and handle promo
     delta += _pst_value(piece, side, to) - _pst_value(piece, side, from);
@@ -88,19 +88,19 @@ const Board& SearchPosition::get_board() const {
     return m_board;
 }
 
-double SearchPosition::_material_value(PieceType type) const {
+int32_t SearchPosition::_material_value(PieceType type) const {
     switch(type) {
-        case PieceType::Pawn:   return 100.0;
-        case PieceType::Knight: return 320.0;
-        case PieceType::Bishop: return 330.0;
-        case PieceType::Rook:   return 500.0;
-        case PieceType::Queen:  return 900.0;
-        default: return 0.0;
+        case PieceType::Pawn:   return 100;
+        case PieceType::Knight: return 320;
+        case PieceType::Bishop: return 330;
+        case PieceType::Rook:   return 500;
+        case PieceType::Queen:  return 900;
+        default: return 0;
     }
 }
 
-double SearchPosition::_pst_value(PieceType type, PlayerColor color, int square) const {
-    if (type == PieceType::None) return 0.0;
+int32_t SearchPosition::_pst_value(PieceType type, PlayerColor color, int square) const {
+    if (type == PieceType::None) return 0;
 
     int idx = square_for_side(square, color);
     switch (type) {
@@ -114,14 +114,14 @@ double SearchPosition::_pst_value(PieceType type, PlayerColor color, int square)
     }
 }
 
-double SearchPosition::_compute_full_eval() {
-    double eval = 0.0;
+int32_t SearchPosition::_compute_full_eval() {
+    int32_t eval = 0;
 
     for (int square = 0; square < 64; square++) {
         Piece piece = m_board.get_piece_at(square);
         if (piece.type == PieceType::None) continue;
 
-        int val = _material_value(piece.type) + _pst_value(piece.type, piece.color, square);
+        int32_t val = _material_value(piece.type) + _pst_value(piece.type, piece.color, square);
         eval += (piece.color == PlayerColor::White ? val : -val);
     }
 

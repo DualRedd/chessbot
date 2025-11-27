@@ -99,6 +99,7 @@ add_library(chess_core SHARED
 add_library(chess_bots SHARED
     src/ai/registry.cpp
     src/ai/search_position.cpp
+    src/ai/transposition_table.cpp
     src/ai/ai_random.cpp
     src/ai/ai_minimax.cpp
 )
