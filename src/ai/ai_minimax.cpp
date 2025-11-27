@@ -1,8 +1,8 @@
 #include "ai/ai_minimax.hpp"
-#include <limits>
 
-static constexpr int32_t INF_SCORE = 100000000;
-static constexpr int32_t MATE_SCORE = 100000;
+static constexpr int32_t INF_SCORE = 100'000'000;
+static constexpr int32_t MATE_SCORE = 100'000;
+static constexpr int32_t DRAW_SCORE = 0;
 
 static inline int32_t normalize_score_for_tt(int32_t score, int ply) {
     if (score > MATE_SCORE - 1000)
@@ -28,6 +28,9 @@ void registerMinimaxAI() {
     AIRegistry::registerAI("Minimax", {}, createMinimaxAI);
 }
 
+MinimaxAI::MinimaxAI()
+  : m_tt(30ULL) {}
+
 void MinimaxAI::_set_board(const FEN& fen) {
     m_position.set_board(fen);
 }
@@ -49,14 +52,18 @@ void MinimaxAI::_undo_move() {
 
 UCI MinimaxAI::_compute_move() {
     m_tt.new_search_iteration();
+    uint64_t zobrist_key = m_position.get_board().get_zobrist_hash();
     PlayerColor side = m_position.get_board().get_side_to_move();
     int32_t alpha = -INF_SCORE;
     int32_t beta = INF_SCORE;
     Move best_move = 0;
 
     int legal_move_count = 0;
-    for (const Move& move : m_position.get_ordered_pseudo_legal_moves()) {
-        m_position.make_move(move);
+    auto moves = m_position.get_board().generate_pseudo_legal_moves();
+    _order_moves(moves, m_tt.find(zobrist_key));
+    
+    for (const Move& move : moves) {
+        m_position.make_move(move); 
         if (!m_position.get_board().in_check(side)) {
             legal_move_count++;
             int32_t score = -_alpha_beta(-beta, -alpha, m_search_depth - 1, 1);
@@ -71,11 +78,24 @@ UCI MinimaxAI::_compute_move() {
     if (legal_move_count == 0) {
         throw std::invalid_argument("MinimaxAI::compute_move() - no legal moves!");
     }
+
+    int32_t store_score = normalize_score_for_tt(alpha, 0);
+    m_tt.store(zobrist_key, store_score, m_search_depth, Bound::Exact, best_move);
     return MoveEncoding::to_uci(best_move);
 }
 
 int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) {
-    if (depth == 0) return m_position.get_eval();
+    if (m_position.get_board().get_halfmove_clock() >= 100)
+        return DRAW_SCORE; // fifty-move rule
+
+    if (m_position.plies_since_irreversible_move() >= 4) {
+        if(m_position.repetition_count() >= 3) {
+            return DRAW_SCORE; // threefold repetition
+        }
+    }
+
+    if (depth == 0)
+        return m_position.get_eval();
     
     uint64_t zobrist_key = m_position.get_board().get_zobrist_hash();
     const TTEntry* tt_entry = m_tt.find(zobrist_key);
@@ -91,11 +111,14 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
     }
 
     PlayerColor side = m_position.get_board().get_side_to_move();
-    int legal_move_count = 0;
     int32_t starting_alpha = alpha;
     Move best_move;
 
-    for (const Move& move : m_position.get_ordered_pseudo_legal_moves()) {
+    int legal_move_count = 0;
+    auto moves = m_position.get_board().generate_pseudo_legal_moves();
+    _order_moves(moves, tt_entry);
+
+    for (const Move& move : moves) {
         m_position.make_move(move);
         if (!m_position.get_board().in_check(side)) {
             legal_move_count++;
@@ -119,11 +142,11 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
     if (legal_move_count == 0) {
         if (m_position.get_board().in_check(side)) {
             // Checkmate with ply bonus to prefer faster mates
-            int32_t mate_score = -MATE_SCORE + ply;
-            m_tt.store(zobrist_key, normalize_score_for_tt(mate_score, ply), depth, Bound::Exact, 0);
-            return mate_score;
+            int32_t store_score = -MATE_SCORE + ply;
+            m_tt.store(zobrist_key, normalize_score_for_tt(store_score, ply), depth, Bound::Exact, 0);
+            return store_score;
         } else {
-            return 0; // Stalemate
+            return DRAW_SCORE; // Stalemate
         }
     }
 
@@ -135,4 +158,48 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
     }
 
     return alpha;
+}
+
+inline void MinimaxAI::_order_moves(std::vector<Move>& moves, const TTEntry* tt_entry) const {
+    Move tt_best = tt_entry ? static_cast<Move>(tt_entry->best_move) : 0;
+    
+    std::vector<std::pair<int32_t, Move>> scored;
+    scored.reserve(moves.size());
+
+    for (const Move &mv : moves) {
+        int32_t score = 0;
+
+        // TT best move gets top priority
+        if (mv == tt_best) {
+            score += 10'000'000;
+        }
+
+        // Captures, least valuable attacker capturing most valuable victim
+        PieceType victim = MoveEncoding::capture(mv);
+        if (victim != PieceType::None) {
+            PieceType attacker = MoveEncoding::piece(mv);
+            score += 1'000'000 + m_position.material_value(victim) * 100 - m_position.material_value(attacker);
+        }
+
+        // Promotions
+        PieceType promo = MoveEncoding::promo(mv);
+        if (promo != PieceType::None) {
+            score += 800'000 + m_position.material_value(promo) * 100;
+        }
+
+        // Prefer quiet moves that move towards center
+        int to = MoveEncoding::to_sq(mv);
+        int rank = to / 8;
+        int file = to % 8;
+        int center_dist = std::abs(3 - file) + std::abs(3 - rank);
+        score += (10 - center_dist);
+
+        scored.push_back({score, mv});
+    }
+
+    std::sort(scored.begin(), scored.end(), [](const auto &a, const auto &b){ return a.first > b.first; });
+
+    for (size_t i = 0; i < scored.size(); ++i) {
+        moves[i] = scored[i].second;
+    }
 }

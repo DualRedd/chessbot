@@ -7,36 +7,35 @@
 constexpr inline PlayerColor opponent(PlayerColor side) { return side == PlayerColor::White ? PlayerColor::Black : PlayerColor::White; };
 constexpr inline int square_for_side(int square, PlayerColor side) { return (side == PlayerColor::White) ? square : (63 - square); };
 
-SearchPosition::SearchPosition() : m_board() {}
+SearchPosition::SearchPosition() : m_board() {
+    m_zobrist_history.reserve(100);
+    m_irreversible_move_plies.reserve(50);
+}
 
 void SearchPosition::set_board(const FEN& fen) {
     m_board.set_from_fen(fen);
     m_eval = _compute_full_eval();
+
+    m_zobrist_history.clear();
+    m_irreversible_move_plies.clear();
+    m_irreversible_move_plies.push_back(0);
 }
 
 int32_t SearchPosition::get_eval() const {
     return (m_board.get_side_to_move() == PlayerColor::White) ? m_eval : -m_eval;
 }
 
-std::vector<Move> SearchPosition::get_ordered_pseudo_legal_moves() const {
-    std::vector<Move> moves = m_board.generate_pseudo_legal_moves();
+int SearchPosition::repetition_count() const {
+    int count = 1;
+    uint64_t current_hash = m_board.get_zobrist_hash();
+    for(size_t i = m_irreversible_move_plies.back(); i < m_zobrist_history.size(); i++) {
+        count += m_zobrist_history[i] == current_hash;
+    }
+    return count;
+}
 
-    std::sort(moves.begin(), moves.end(), [](Move a, Move b) {
-        // 1. Captures
-        bool a_capture = MoveEncoding::capture(a) != PieceType::None;
-        bool b_capture = MoveEncoding::capture(b) != PieceType::None;
-        if (a_capture != b_capture) return a_capture;
-
-        // 2. Promotions
-        bool a_promo = MoveEncoding::promo(a) != PieceType::None;
-        bool b_promo = MoveEncoding::promo(b) != PieceType::None;
-        if (a_promo != b_promo) return a_promo;
-
-        // 3. Rest
-        return false;
-    });
-
-    return moves;
+int SearchPosition::plies_since_irreversible_move() const {
+    return m_zobrist_history.size() - m_irreversible_move_plies.back();
 }
 
 void SearchPosition::make_move(Move move) {
@@ -54,13 +53,13 @@ void SearchPosition::make_move(Move move) {
     // Move piece and handle promo
     delta += _pst_value(piece, side, to) - _pst_value(piece, side, from);
     if (promo != PieceType::None) {
-        delta += _material_value(promo) - _material_value(piece);
+        delta += material_value(promo) - material_value(piece);
     }
 
     // Handle capture and en passant
     if (captured != PieceType::None) {
         int capture_square = is_ep ? (from & 0b111000 /* rank of from */) | (to & 0b000111 /* file of to */) : to;
-        delta += _material_value(captured);
+        delta += material_value(captured);
         delta += _pst_value(captured, opponent(side), capture_square);
     }
 
@@ -71,16 +70,30 @@ void SearchPosition::make_move(Move move) {
         delta += _pst_value(PieceType::Rook, side, rook_to) - _pst_value(PieceType::Rook, side, rook_from);
     }
 
+    m_zobrist_history.push_back(m_board.get_zobrist_hash());
+    if (piece == PieceType::Pawn || captured != PieceType::None) {
+        // Halfmove clock reset
+        m_irreversible_move_plies.push_back(m_zobrist_history.size());
+    }
+
     m_eval_history.push_back(m_eval);
     m_eval += side == PlayerColor::White ? delta : -delta;
     m_board.make_move(move);
 }
 
 bool SearchPosition::undo_move() {
-    if (m_eval_history.size() == 0) return false;
+    if (m_eval_history.size() == 0)
+        return false;
+
     m_eval = m_eval_history.back();
     m_eval_history.pop_back();
     m_board.undo_move();
+
+    if (m_irreversible_move_plies.back() == m_zobrist_history.size()) {
+        m_irreversible_move_plies.pop_back();
+    }
+    m_zobrist_history.pop_back();
+
     return true;
 }
 
@@ -88,7 +101,7 @@ const Board& SearchPosition::get_board() const {
     return m_board;
 }
 
-int32_t SearchPosition::_material_value(PieceType type) const {
+int32_t SearchPosition::material_value(PieceType type) const {
     switch(type) {
         case PieceType::Pawn:   return 100;
         case PieceType::Knight: return 320;
@@ -121,7 +134,7 @@ int32_t SearchPosition::_compute_full_eval() {
         Piece piece = m_board.get_piece_at(square);
         if (piece.type == PieceType::None) continue;
 
-        int32_t val = _material_value(piece.type) + _pst_value(piece.type, piece.color, square);
+        int32_t val = material_value(piece.type) + _pst_value(piece.type, piece.color, square);
         eval += (piece.color == PlayerColor::White ? val : -val);
     }
 

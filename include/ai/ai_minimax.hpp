@@ -8,7 +8,7 @@ void registerMinimaxAI();
 
 class MinimaxAI : public AIPlayer {
 public:
-    MinimaxAI() = default;
+    MinimaxAI();
 
 private:
     void _set_board(const FEN& fen) override;
@@ -16,9 +16,10 @@ private:
     void _undo_move() override;
     UCI _compute_move() override;
     int32_t _alpha_beta(int32_t alpha, int32_t beta, int depth, int ply);
+    inline void _order_moves(std::vector<Move>& moves, const TTEntry* tt_entry) const;
 
 private:
     SearchPosition m_position;
     TranspositionTable m_tt;
-    int m_search_depth = 5;
+    int m_search_depth = 7;
 };

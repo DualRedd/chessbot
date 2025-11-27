@@ -28,7 +28,7 @@ const TTEntry* TranspositionTable::find(uint64_t key) const {
 }
 
 void TranspositionTable::store(uint64_t key, int32_t score, int16_t depth,
-                                Bound bound, uint32_t best_move) {
+                                Bound bound, Move best_move) {
     size_t idx = key & m_mask;
     size_t replace_idx = idx;
     for (size_t i = 0; i < m_probe_window; ++i) {

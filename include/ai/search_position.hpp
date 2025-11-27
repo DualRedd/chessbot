@@ -25,10 +25,15 @@ public:
     int32_t get_eval() const;
 
     /**
-     * @param ordered whether to apply move ordering
-     * @return All pseudo-legal moves in the current position.
+     * @return How many times the current position has occurred in the move history.
+     * @note e.g. 1 if the current position is the first occurence in the history.
      */
-    std::vector<Move> get_ordered_pseudo_legal_moves() const;
+    int repetition_count() const;
+
+    /**
+     * @return Number of plies since the last irreversible move (pawn move or capture).
+     */
+    int plies_since_irreversible_move() const;
 
     /**
      * Make a move on the board.
@@ -49,13 +54,13 @@ public:
      */
     const Board& get_board() const;
 
-private:
     /**
      * @param type piece type
      * @return Evaluation material value for the piece.
      */
-    int32_t _material_value(PieceType type) const;
+    int32_t material_value(PieceType type) const;
 
+private:
     /**
      * Piece-Square Table value.
      * @param type piece type
@@ -76,4 +81,8 @@ private:
 
     int32_t m_eval; // Evaluation from white's perspective
     std::vector<int32_t> m_eval_history;
+
+    // Ply history
+    std::vector<uint64_t> m_zobrist_history;
+    std::vector<size_t> m_irreversible_move_plies;
 };

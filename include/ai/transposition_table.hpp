@@ -2,13 +2,13 @@
 
 #include <vector>
 #include <optional>
-#include <cstdint>
+#include "core/types.hpp"
 
 enum class Bound : uint8_t { Exact=0, Lower=1, Upper=2 };
 
 struct TTEntry {
     uint64_t key = 0;
-    uint32_t best_move = 0;
+    Move best_move = 0;
     int32_t score = 0;
     int16_t depth = -1;
     uint8_t bound = 0;
@@ -46,7 +46,7 @@ public:
      * @param best_move the best move (32 bit encoded)
      */
     void store(uint64_t key, int32_t score, int16_t depth,
-                Bound bound, uint32_t best_move);
+                Bound bound, Move best_move);
     
     /**
      * Increment the age counter for the next search iteration.
