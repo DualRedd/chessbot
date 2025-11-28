@@ -22,14 +22,23 @@ static inline int32_t adjust_score_from_tt(int32_t stored_score, int ply) {
 
 void registerMinimaxAI() {
     auto createMinimaxAI = [](const std::vector<ConfigField>& cfg) {
-        return std::make_unique<MinimaxAI>();
+        return std::make_unique<MinimaxAI>(cfg);
     };
 
-    AIRegistry::registerAI("Minimax", {}, createMinimaxAI);
+    std::vector<ConfigField> cfg = {
+        {"time_limit", "Thinking time (s)", FieldType::Double, 5.0},
+        {"aspiration_window", "Aspiration window (centipawns)", FieldType::Int, 50}
+    };
+
+    AIRegistry::registerAI("Minimax", cfg, createMinimaxAI);
 }
 
-MinimaxAI::MinimaxAI()
-  : m_tt(30ULL) {}
+MinimaxAI::MinimaxAI(const std::vector<ConfigField>& cfg)
+  : m_position(),
+    m_tt(30ULL),
+    m_time_limit_seconds(get_config_field_value<double>(cfg, "time_limit")),
+    m_aspiration_window(get_config_field_value<int>(cfg, "aspiration_window"))
+{}
 
 void MinimaxAI::_set_board(const FEN& fen) {
     m_position.set_board(fen);
@@ -55,24 +64,35 @@ UCI MinimaxAI::_compute_move() {
         throw std::invalid_argument("MinimaxAI::compute_move() - no legal moves!");
     }
 
+    m_deadline = std::chrono::steady_clock::now()
+               + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                    std::chrono::duration<double>(m_time_limit_seconds));
+    m_stop_search = false;
+    m_nodes_visited = 0;
+
     m_tt.new_search_iteration();
     uint64_t zobrist_key = m_position.get_board().get_zobrist_hash();
     Move best_move = 0;
-
     int32_t prev_score = 0;
-    const int32_t aspiration_window = 50;
     
-    for (int target_depth = 1; target_depth <= m_search_depth; ++target_depth) {
-        int32_t alpha = std::max(-INF_SCORE, prev_score - aspiration_window);
-        int32_t beta  = std::min(INF_SCORE,  prev_score + aspiration_window);
+    int target_depth = 1;
+    for (; target_depth <= 999; ++target_depth) {
+        int32_t alpha = std::max(-INF_SCORE, prev_score - m_aspiration_window);
+        int32_t beta  = std::min(INF_SCORE,  prev_score + m_aspiration_window);
 
         // Aspiration window search
-        auto [score, move] = _root_search(alpha, beta);
+        auto [score, move] = _root_search(alpha, beta, target_depth);
+
+        if (_timer_check())
+            break;
 
         // failed low or high, do a full window search
         if (score <= alpha || score >= beta) {
-            std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE);
+            std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth);
         }
+
+        if (_timer_check())
+            break;
 
         int32_t store_score = normalize_score_for_tt(score, 0);
         m_tt.store(zobrist_key, store_score, target_depth, Bound::Exact, move);
@@ -84,7 +104,7 @@ UCI MinimaxAI::_compute_move() {
     return MoveEncoding::to_uci(best_move);
 }
 
-std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta) {
+std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, int32_t search_depth) {
     uint64_t zobrist_key = m_position.get_board().get_zobrist_hash();
     PlayerColor side = m_position.get_board().get_side_to_move();
     Move best_move = 0;
@@ -95,7 +115,7 @@ std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta) {
     for (const Move& move : moves) {
         m_position.make_move(move); 
         if (!m_position.get_board().in_check(side)) {
-            int32_t score = -_alpha_beta(-beta, -alpha, m_search_depth - 1, 1);
+            int32_t score = -_alpha_beta(-beta, -alpha, search_depth - 1, 1);
             if (score > alpha) {
                 alpha = score;
                 best_move = move;
@@ -108,13 +128,15 @@ std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta) {
 }
 
 int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) {
+    if (_timer_check())
+        return DRAW_SCORE;
+
     if (m_position.get_board().get_halfmove_clock() >= 100)
         return DRAW_SCORE; // fifty-move rule
 
     if (m_position.plies_since_irreversible_move() >= 4) {
-        if(m_position.repetition_count() >= 3) {
+        if(m_position.repetition_count() >= 3)
             return DRAW_SCORE; // threefold repetition
-        }
     }
 
     if (depth == 0)
@@ -225,4 +247,14 @@ inline void MinimaxAI::_order_moves(std::vector<Move>& moves, const TTEntry* tt_
     for (size_t i = 0; i < scored.size(); ++i) {
         moves[i] = scored[i].second;
     }
+}
+
+inline bool MinimaxAI::_timer_check() {
+    constexpr uint32_t mask = (1<<10) - 1; // every 1024 nodes
+    if ((++m_nodes_visited & mask) == 0) {
+        if (std::chrono::steady_clock::now() >= m_deadline || _stop_requested()) {
+            m_stop_search = true;
+        }
+    }
+    return m_stop_search;
 }
