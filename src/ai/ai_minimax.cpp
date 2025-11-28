@@ -114,12 +114,15 @@ std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, in
     
     for (const Move& move : moves) {
         m_position.make_move(move); 
-        if (!m_position.get_board().in_check(side)) {
-            int32_t score = -_alpha_beta(-beta, -alpha, search_depth - 1, 1);
-            if (score > alpha) {
-                alpha = score;
-                best_move = move;
-            }
+        if (m_position.get_board().in_check(side)) {
+            m_position.undo_move();
+            continue;
+        }
+
+        int32_t score = -_alpha_beta(-beta, -alpha, search_depth - 1, 1);
+        if (score > alpha) {
+            alpha = score;
+            best_move = move;
         }
         m_position.undo_move();
     }
@@ -140,7 +143,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
     }
 
     if (depth == 0)
-        return m_position.get_eval();
+        return _quiescence(alpha, beta, ply);
     
     uint64_t zobrist_key = m_position.get_board().get_zobrist_hash();
     const TTEntry* tt_entry = m_tt.find(zobrist_key);
@@ -165,21 +168,24 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
 
     for (const Move& move : moves) {
         m_position.make_move(move);
-        if (!m_position.get_board().in_check(side)) {
-            legal_move_count++;
-            int32_t score = -_alpha_beta(-beta, -alpha, depth - 1, ply + 1);
-            if (score > alpha) {
-                // best move found so far
-                alpha = score;
-                best_move = move;
-            }
-            if (alpha >= beta) {
-                // refutation move found, fail-high node
-                m_position.undo_move();
-                int32_t store_score = normalize_score_for_tt(alpha, ply);
-                m_tt.store(zobrist_key, store_score, depth, Bound::Lower, best_move);
-                return alpha;
-            }
+        if (m_position.get_board().in_check(side)) {
+            m_position.undo_move();
+            continue;
+        }
+
+        legal_move_count++;
+        int32_t score = -_alpha_beta(-beta, -alpha, depth - 1, ply + 1);
+        if (score > alpha) {
+            // best move found so far
+            alpha = score;
+            best_move = move;
+        }
+        if (alpha >= beta) {
+            // refutation move found, fail-high node
+            m_position.undo_move();
+            int32_t store_score = normalize_score_for_tt(alpha, ply);
+            m_tt.store(zobrist_key, store_score, depth, Bound::Lower, best_move);
+            return beta;
         }
         m_position.undo_move();
     }
@@ -203,6 +209,49 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
     }
 
     return alpha;
+}
+
+inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int ply) {
+    if (_timer_check())
+        return DRAW_SCORE;
+
+    // Stand pat evaluation
+    int32_t best_score = m_position.get_eval();
+    if (best_score >= beta) return best_score;
+    if (best_score > alpha) alpha = best_score;
+
+    PlayerColor side = m_position.get_board().get_side_to_move();
+    auto all_moves = m_position.get_board().generate_pseudo_legal_moves();
+
+    std::vector<Move> moves;
+    moves.reserve(all_moves.size());
+    for (Move mv : all_moves) {
+        if (MoveEncoding::capture(mv) != PieceType::None || MoveEncoding::promo(mv) != PieceType::None)
+            moves.push_back(mv);
+    }
+
+    if (moves.empty())  return alpha;
+
+    uint64_t zobrist_key = m_position.get_board().get_zobrist_hash();
+    const TTEntry* tt_entry = m_tt.find(zobrist_key);
+    _order_moves(moves, tt_entry);
+
+    for (Move move : moves) {
+        m_position.make_move(move);
+        if (m_position.get_board().in_check(side)) {
+            m_position.undo_move();
+            continue;
+        }
+
+        int32_t score = -_quiescence(-beta, -alpha, ply + 1);
+        m_position.undo_move();
+
+        if (score >= beta) return score;
+        if (score > best_score) best_score = score;
+        if (score > alpha) alpha = score;
+    }
+
+    return best_score;
 }
 
 inline void MinimaxAI::_order_moves(std::vector<Move>& moves, const TTEntry* tt_entry) const {

@@ -19,6 +19,7 @@ private:
 
     std::pair<int32_t, Move> _root_search(int32_t alpha, int32_t beta, int32_t search_depth);
     int32_t _alpha_beta(int32_t alpha, int32_t beta, int depth, int ply);
+    inline int32_t _quiescence(int32_t alpha, int32_t beta, int ply);
     inline void _order_moves(std::vector<Move>& moves, const TTEntry* tt_entry) const;
     inline bool _timer_check();
 
