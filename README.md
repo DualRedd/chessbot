@@ -21,6 +21,8 @@ Algoritmit ja tekoäly -kurssin projekti
 
 [Viikko 4](https://github.com/DualRedd/chessbot/blob/main/docs/weekly-reports/week-4.md)
 
+[Viikko 5](https://github.com/DualRedd/chessbot/blob/main/docs/weekly-reports/week-5.md)
+
 
 # Building the project from source
 
