@@ -5,9 +5,11 @@ project(ChessBot LANGUAGES CXX VERSION 0.0.1)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # --- Options ---
 option(BUILD_TESTS "Build unit tests" ON)
+option(BUILD_BENCHMARKS "Build benchmarks" ON)
 option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 
@@ -83,6 +85,16 @@ FetchContent_Declare(googletest
 message(STATUS "Fetching GoogleTest - Version 1.17.0")
 FetchContent_MakeAvailable(googletest)
 
+# --- GoogleBenchmark ---
+if (BUILD_BENCHMARKS)
+    FetchContent_Declare(goog_benchmark
+        GIT_REPOSITORY https://github.com/google/benchmark.git
+        GIT_TAG v1.9.0
+        GIT_SHALLOW ON
+    )
+    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(goog_benchmark)
+endif()
 
 # --- Include directories ---
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -141,19 +153,10 @@ add_custom_command(TARGET chess_gui POST_BUILD
 
 # --- Tests ---
 if (BUILD_TESTS)
-    include(CTest)
-    enable_testing()
-    
-    add_executable(unit_tests
-        tests/test_board.cpp
-        tests/test_zobrist.cpp
-    )
-    target_link_libraries(unit_tests PRIVATE
-        gtest_main
-        chess_core
-    )
+    add_subdirectory(tests)
+endif()
 
-    # Register to CTest
-    include(GoogleTest)
-    gtest_discover_tests(unit_tests)
+# -- Benchmarks ---
+if (BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()
