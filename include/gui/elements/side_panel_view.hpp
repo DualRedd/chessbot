@@ -57,7 +57,7 @@ public:
      * @param side Which player (black or white) to get the configuration for
      * @return PlayerConfiguration representing the current configurations selected in in the GUI for this player.
      */
-    PlayerConfiguration get_player_configuration(PlayerColor side);
+    PlayerConfiguration get_player_configuration(Color side);
 
 private:
     // Background panel

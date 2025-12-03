@@ -56,8 +56,8 @@ void GameManager::new_game(const PlayerConfiguration& white_cfg, const PlayerCon
 }
 
 bool GameManager::is_human_turn() const {
-    PlayerColor turn = m_game.get_side_to_move();
-    return (turn == PlayerColor::White ? m_white_config : m_black_config).is_human;
+    Color turn = m_game.get_side_to_move();
+    return (turn == Color::White ? m_white_config : m_black_config).is_human;
 }
 
 bool GameManager::try_play_human_move(const UCI& uci) {
@@ -85,11 +85,11 @@ bool GameManager::try_undo_move() {
 
 void GameManager::_handle_ai_moves() {
     if (is_human_turn() || m_game_ended) return;
-    auto& ai = m_game.get_side_to_move() == PlayerColor::White ? m_white_ai : m_black_ai;
+    auto& ai = m_game.get_side_to_move() == Color::White ? m_white_ai : m_black_ai;
 
     if ((!ai || !ai->is_computing()) && !m_ai_move) {
         // apply stored actions first to sync state
-        auto& actions = m_game.get_side_to_move() == PlayerColor::White ? m_white_ai_actions : m_black_ai_actions;
+        auto& actions = m_game.get_side_to_move() == Color::White ? m_white_ai_actions : m_black_ai_actions;
         for (const auto& [action, desc] : actions) {
             switch (action) {
                 case AiAction::MakeMove:
@@ -99,7 +99,7 @@ void GameManager::_handle_ai_moves() {
                     ai->undo_move();
                     break;
                 case AiAction::NewGame:
-                    auto& player = m_game.get_side_to_move() == PlayerColor::White ? m_white_config : m_black_config;
+                    auto& player = m_game.get_side_to_move() == Color::White ? m_white_config : m_black_config;
                     ai = AIRegistry::create(player.ai_name, player.ai_config);
                     ai->set_board(desc);
                     break;

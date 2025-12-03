@@ -102,7 +102,9 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 # --- Core library ---
 add_library(chess_core SHARED
     src/core/types.cpp
-    src/core/board.cpp
+    src/core/bitboard.cpp
+    src/core/position.cpp
+    src/core/move_generation.cpp
     src/core/chess.cpp
     src/core/ai_player.cpp
 )

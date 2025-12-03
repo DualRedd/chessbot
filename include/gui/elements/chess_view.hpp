@@ -128,7 +128,7 @@ private:
     float m_tile_size;
 
     // Textures
-    std::unordered_map<Piece, sf::Texture, Piece::Hash> m_texture_pieces;
+    std::unordered_map<Piece, sf::Texture> m_texture_pieces;
     sf::Texture m_texture_circle;
     sf::Texture m_texture_circle_hollow;
     sf::Texture m_texture_x_icon;

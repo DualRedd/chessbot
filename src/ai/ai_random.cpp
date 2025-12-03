@@ -22,13 +22,13 @@ RandomAI::RandomAI(const std::vector<ConfigField>& cfg) {
 }
 
 void RandomAI::_set_board(const FEN& fen) {
-    m_board.set_from_fen(fen);
+    m_board.from_fen(fen);
 }
 
 void RandomAI::_apply_move(const UCI& uci_move) {
     Move move = m_board.move_from_uci(uci_move);
-    auto legal_moves = m_board.generate_legal_moves();
-    if (std::find(legal_moves.begin(), legal_moves.end(), move) == legal_moves.end()) {
+    m_move_list.generate_legal(m_board);
+    if (std::find(m_move_list.begin(), m_move_list.end(), move) == m_move_list.end()) {
         throw std::invalid_argument("RandomAI::apply_move() - illegal move!");
     }
     m_board.make_move(move);
@@ -41,11 +41,11 @@ void RandomAI::_undo_move() {
 }
 
 UCI RandomAI::_compute_move() {
-    auto moves = m_board.generate_legal_moves();
-    if (moves.empty()) {
+    m_move_list.generate_legal(m_board);
+    if (m_move_list.count() == 0) {
         throw std::runtime_error("RandomAI::compute_move() - no legal moves!");
     }
 
-    std::uniform_int_distribution<size_t> dist(0, moves.size() - 1);
-    return MoveEncoding::to_uci(moves[dist(m_rng)]);
+    std::uniform_int_distribution<size_t> dist(0, m_move_list.count() - 1);
+    return MoveEncoding::to_uci(m_move_list[dist(m_rng)]);
 }

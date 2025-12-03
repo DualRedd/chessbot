@@ -4,6 +4,7 @@
 #include "registry.hpp"
 #include "search_position.hpp"
 #include "transposition_table.hpp"
+#include "../core/move_generation.hpp"
 
 void registerMinimaxAI();
 
@@ -24,7 +25,8 @@ private:
     inline bool _timer_check();
 
 private:
-    SearchPosition m_position;
+    SearchPosition m_search_position;
+    MoveList m_move_list;
     TranspositionTable m_tt;
 
     // Search parameters

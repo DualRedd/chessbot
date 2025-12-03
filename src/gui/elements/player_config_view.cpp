@@ -16,7 +16,7 @@ static inline std::string float_to_string(double val) {
     return s;
 }
 
-PlayerConfigView::PlayerConfigView(tgui::GrowVerticalLayout::Ptr parent, PlayerColor color)
+PlayerConfigView::PlayerConfigView(tgui::GrowVerticalLayout::Ptr parent, Color color)
   : m_container(tgui::Panel::create()),
     m_dropdown(tgui::ComboBox::create())
 {
@@ -30,7 +30,7 @@ PlayerConfigView::PlayerConfigView(tgui::GrowVerticalLayout::Ptr parent, PlayerC
 
     // Dropdown label
     auto label = tgui::Label::create();
-    label->setText(color == PlayerColor::White ? "White" : "Black");
+    label->setText(color == Color::White ? "White" : "Black");
     label->setPosition(dropdown_margin_left, dropdown_margin_vertical + 1);
     label->setSize(dropdown_label_width, dropdown_height);
     label->setHorizontalAlignment(tgui::HorizontalAlignment::Left);
