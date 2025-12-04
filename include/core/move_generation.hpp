@@ -15,12 +15,12 @@ public:
         m_count = end - m_moves.begin();
     }
 
-    /*void generate_legal(const Position& pos) {
+    void generate_legal(const Position& pos) {
         Move* end = generate_legal_moves(pos, m_moves.begin());
         m_count = end - m_moves.begin();
-    }*/
+    }
 
-    void generate_legal(const Position& pos) {
+    /*void generate_legal(const Position& pos) {
         Position copy(pos, false);
         m_count = 0;
         Move* end = generate_pseudo_legal_moves(pos, m_moves.begin());
@@ -33,7 +33,7 @@ public:
             }
             copy.undo_move();
         }
-    }
+    }*/
 
     size_t count() const {
         return m_count;

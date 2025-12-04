@@ -84,9 +84,9 @@ UCI MinimaxAI::_compute_move() {
         int32_t alpha = std::max(-INF_SCORE, prev_score - m_aspiration_window);
         int32_t beta  = std::min(INF_SCORE,  prev_score + m_aspiration_window);
 
-        auto [score, move] = _root_search(-INF_SCORE, INF_SCORE, target_depth);
+        //auto [score, move] = _root_search(-INF_SCORE, INF_SCORE, target_depth);
         // Aspiration window search
-        /*auto [score, move] = _root_search(alpha, beta, target_depth);
+        auto [score, move] = _root_search(alpha, beta, target_depth);
 
         if (_timer_check())
             break;
@@ -94,7 +94,7 @@ UCI MinimaxAI::_compute_move() {
         // failed low or high, do a full window search
         if (score <= alpha || score >= beta) {
             std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth);
-        }*/
+        }
 
         if (_timer_check())
             break;
