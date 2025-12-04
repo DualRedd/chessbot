@@ -27,6 +27,7 @@ void registerMinimaxAI() {
 
     std::vector<ConfigField> cfg = {
         {"time_limit", "Thinking time (s)", FieldType::Double, 5.0},
+        {"aspiration_window_enabled", "Enable aspiration window", FieldType::Bool, true},
         {"aspiration_window", "Aspiration window (centipawns)", FieldType::Int, 50}
     };
 
@@ -35,8 +36,9 @@ void registerMinimaxAI() {
 
 MinimaxAI::MinimaxAI(const std::vector<ConfigField>& cfg)
   : m_position(),
-    m_tt(30ULL),
+    m_tt(1000ULL),
     m_time_limit_seconds(get_config_field_value<double>(cfg, "time_limit")),
+    m_aspiration_window_enabled(get_config_field_value<bool>(cfg, "aspiration_window_enabled")),
     m_aspiration_window(get_config_field_value<int>(cfg, "aspiration_window"))
 {}
 
@@ -64,6 +66,8 @@ UCI MinimaxAI::_compute_move() {
         throw std::invalid_argument("MinimaxAI::compute_move() - no legal moves!");
     }
 
+    m_stats.reset();
+
     m_deadline = std::chrono::steady_clock::now()
                + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                     std::chrono::duration<double>(m_time_limit_seconds));
@@ -77,17 +81,28 @@ UCI MinimaxAI::_compute_move() {
     
     int target_depth = 1;
     for (; target_depth <= 999; ++target_depth) {
-        int32_t alpha = std::max(-INF_SCORE, prev_score - m_aspiration_window);
-        int32_t beta  = std::min(INF_SCORE,  prev_score + m_aspiration_window);
+        int32_t score;
+        Move move;
 
-        // Aspiration window search
-        auto [score, move] = _root_search(alpha, beta, target_depth);
+        if (m_aspiration_window_enabled) {
+            // Aspiration window search
+            uint32_t nodes_before = m_stats.alpha_beta_nodes;
+            int32_t alpha = std::max(-INF_SCORE, prev_score - m_aspiration_window);
+            int32_t beta  = std::min(INF_SCORE,  prev_score + m_aspiration_window);
+            std::tie(score, move) = _root_search(alpha, beta, target_depth);
 
-        if (_timer_check())
-            break;
+            if (_timer_check())
+                break;
 
-        // failed low or high, do a full window search
-        if (score <= alpha || score >= beta) {
+            // failed low or high, do a full window search
+            if (score <= alpha || score >= beta) {
+                ++m_stats.aspiration_misses;
+                m_stats.aspiration_miss_nodes += m_stats.alpha_beta_nodes - nodes_before;
+                std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth);
+            }
+        }
+        else {
+            // Normal search
             std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth);
         }
 
@@ -100,11 +115,15 @@ UCI MinimaxAI::_compute_move() {
         prev_score = score;
         best_move = move;
     }
-    
+
+    m_stats.depth = target_depth - 1;
+    m_stats.eval = prev_score;
+    m_stats.print();
     return MoveEncoding::to_uci(best_move);
 }
 
 std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, int32_t search_depth) {
+    ++m_stats.alpha_beta_nodes;
     uint64_t zobrist_key = m_position.get_board().get_zobrist_hash();
     PlayerColor side = m_position.get_board().get_side_to_move();
     Move best_move = 0;
@@ -144,18 +163,27 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
 
     if (depth == 0)
         return _quiescence(alpha, beta, ply);
+
+    ++m_stats.alpha_beta_nodes;
     
     uint64_t zobrist_key = m_position.get_board().get_zobrist_hash();
     const TTEntry* tt_entry = m_tt.find(zobrist_key);
-    
+    if (tt_entry != nullptr) ++m_stats.tt_raw_hits;
     if (tt_entry != nullptr && tt_entry->depth >= depth) {
+        ++m_stats.tt_usable_hits;
         // use stored entry (adjusted mate-distance for current ply)
         int32_t stored = adjust_score_from_tt(tt_entry->score, ply);
         Bound bound = static_cast<Bound>(tt_entry->bound);
-        if (bound == Bound::Exact) return stored;
+        if (bound == Bound::Exact) {
+            ++m_stats.tt_cutoffs;
+            return stored;
+        }
         if (bound == Bound::Lower) alpha = std::max(alpha, stored);
         else if (bound == Bound::Upper) beta = std::min(beta, stored);
-        if (alpha >= beta) return stored;
+        if (alpha >= beta) {
+            ++m_stats.tt_cutoffs;
+            return stored;
+        }
     }
 
     PlayerColor side = m_position.get_board().get_side_to_move();
@@ -212,6 +240,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
 }
 
 inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int ply) {
+    ++m_stats.quiescence_nodes;
     if (_timer_check())
         return DRAW_SCORE;
 
