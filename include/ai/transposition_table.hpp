@@ -6,13 +6,13 @@
 
 enum class Bound : uint8_t { Exact=0, Lower=1, Upper=2 };
 
-struct TTEntry {
-    uint64_t key = 0;
-    Move best_move = 0;
-    int32_t score = 0;
-    int16_t depth = -1;
-    uint8_t bound = 0;
-    uint8_t age = 0;
+struct TTEntry { // 24 bytes aligned
+    uint64_t key;
+    int32_t score;
+    Move best_move;
+    int16_t depth;
+    Bound bound;
+    uint8_t age;
 };
 
 /**

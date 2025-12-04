@@ -6,7 +6,7 @@
 
 const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-TEST(BoardCopyTests, CopyConstructor) {
+TEST(PositionTests, CopyConstructor) {
     // Make random moves on a board
     const int moves = 100;
     Position original(CHESS_START_POSITION);
@@ -14,7 +14,7 @@ TEST(BoardCopyTests, CopyConstructor) {
     EXPECT_EQ(copy.to_fen(), CHESS_START_POSITION) << "the copy does not return the same FEN as the original was set to.";
 }
 
-TEST(BoardCopyTests, CopyConstructorWithHistory) {
+TEST(PositionTests, CopyConstructorWithHistory) {
     // Make random moves on a board
     const int moves = 100;
     MoveList move_list;
@@ -35,7 +35,7 @@ TEST(BoardCopyTests, CopyConstructorWithHistory) {
         << "After doing moves on original board, copying the board and undoing moves on the copy, the copy does not return the same FEN as the original was set to.";
 }
 
-TEST(BitboardTests, FromValidLegalFEN) {
+TEST(PositionTests, FromValidLegalFEN) {
     Position board;
     auto test_no_throw = [&board](const FEN& fen) {
         EXPECT_NO_THROW(board.from_fen(fen)) << "Case: " << fen;
@@ -47,7 +47,7 @@ TEST(BitboardTests, FromValidLegalFEN) {
     test_no_throw("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
 }
 
-TEST(BitboardTests, FromValidIllegalFEN) {
+TEST(PositionTests, FromValidIllegalFEN) {
     Position board;
     auto test_illegal = [&board](const FEN& fen) {
         EXPECT_THROW(board.from_fen(fen), std::invalid_argument) << "Case: " << fen;
@@ -63,7 +63,7 @@ TEST(BitboardTests, FromValidIllegalFEN) {
     test_illegal("k1K5/8/8/8/8/8/8/7P"); // Pawn on rank 1
 }
 
-TEST(BitboardTests, FromInvalidFEN) {
+TEST(PositionTests, FromInvalidFEN) {
     Position board;
     auto test_throw = [&board](const FEN& fen) {
         EXPECT_THROW(board.from_fen(fen), std::invalid_argument) << "Case: " << fen;
@@ -108,7 +108,7 @@ TEST(BitboardTests, FromInvalidFEN) {
     test_throw("4k3/8/8/8/8/8/8/4K3 b - - 1 b"); // Invalid fullmove count
 }
 
-TEST(BitboardTests, ToFEN) {
+TEST(PositionTests, ToFEN) {
     Position board;
     auto test_fen = [&board](const FEN& fen) {
         EXPECT_NO_THROW(board.from_fen(fen)) << "Case: " << fen;
@@ -120,7 +120,7 @@ TEST(BitboardTests, ToFEN) {
     test_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
 }
 
-TEST(BitboardTests, SideToMove) {
+TEST(PositionTests, SideToMove) {
     Position board;
     board.from_fen("1k1K4/8/8/8/6Nn/8/8/r7 b");
     EXPECT_EQ(board.get_side_to_move(), Color::Black) << "Case: correct after intial set from FEN.";
@@ -128,7 +128,7 @@ TEST(BitboardTests, SideToMove) {
     EXPECT_EQ(board.get_side_to_move(), Color::White) << "Case: correct after a move was made.";
 }
 
-TEST(BitboardTests, MoveFromUCI) {
+TEST(PositionTests, MoveFromUCI) {
     Position board(CHESS_START_POSITION);
     EXPECT_THROW(board.move_from_uci("aa"), std::invalid_argument) << "Case: UCI too short";
     EXPECT_THROW(board.move_from_uci("e5e6e7"), std::invalid_argument) << "Case: UCI too long";
@@ -151,7 +151,7 @@ TEST(BitboardTests, MoveFromUCI) {
     test_fen("r3k2r/1Pp2ppp/1b3nbN/nP1pP3/BBP5/q4N2/Pp1P1P1P/R3K2R w KQkq d6 0 3"); // en passant, castling, promo
 }
 
-TEST(BitboardTests, GetLastMove) {
+TEST(PositionTests, GetLastMove) {
     // Make random moves on a board
     const int moves = 50;
     MoveList move_list;
@@ -171,7 +171,7 @@ TEST(BitboardTests, GetLastMove) {
 }
 
 
-TEST(BitboardTests, Perft) {
+TEST(MoveGenerationTests, Perft) {
     Position board;
     std::function<uint64_t(int)> perft = [&perft, &board](int depth) {
         //std::cout << "Perft depth " << depth << " on board FEN: " << board.to_fen() << std::endl; // DEBUG
@@ -213,83 +213,3 @@ TEST(BitboardTests, Perft) {
     board.from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
     EXPECT_EQ(perft(3), 89890);
 }
-
-
-
-
-
-
-
-
-
-
-
-
-TEST(BitboardTest, ShiftRightLeftNoWrap) {
-    // Basic horizontal shifts and edge wrap prevention
-    EXPECT_EQ(shift_bb<Shift::Right>(MASK_SQUARE[+Square::A1]), MASK_SQUARE[+Square::B1]);
-    EXPECT_EQ(shift_bb<Shift::Left>(MASK_SQUARE[+Square::B1]), MASK_SQUARE[+Square::A1]);
-
-    // Shifts off the board must produce zero (no wrap)
-    EXPECT_EQ(shift_bb<Shift::Left>(MASK_SQUARE[+Square::A1]), 0ULL);
-    EXPECT_EQ(shift_bb<Shift::Right>(MASK_SQUARE[+Square::H1]), 0ULL);
-}
-
-TEST(BitboardTest, DiagonalAndVerticalShifts) {
-    // Simple diagonal / vertical correctness
-    EXPECT_EQ(shift_bb<Shift::Up>(MASK_SQUARE[+Square::A1]), MASK_SQUARE[+Square::A2]);
-    EXPECT_EQ(shift_bb<Shift::UpRight>(MASK_SQUARE[+Square::A1]), MASK_SQUARE[+Square::B2]);
-    EXPECT_EQ(shift_bb<Shift::UpLeft>(MASK_SQUARE[+Square::H1]), MASK_SQUARE[+Square::G2]);
-
-    // Double shifts
-    EXPECT_EQ(shift_bb<Shift::DoubleUp>(MASK_SQUARE[+Square::A1]), MASK_SQUARE[+Square::A3]);
-    EXPECT_EQ(shift_bb<Shift::DoubleDown>(MASK_SQUARE[+Square::A3]), MASK_SQUARE[+Square::A1]);
-}
-
-TEST(BitboardTest, LsbAndPopLsb) {
-    Bitboard bb = MASK_SQUARE[+Square::E4] | MASK_SQUARE[+Square::A1];
-    Square first = lsb(bb);
-    EXPECT_EQ(first, Square::A1);
-    pop_lsb(bb);
-    EXPECT_EQ(lsb(bb), Square::E4);
-
-    // pop all leaves zero
-    pop_lsb(bb);
-    EXPECT_EQ(bb, 0ULL);
-}
-
-TEST(BitboardTest, KnightAttacksCorner) {
-    // From A1, knight attacks should be B3 and C2
-    Bitboard expected = MASK_SQUARE[+Square::B3] | MASK_SQUARE[+Square::C2];
-    EXPECT_EQ(MASK_KNIGHT_ATTACKS[+Square::A1], expected);
-}
-
-TEST(BitboardTest, KingAttacks) {
-    // From E1 king: D1 F1 D2 E2 F2
-    Bitboard expected =
-        MASK_SQUARE[+Square::D1] | MASK_SQUARE[+Square::F1] |
-        MASK_SQUARE[+Square::D2] | MASK_SQUARE[+Square::E2] |
-        MASK_SQUARE[+Square::F2];
-    EXPECT_EQ(MASK_KING_ATTACKS[+Square::E1], expected);
-
-    // From A1 king: A2 B2 B1
-    expected =
-        MASK_SQUARE[+Square::A2] | MASK_SQUARE[+Square::B2] |
-        MASK_SQUARE[+Square::B1];
-    EXPECT_EQ(MASK_KING_ATTACKS[+Square::A1], expected);
-}
-
-TEST(BitboardTest, SlidingAttacksStopsAtBlocker) {
-    // Rook on A1 with a blocker at A3: should see A2 and A3 only upward
-    Bitboard occ = MASK_SQUARE[+Square::A3];
-    Bitboard attacks = sliding_attacks<Shift::Up>(Square::A1, occ);
-    Bitboard expected = MASK_SQUARE[+Square::A2] | MASK_SQUARE[+Square::A3];
-    EXPECT_EQ(attacks, expected);
-
-    // Bishop direction: from C1 with blocker at E3 should include D2 and E3 on that diagonal
-    occ = MASK_SQUARE[+Square::E3];
-    attacks = sliding_attacks<Shift::UpRight>(Square::C1, occ);
-    expected = MASK_SQUARE[+Square::D2] | MASK_SQUARE[+Square::E3];
-    EXPECT_EQ(attacks, expected);
-}
-

@@ -1,8 +1,10 @@
 #pragma once
 
 #include "position.hpp"
-#include<iostream> // DEBUG
+
 Move* generate_pseudo_legal_moves(const Position& pos, Move* move_list);
+
+Move* generate_legal_moves(const Position& pos, Move* move_list);
 
 class MoveList {
 public:
@@ -13,17 +15,12 @@ public:
         m_count = end - m_moves.begin();
     }
 
-    void generate_legal(const Position& pos) {
-        m_count = 0;
-        Move* end = generate_pseudo_legal_moves(pos, m_moves.begin());
-        for (Move* move_ptr = m_moves.begin(); move_ptr != end; ++move_ptr) {
-            if (pos.is_legal_move(*move_ptr)) {
-                m_moves[m_count++] = *move_ptr;
-            }
-        }
-    }
-
     /*void generate_legal(const Position& pos) {
+        Move* end = generate_legal_moves(pos, m_moves.begin());
+        m_count = end - m_moves.begin();
+    }*/
+
+    void generate_legal(const Position& pos) {
         Position copy(pos, false);
         m_count = 0;
         Move* end = generate_pseudo_legal_moves(pos, m_moves.begin());
@@ -36,15 +33,14 @@ public:
             }
             copy.undo_move();
         }
-    }*/
+    }
 
     size_t count() const {
         return m_count;
     }
 
-    Move operator[](size_t index) const {
-        return m_moves[index];
-    }
+    Move& operator[](size_t index) { return m_moves[index]; }
+    const Move& operator[](size_t index) const { return m_moves[index]; }
 
     Move* begin() {
         return m_moves.begin();
@@ -54,8 +50,9 @@ public:
         return m_moves.begin() + m_count;
     }
 
+public:
+    static constexpr int MAX_SIZE = 280; // Upper limit for pseudo-legal moves in any position
 private:
-    static constexpr int MAX_PSEUDO_LEGAL_MOVES = 280;
-    std::array<Move, MAX_PSEUDO_LEGAL_MOVES> m_moves;
+    std::array<Move, MAX_SIZE> m_moves;
     size_t m_count;
 };

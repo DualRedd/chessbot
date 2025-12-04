@@ -53,7 +53,7 @@ void TranspositionTable::store(uint64_t key, int32_t score, int16_t depth,
     dst.key = key;
     dst.score = score;
     dst.depth = depth;
-    dst.bound = static_cast<uint8_t>(bound);
+    dst.bound = bound;
     dst.best_move = best_move;
     dst.age = m_age;
 }

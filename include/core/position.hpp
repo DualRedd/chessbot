@@ -90,10 +90,9 @@ public:
 
     Bitboard attackers(Color side, Square square, Bitboard occupied) const;
     bool attackers_exist(Color side, Square square, Bitboard occupied) const;
+    Bitboard get_pinned() const;
 
     bool can_castle(Color side, CastlingSide castle_side) const;
-
-    bool is_legal_move(Move move) const;
 
     /**
      * Apply a Move on this board.
@@ -108,6 +107,20 @@ public:
      * @return True if there was a previous move (and it was undone), else false.
      */
     bool undo_move();
+
+    PieceType to_capture(Move move) const {
+        Square to = MoveEncoding::to_sq(move);
+        if (MoveEncoding::move_type(move) == MoveType::EnPassant) {
+            Square capture_square = (m_side_to_move == Color::White) ? (to + Shift::Down) : (to + Shift::Up);
+            return to_type(get_piece_at(capture_square));
+        }
+        return to_type(get_piece_at(to));
+    }
+
+    PieceType to_moved(Move move) const {
+        Square from = MoveEncoding::from_sq(move);
+        return to_type(get_piece_at(from));
+    }
 
     /**
      * Convert UCI string to a Move on the current board.
@@ -168,6 +181,10 @@ inline Square Position::get_en_passant_square() const {
     return m_en_passant_square;
 }
 
+inline Bitboard Position::get_pinned() const {
+    return m_pinned;
+}
+
 inline uint64_t Position::get_zobrist_hash() const {
     return m_zobrist;
 }
@@ -204,3 +221,42 @@ inline bool Position::can_castle(Color side, CastlingSide castle_side) const {
                 : (m_castling_rights & +CastlingFlag::BlackQueenSide) != 0;
     }
 }
+
+inline Bitboard Position::attackers(Color side, Square square, Bitboard occupied) const {
+    Color opp = opponent(side);
+    Bitboard attackers = 0ULL;
+
+    Bitboard bishops = get_pieces(side, PieceType::Bishop) | get_pieces(side, PieceType::Queen);
+    Bitboard rooks = get_pieces(side, PieceType::Rook) | get_pieces(side, PieceType::Queen);
+
+    // Pawn attacks
+    attackers |= MASK_PAWN_ATTACKS[+opp][+square] & get_pieces(side, PieceType::Pawn);
+    attackers |= MASK_KNIGHT_ATTACKS[+square] & get_pieces(side, PieceType::Knight);
+    attackers |= MASK_KING_ATTACKS[+square] & get_pieces(side, PieceType::King);
+    attackers |= attacks_from<PieceType::Bishop>(square, occupied) & bishops;
+    attackers |= attacks_from<PieceType::Rook>(square, occupied) & rooks;
+
+    return attackers;
+}
+
+inline bool Position::attackers_exist(Color side, Square square, Bitboard occupied) const {
+    Color opp = opponent(side);
+
+    if (MASK_PAWN_ATTACKS[+opp][+square] & get_pieces(side, PieceType::Pawn))
+        return true;
+    if (MASK_KNIGHT_ATTACKS[+square] & get_pieces(side, PieceType::Knight))
+        return true;
+    if (MASK_KING_ATTACKS[+square] & get_pieces(side, PieceType::King))
+        return true;
+
+    Bitboard bishops = get_pieces(side, PieceType::Bishop) | get_pieces(side, PieceType::Queen);
+    if (attacks_from<PieceType::Bishop>(square, occupied) & bishops)
+        return true;
+
+    Bitboard rooks = get_pieces(side, PieceType::Rook) | get_pieces(side, PieceType::Queen);
+    if (attacks_from<PieceType::Rook>(square, occupied) & rooks)
+        return true;
+
+    return false;
+}
+

@@ -42,6 +42,9 @@ constexpr Square operator+(Square sq, int i) {
 constexpr Square operator-(Square sq, int i) {
     return static_cast<Square>((+sq) - i);
 }
+constexpr Square operator-(int i, Square sq) {
+    return static_cast<Square>(i - (+sq));
+}
 constexpr Square operator+(Square sq, Shift sh) {
     return static_cast<Square>((+sq) + (+sh));
 }
@@ -77,7 +80,7 @@ constexpr int8_t operator+(Color c)     noexcept { return static_cast<int8_t>(c)
 constexpr int8_t operator+(Piece p)     noexcept { return static_cast<int8_t>(p); }
 
 // More helpers
-constexpr inline Square square_for_side(Square square, Color side) { return (side == Color::White) ? square : (square + -63); };
+constexpr inline Square square_for_side(Square square, Color side) { return (side == Color::White) ? square : 63 - square; };
 constexpr Color opponent(Color side)                 { return side == Color::White ? Color::Black : Color::White; };
 constexpr Square create_square(int file, int rank)   { return static_cast<Square>(rank * 8 + file); }
 constexpr int square_index(int file, int rank)       { return rank * 8 + file;  }

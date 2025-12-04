@@ -118,6 +118,59 @@ inline Move* generate_moves_for_side(const Position& pos, Move* move_list) {
     return move_list;
 }
 
+template<Color side>
+inline bool is_legal_move(const Position& pos, Move move) {
+    // https://chess.stackexchange.com/questions/15043/building-a-chess-using-magic-bitboard-how-do-i-know-if-the-movement-is-valid
+    constexpr Color opp = opponent(side);
+    Square from = MoveEncoding::from_sq(move);
+    Square to = MoveEncoding::to_sq(move);
+    MoveType move_type = MoveEncoding::move_type(move);
+
+    // King move is legal if the destination square is not attacked
+    // Handles castling also (other squares are checked during move generation)
+    if (to_type(pos.get_piece_at(from)) == PieceType::King) {
+        return !pos.attackers_exist(opp, to, pos.get_pieces() ^ MASK_SQUARE[+from]);
+    }
+
+    // Get checker count
+    Square king_sq = lsb(pos.get_pieces(side, PieceType::King));
+    Bitboard att = pos.attackers(opp, king_sq, pos.get_pieces());
+    int attackers_count = popcount(att);
+    if (attackers_count >= 2) {
+        // only king moves are legal
+        return false;
+    }
+
+    // en passant special case: simulate occupancy after capture
+    if (move_type == MoveType::EnPassant) {
+        Square capture_square = (side == Color::White) ? (to + Shift::Down) : (to + Shift::Up);
+        // en passant must capture possible checker (the checker is a pawn, discovered check impossible)
+        if (attackers_count == 1 && lsb(att) != capture_square) {
+            return false;
+        }
+
+        Bitboard occ = pos.get_pieces() ^ MASK_SQUARE[+from] ^ MASK_SQUARE[+capture_square] | MASK_SQUARE[+to];
+        // only need to check sliding attackers
+        if (attacks_from<PieceType::Rook>(king_sq, occ) & (pos.get_pieces(opp, PieceType::Rook) | pos.get_pieces(opp, PieceType::Queen)))
+            return false;
+        if (attacks_from<PieceType::Bishop>(king_sq, occ) & (pos.get_pieces(opp, PieceType::Bishop) | pos.get_pieces(opp, PieceType::Queen)))
+            return false;
+        return true;
+    }
+
+    bool is_pinned = (pos.get_pinned() & MASK_SQUARE[+from]) != 0ULL;
+    bool moves_on_line = (MASK_LINE[+from][+to] & MASK_SQUARE[+king_sq]) != 0ULL;
+    if (attackers_count == 1) {
+        // legal to capture or block the checker
+        Square checker = lsb(att);
+        Bitboard allowed_to = MASK_SQUARE[+checker] | MASK_BETWEEN[+checker][+king_sq];
+        return (!is_pinned && MASK_SQUARE[+to] & allowed_to) || (is_pinned && moves_on_line && to == checker);
+    }
+
+    // Any other move is legal if the piece is not pinned or moves along the pin line
+    return (!is_pinned || moves_on_line);
+}
+
 } // namespace
 
 Move* generate_pseudo_legal_moves(const Position& pos, Move* move_list) {
@@ -127,5 +180,28 @@ Move* generate_pseudo_legal_moves(const Position& pos, Move* move_list) {
         move_list = generate_moves_for_side<Color::Black>(pos, move_list);
     }
     return move_list;
+}
+
+Move* generate_legal_moves(const Position& pos, Move* move_list) {
+    Move* cur = move_list;
+    if (pos.get_side_to_move() == Color::White) {
+        move_list = generate_moves_for_side<Color::White>(pos, move_list);
+        // compress to legal
+        for (Move* move_ptr = cur; move_ptr != move_list; ++move_ptr) {
+            if (is_legal_move<Color::White>(pos, *move_ptr)) {
+                *cur++ = *move_ptr;
+            }
+        }
+    }
+    else {
+        move_list = generate_moves_for_side<Color::Black>(pos, move_list);
+        // compress to legal
+        for (Move* move_ptr = cur; move_ptr != move_list; ++move_ptr) {
+            if (is_legal_move<Color::Black>(pos, *move_ptr)) {
+                *cur++ = *move_ptr;
+            }
+        }
+    }
+    return cur;
 }
 

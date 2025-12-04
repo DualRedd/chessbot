@@ -1,7 +1,7 @@
 #include "gtest/gtest.h"
 #include "core/position.hpp"
+#include "core/move_generation.hpp"
 
-/*
 #include <unordered_map>
 #include <random>
 
@@ -19,11 +19,12 @@ TEST(ZobristTests, RebuildFromFENMatches) {
     const int moves = 500;
 
     // play random legal moves
+    MoveList move_list;
     for (int i = 0; i < moves; ++i) {
-        auto moves = board.generate_legal_moves();
-        ASSERT_FALSE(moves.empty());
-        int r = std::rand() % static_cast<int>(moves.size());
-        board.make_move(moves[r]);
+        move_list.generate_legal(board);
+        ASSERT_FALSE(move_list.count() == 0);
+        int r = std::rand() % static_cast<int>(move_list.count());
+        board.make_move(move_list[r]);
 
         // check that rebuilding from FEN reproduces the same zobrist
         uint64_t z1 = board.get_zobrist_hash();
@@ -39,11 +40,12 @@ TEST(ZobristTests, IncrementalMakeUndoConsistency) {
     saved_hashes.push_back(board.get_zobrist_hash());
 
     // play random moves and store hashes after each make
+    MoveList move_list;
     for (int i = 0; i < moves; ++i) {
-        auto moves = board.generate_legal_moves();
-        ASSERT_FALSE(moves.empty());
-        int r = std::rand() % static_cast<int>(moves.size());
-        board.make_move(moves[r]);
+        move_list.generate_legal(board);
+        ASSERT_FALSE(move_list.count() == 0);
+        int r = std::rand() % static_cast<int>(move_list.count());
+        board.make_move(move_list[r]);
         saved_hashes.push_back(board.get_zobrist_hash());
     }
 
@@ -61,9 +63,10 @@ TEST(ZobristTests, IncrementalMakeUndoConsistency) {
 
 TEST(ZobristTests, SpecialMoves) {
     Position board;
-    auto is_legal_move = [&board](const Move& move) {
-        auto legal_moves = board.generate_legal_moves();
-        return std::find(legal_moves.begin(), legal_moves.end(), move) != legal_moves.end();
+    MoveList move_list;
+    auto is_legal_move = [&board, &move_list](const Move& move) {
+        move_list.generate_legal(board);
+        return std::find(move_list.begin(), move_list.end(), move) != move_list.end();
     };
 
     // castling position
@@ -115,14 +118,15 @@ TEST(ZobristTests, CollisionCheck) {
         return fen;
     };
 
+    MoveList move_list;
     for (int g = 0; g < games; ++g) {
         board.from_fen(COMPLEX_POSITION);
         for (int m = 0; m < moves_per_game; ++m) {
-            auto moves = board.generate_legal_moves();
-            if (moves.empty()) break;
+            move_list.generate_legal(board);
+            if (move_list.count() == 0) break;
 
-            std::uniform_int_distribution<size_t> dist(0, moves.size() - 1);
-            board.make_move(moves[dist(rng)]);
+            std::uniform_int_distribution<size_t> dist(0, move_list.count() - 1);
+            board.make_move(move_list[dist(rng)]);
             uint64_t key = board.get_zobrist_hash();
             FEN fen = strip_counters(board.to_fen());
 
@@ -137,4 +141,3 @@ TEST(ZobristTests, CollisionCheck) {
         }
     }
 }
-*/

@@ -39,16 +39,19 @@ void SearchPosition::make_move(Move move) {
     Color opp = opponent(side);
     Square from = MoveEncoding::from_sq(move);
     Square to = MoveEncoding::to_sq(move);
-    PieceType promo = MoveEncoding::promo(move);
     MoveType move_type = MoveEncoding::move_type(move);
     PieceType piece_type = to_type(m_position.get_piece_at(from));
 
     int32_t delta = 0;
 
     // Move piece and handle promo
-    delta += _pst_value(piece_type, side, to) - _pst_value(piece_type, side, from);
-    if (promo != PieceType::None) {
+    if(move_type == MoveType::Promotion) {
+        PieceType promo = MoveEncoding::promo(move);
         delta += material_value(promo) - material_value(piece_type);
+        delta += _pst_value(promo, side, to) + _pst_value(piece_type, side, from);
+    }
+    else {
+        delta += _pst_value(piece_type, side, to) - _pst_value(piece_type, side, from);
     }
 
     // Handle capture and en passant
@@ -131,10 +134,10 @@ int32_t SearchPosition::_compute_full_eval() {
 
     for (Square square = Square::A1; square <= Square::H8; ++square) {
         Piece piece = m_position.get_piece_at(square);
+        if (piece == Piece::None) continue;
+
         PieceType type = to_type(piece);
         Color color = to_color(piece);
-        if (type == PieceType::None) continue;
-
         int32_t val = material_value(type) + _pst_value(type, color, square);
         eval += (color == Color::White ? val : -val);
     }

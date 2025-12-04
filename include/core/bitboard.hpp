@@ -32,6 +32,11 @@ extern Bitboard MASK_KING_ATTACKS[64];    // [square]
 extern Bitboard MASK_ROOK_ATTACKS[64];    // [square] non-blocking
 extern Bitboard MASK_BISHOP_ATTACKS[64];  // [square] non-blocking
 
+/*extern uint64_t ROOK_MAGIC[64];           // [square]
+extern uint64_t BISHOP_MAGIC[64];         // [square]
+extern Bitboard MASK_ROOK_MAGIC[64];      // [square]
+extern Bitboard MASK_BISHOP_MAGIC[64];    // [square]*/
+
 extern Bitboard MASK_CASTLE_CLEAR[2][2];  // [color][0=queenside,1=kingside]
 extern int8_t MASK_CASTLE_FLAG[64];       // [square] combination of CastlingFlag to remove when moving from/to this square
 

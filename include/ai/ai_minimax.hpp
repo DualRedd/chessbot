@@ -21,12 +21,12 @@ private:
     std::pair<int32_t, Move> _root_search(int32_t alpha, int32_t beta, int32_t search_depth);
     int32_t _alpha_beta(int32_t alpha, int32_t beta, int depth, int ply);
     inline int32_t _quiescence(int32_t alpha, int32_t beta, int ply);
-    inline void _order_moves(std::vector<Move>& moves, const TTEntry* tt_entry) const;
+    inline void _order_moves(MoveList& move_list, const TTEntry* tt_entry) const;
     inline bool _timer_check();
 
 private:
     SearchPosition m_search_position;
-    MoveList m_move_list;
+    //MoveList m_move_list;
     TranspositionTable m_tt;
 
     // Search parameters
