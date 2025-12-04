@@ -5,17 +5,18 @@
 #include <cassert>
 
 Position::StoredState::StoredState(Move move, Piece captured_piece, uint8_t castling_rights,
-            Square en_passant_square, uint32_t halfmoves, uint64_t zobrist) 
+            Square en_passant_square, uint32_t halfmoves, uint64_t zobrist, Bitboard pinned) 
   : move(move),
     captured_piece(captured_piece),
     castling_rights(castling_rights),
     en_passant_square(en_passant_square),
     zobrist(zobrist),
-    halfmoves(halfmoves) {}
+    halfmoves(halfmoves),
+    pinned(pinned) {}
 
 
-Position::Position(const FEN& fen, bool allow_illegal_position) {
-    from_fen(fen, allow_illegal_position);
+Position::Position(const FEN& fen) {
+    from_fen(fen);
 }
 
 Position::Position(const Position& other, bool copy_history) {
@@ -35,7 +36,7 @@ Position::Position(const Position& other, bool copy_history) {
     }
 }
 
-void Position::from_fen(const FEN& fen, bool allow_illegal_position) {
+void Position::from_fen(const FEN& fen) {
     // Clear the board
     m_occupied_all = 0ULL;
     for (int color = 0; color < 2; ++color) {
@@ -200,16 +201,14 @@ void Position::from_fen(const FEN& fen, bool allow_illegal_position) {
     }
 
     // Position legality check
-    if (!allow_illegal_position) {
-        if (white_king_count != 1 || black_king_count != 1) {
-            throw std::invalid_argument("Position::from_fen() - illegal FEN! Position must have exactly one king per side.");
-        }
-        if (in_check(opponent(m_side_to_move))) {
-            throw std::invalid_argument("Position::from_fen() - illegal FEN! King capture possible.");
-        }
-        if (PROMOTION_RANKS & (m_pieces[+Color::White][+PieceType::Pawn] | m_pieces[+Color::Black][+PieceType::Pawn])) {
-            throw std::invalid_argument("Position::from_fen() - illegal FEN! Unpromoted pawn on last rank.");
-        }
+    if (white_king_count != 1 || black_king_count != 1) {
+        throw std::invalid_argument("Position::from_fen() - illegal FEN! Position must have exactly one king per side.");
+    }
+    if (in_check(opponent(m_side_to_move))) {
+        throw std::invalid_argument("Position::from_fen() - illegal FEN! King capture possible.");
+    }
+    if (PROMOTION_RANKS & (m_pieces[+Color::White][+PieceType::Pawn] | m_pieces[+Color::Black][+PieceType::Pawn])) {
+        throw std::invalid_argument("Position::from_fen() - illegal FEN! Unpromoted pawn on last rank.");
     }
 
     // Compute Zobrist hash for current position
@@ -227,6 +226,9 @@ void Position::from_fen(const FEN& fen, bool allow_illegal_position) {
     m_zobrist ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F];
     if (m_en_passant_square != Square::None) m_zobrist ^= ZOBRIST_EP[+file_of(m_en_passant_square)];
     if (m_side_to_move == Color::Black) m_zobrist ^= ZOBRIST_SIDE;
+
+    // Compute pinned pieces
+    _calculate_pinned(m_side_to_move);
 }
 
 FEN Position::to_fen() const {
@@ -293,31 +295,6 @@ FEN Position::to_fen() const {
 
     return oss.str();
 }
-
-uint64_t Position::get_zobrist_hash() const {
-    return m_zobrist;
-}
-
-Color Position::get_side_to_move() const {
-    return m_side_to_move;
-}
-
-std::optional<Move> Position::get_last_move() const {
-    if(m_state_history.size() == 0) return std::nullopt;
-    else return m_state_history.back().move;
-}
-
-uint32_t Position::get_halfmove_clock() const {
-    return m_halfmoves;
-}
-
-uint32_t Position::get_fullmove_clock() const {
-    return m_fullmoves;
-}
-
-Piece Position::get_piece_at(Square square) const {
-    return m_piece_on_square[+square];
-}
     
 bool Position::in_check(Color side) const {
     Color opp = opponent(side);
@@ -375,35 +352,32 @@ bool Position::is_legal_move(Move move) const {
     Color opp = opponent(m_side_to_move);
     Square from = MoveEncoding::from_sq(move);
     Square to = MoveEncoding::to_sq(move);
-    PieceType promo = MoveEncoding::promo(move);
     MoveType move_type = MoveEncoding::move_type(move);
-    Piece moved_piece = m_piece_on_square[+from];
 
     // King move is legal if the destination square is not attacked
     // Handles castling also (other squares are checked during move generation)
-    if (to_type(moved_piece) == PieceType::King) {
+    if (to_type(m_piece_on_square[+from]) == PieceType::King) {
         return !attackers_exist(opp, to, get_pieces() ^ MASK_SQUARE[+from]);
     }
 
-    // Next case when king is already in check
+    // Get checker count
     Square king_sq = lsb(get_pieces(m_side_to_move, PieceType::King));
-    Bitboard att = attackers(m_side_to_move, king_sq, get_pieces());
+    Bitboard att = attackers(opp, king_sq, get_pieces());
     int attackers_count = popcount(att);
     if (attackers_count >= 2) {
         // only king moves are legal
         return false;
     }
-    if (attackers_count == 1) {
-        // legal to capture or block the check
-        Square checker = lsb(att);
-        Bitboard allowed = MASK_SQUARE[+checker] | MASK_BETWEEN[+checker][+king_sq];
-        return (MASK_SQUARE[+to] & allowed) != 0ULL;
-    }
 
-    // Finally, king is not in check
-    // en passant special case: just simulate occupancy after capture
+    // en passant special case: simulate occupancy after capture
     if (move_type == MoveType::EnPassant) {
         Square capture_square = (m_side_to_move == Color::White) ? (to + Shift::Down) : (to + Shift::Up);
+
+        // en passant must capture possible checker (the checker is a pawn, discovered check impossible)
+        if (attackers_count == 1 && lsb(att) != capture_square) {
+            return false;
+        }
+
         Bitboard occ = get_pieces() ^ MASK_SQUARE[+from] ^ MASK_SQUARE[+capture_square] | MASK_SQUARE[+to];
         // only need to check sliding attackers
         if (attacks_from<PieceType::Rook>(king_sq, occ) & (get_pieces(opp, PieceType::Rook) | get_pieces(opp, PieceType::Queen)))
@@ -413,10 +387,17 @@ bool Position::is_legal_move(Move move) const {
         return true;
     }
 
-    // Any other move is legal if the piece is not pinned or moves along the pin line
-    
+    bool is_pinned = (m_pinned & MASK_SQUARE[+from]) != 0ULL;
+    bool moves_on_line = (MASK_LINE[+from][+to] & MASK_SQUARE[+king_sq]) != 0ULL;
+    if (attackers_count == 1) {
+        // legal to capture or block the checker
+        Square checker = lsb(att);
+        Bitboard allowed_to = MASK_SQUARE[+checker] | MASK_BETWEEN[+checker][+king_sq];
+        return (!is_pinned && MASK_SQUARE[+to] & allowed_to) || (is_pinned && moves_on_line && to == checker);
+    }
 
-    return false;
+    // Any other move is legal if the piece is not pinned or moves along the pin line
+    return (!is_pinned || moves_on_line);
 }
 
 void Position::make_move(Move move) {
@@ -439,14 +420,12 @@ void Position::make_move(Move move) {
         assert(to == m_en_passant_square);
         assert(m_piece_on_square[+capture_square] == create_piece(opp, PieceType::Pawn));
         assert(m_piece_on_square[+to] == Piece::None);
-        assert(rank_of(to) == (m_side_to_move == Color::White ? Rank::R6 : Rank::R3));
+        assert(rank_of(to) == (m_side_to_move == Color::White ? 5 : 2));
     }
 
-    //std::cout << to_fen() << std::endl; // DEBUG
-    //std::cout << "Making move: " << MoveEncoding::to_uci(move) << std::endl; // DEBUG
-
     // Store state to history
-    m_state_history.emplace_back(StoredState(move, m_piece_on_square[+capture_square], m_castling_rights, m_en_passant_square, m_halfmoves, m_zobrist));
+    m_state_history.emplace_back(StoredState(move, m_piece_on_square[+capture_square], m_castling_rights,
+                                            m_en_passant_square, m_halfmoves, m_zobrist, m_pinned));
 
     // Update move counters
     m_halfmoves++;
@@ -527,6 +506,7 @@ void Position::make_move(Move move) {
     // Next turn
     m_side_to_move = (m_side_to_move == Color::White) ? Color::Black : Color::White;
     m_zobrist ^= ZOBRIST_SIDE;
+    _calculate_pinned(m_side_to_move);
 }
 
 bool Position::undo_move() {
@@ -545,9 +525,6 @@ bool Position::undo_move() {
     MoveType move_type = MoveEncoding::move_type(state.move);
     Piece moved_piece = move_type == MoveType::Promotion ? create_piece(m_side_to_move, PieceType::Pawn) : m_piece_on_square[+to];
     Piece captured_piece = state.captured_piece;
-
-    //std::cout << to_fen() << std::endl; // DEBUG
-    //std::cout << "Undoing move: " << MoveEncoding::to_uci(state.move) << std::endl; // DEBUG
 
     // Remove moved piece / promoted piece on target square
     m_occupied[+m_side_to_move] &= ~MASK_SQUARE[+to];
@@ -606,6 +583,9 @@ bool Position::undo_move() {
     // restore zobrist
     m_zobrist = state.zobrist;
 
+    // restore pinned
+    m_pinned = state.pinned;
+
     m_state_history.pop_back();
     return true;
 }
@@ -621,8 +601,8 @@ Move Position::move_from_uci(const UCI& uci) const {
         throw std::invalid_argument("Position::move_from_uci() - invalid input UCI!");
     }
 
-    Square from = create_square(uci[0], uci[1]);
-    Square to = create_square(uci[2], uci[3]);
+    Square from = create_square(uci[0] - 'a', uci[1] - '1');
+    Square to = create_square(uci[2] - 'a', uci[3] - '1');
     Piece piece = m_piece_on_square[+from];
 
     // Promotion
@@ -653,19 +633,20 @@ Move Position::move_from_uci(const UCI& uci) const {
 
 void Position::_calculate_pinned(Color side) {
     Color opp = opponent(side);
-    Square king_sq = lsb(get_pieces(side, PieceType::King));
+    Square king_sq = lsb(get_pieces(side, PieceType::King)); 
     
     m_pinned = 0ULL;
 
     Bitboard possible_pinners = (MASK_ROOK_ATTACKS[+king_sq] & (get_pieces(opp, PieceType::Rook) | get_pieces(opp, PieceType::Queen)))
                               | (MASK_BISHOP_ATTACKS[+king_sq] & (get_pieces(opp, PieceType::Bishop) | get_pieces(opp, PieceType::Queen)));
     Bitboard occupancy = get_pieces() ^ possible_pinners;
-    
+
     while(possible_pinners) {
         Square pinner_sq = lsb(possible_pinners);
         Bitboard blockers = MASK_BETWEEN[+king_sq][+pinner_sq] & occupancy;
+
         if (popcount(blockers) == 1 && (blockers & m_occupied[+side])) {
-            // correct color blocker
+            // correct color blocker    
             m_pinned |= blockers;
         }
         pop_lsb(possible_pinners);

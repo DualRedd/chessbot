@@ -24,6 +24,8 @@ constexpr int8_t operator+(CastlingFlag t) noexcept { return static_cast<int8_t>
 // Precalculated masks and values
 extern Bitboard MASK_SQUARE[64];          // [square]
 extern Bitboard MASK_BETWEEN[64][64];     // [from square][to square] non-inclusive on both ends
+extern Bitboard MASK_LINE[64][64];        // [from square][to square] edge to edge
+
 extern Bitboard MASK_PAWN_ATTACKS[2][64]; // [color][square]
 extern Bitboard MASK_KNIGHT_ATTACKS[64];  // [square]
 extern Bitboard MASK_KING_ATTACKS[64];    // [square]
@@ -57,6 +59,7 @@ constexpr Bitboard FILE_F = 0x2020202020202020ULL;
 constexpr Bitboard FILE_G = 0x4040404040404040ULL;
 constexpr Bitboard FILE_H = 0x8080808080808080ULL;
 constexpr Bitboard PROMOTION_RANKS = RANK_1 | RANK_8;
+constexpr Bitboard FULL_BOARD = 0xFFFFFFFFFFFFFFFFULL;
 
 // Helper functions
 constexpr int8_t castling_flag(Color color, CastlingSide side) {

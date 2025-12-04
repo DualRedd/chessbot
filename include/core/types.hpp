@@ -6,14 +6,6 @@
 
 #include "standards.hpp"
 
-enum class File : int8_t {
-    A = 0, B = 1, C = 2, D = 3, E = 4, F = 5, G = 6, H = 7
-};
-
-enum class Rank : int8_t {
-    R1 = 0, R2 = 1, R3 = 2, R4 = 3, R5 = 4, R6 = 5, R7 = 6, R8 = 7
-};
-
 enum class Square : int8_t {
     A1 = 0, B1 = 1, C1 = 2, D1 = 3, E1 = 4, F1 = 5, G1 = 6, H1 = 7,
     A2 = 8, B2 = 9, C2 = 10, D2 = 11, E2 = 12, F2 = 13, G2 = 14, H2 = 15,
@@ -38,8 +30,6 @@ enum class Shift : int8_t {
     DownLeft = -9
 };
 
-constexpr int8_t operator+(File t)   noexcept { return static_cast<int8_t>(t); }
-constexpr int8_t operator+(Rank t)   noexcept { return static_cast<int8_t>(t); }
 constexpr int8_t operator+(Square t) noexcept { return static_cast<int8_t>(t); }
 constexpr int8_t operator+(Shift t)  noexcept { return static_cast<int8_t>(t); }
 
@@ -62,7 +52,6 @@ constexpr Square& operator++(Square& sq) noexcept {
     sq = static_cast<Square>(+sq + 1);
     return sq;
 }
-
 
 // Piece features
 enum class PieceType : int8_t { Knight = 0, Bishop = 1, Rook = 2, Queen = 3, King = 4, Pawn = 5, None = 6};
@@ -90,15 +79,15 @@ constexpr int8_t operator+(Piece p)     noexcept { return static_cast<int8_t>(p)
 // More helpers
 constexpr inline Square square_for_side(Square square, Color side) { return (side == Color::White) ? square : (square + -63); };
 constexpr Color opponent(Color side)                 { return side == Color::White ? Color::Black : Color::White; };
-constexpr Square create_square(int file, int rank)   { return static_cast<Square>((+rank) * 8 + (+file)); }
-constexpr Square create_square(char file, char rank) { return static_cast<Square>((rank - '1') * 8 + (file - 'a')); }
-constexpr Rank rank_of(Square square)                { return static_cast<Rank>(+square / 8); }
-constexpr File file_of(Square square)                { return static_cast<File>(+square % 8); }
-constexpr Rank rank_of_relative(Square square, Color side) {
-    return side == Color::White ? rank_of(square) : static_cast<Rank>(7 - +rank_of(square));
+constexpr Square create_square(int file, int rank)   { return static_cast<Square>(rank * 8 + file); }
+constexpr int square_index(int file, int rank)       { return rank * 8 + file;  }
+constexpr int rank_of(Square square)                 { return +square / 8; }
+constexpr int file_of(Square square)                 { return +square % 8; }
+constexpr int rank_of_relative(Square square, Color side) {
+    return side == Color::White ? rank_of(square) : 7 - rank_of(square);
 }
-constexpr File file_of_relative(Square square, Color side) {
-    return side == Color::White ? file_of(square) : static_cast<File>(7 - +file_of(square));
+constexpr int file_of_relative(Square square, Color side) {
+    return side == Color::White ? file_of(square) : 7 - file_of(square);
 }
 
 // Move encoding to 16 bits

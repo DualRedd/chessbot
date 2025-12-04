@@ -4,7 +4,7 @@
 #include <array>
 #include <string>
 #include <optional>
-#include<iostream> // DEBUG
+
 #include "bitboard.hpp"
 
 /**
@@ -25,7 +25,7 @@ public:
      * @param allow_illegal_position if true, an illegal position according to normal chess rules can be set without a thrown exception
      * @throw std::invalid_argument if the FEN string is not valid OR the position is illegal and allow_illegal_positions is false.
      */
-    explicit Position(const FEN& fen, bool allow_illegal_position = false);
+    explicit Position(const FEN& fen);
 
     /**
      * Copy constructor. Allows to drop move history.
@@ -37,10 +37,9 @@ public:
     /**
      * Set board configuration from a FEN description. Resets all board state.
      * @param fen FEN string
-     * @param allow_illegal_position if true, an illegal position according to normal chess rules can be set without a thrown exception
      * @throw std::invalid_argument if the FEN string is not valid OR the position is illegal and allow_illegal_positions is false.
      */
-    void from_fen(const FEN& fen, bool allow_illegal_position = false);
+    void from_fen(const FEN& fen);
 
     /**
      * @return Current board state as a FEN string.
@@ -78,19 +77,10 @@ public:
      */
     Piece get_piece_at(Square square) const;
 
-    Bitboard get_pieces(Color color, PieceType type) const {
-        return m_pieces[+color][+type];
-    }
-    Bitboard get_pieces(Color color) const {
-        return m_occupied[+color];
-    }
-    Bitboard get_pieces() const {
-        return m_occupied_all;
-    }
-
-    Square get_en_passant_square() const {
-        return m_en_passant_square;
-    }
+    Bitboard get_pieces(Color color, PieceType type) const;
+    Bitboard get_pieces(Color color) const;
+    Bitboard get_pieces() const;
+    Square get_en_passant_square() const;
 
     /**
      * @param side White or Black
@@ -101,17 +91,7 @@ public:
     Bitboard attackers(Color side, Square square, Bitboard occupied) const;
     bool attackers_exist(Color side, Square square, Bitboard occupied) const;
 
-    bool can_castle(Color side, CastlingSide castle_side) const {
-        if (side == Color::White) {
-            return castle_side == CastlingSide::KingSide ?
-                    (m_castling_rights & +CastlingFlag::WhiteKingSide) != 0
-                  : (m_castling_rights & +CastlingFlag::WhiteQueenSide) != 0;
-        } else {
-            return castle_side == CastlingSide::KingSide ?
-                   (m_castling_rights & +CastlingFlag::BlackKingSide) != 0
-                 : (m_castling_rights & +CastlingFlag::BlackQueenSide) != 0;
-        }
-    }
+    bool can_castle(Color side, CastlingSide castle_side) const;
 
     bool is_legal_move(Move move) const;
 
@@ -147,9 +127,10 @@ private:
         Square en_passant_square;
         Piece captured_piece;
         uint64_t zobrist;
+        Bitboard pinned;
         uint32_t halfmoves;
         StoredState(Move move, Piece captured_piece, uint8_t castling_rights,
-            Square en_passant_square, uint32_t halfmoves, uint64_t zobrist);
+            Square en_passant_square, uint32_t halfmoves, uint64_t zobristm, Bitboard pinned);
     };
 
     void _calculate_pinned(Color side);
@@ -170,3 +151,56 @@ private:
     uint32_t m_fullmoves;
     uint64_t m_zobrist;
 };
+
+
+
+inline Bitboard Position::get_pieces(Color color, PieceType type) const {
+    return m_pieces[+color][+type];
+}
+inline Bitboard Position::get_pieces(Color color) const {
+    return m_occupied[+color];
+}
+inline Bitboard Position::get_pieces() const {
+    return m_occupied_all;
+}
+
+inline Square Position::get_en_passant_square() const {
+    return m_en_passant_square;
+}
+
+inline uint64_t Position::get_zobrist_hash() const {
+    return m_zobrist;
+}
+
+inline Color Position::get_side_to_move() const {
+    return m_side_to_move;
+}
+
+inline std::optional<Move> Position::get_last_move() const {
+    if(m_state_history.size() == 0) return std::nullopt;
+    else return m_state_history.back().move;
+}
+
+inline uint32_t Position::get_halfmove_clock() const {
+    return m_halfmoves;
+}
+
+inline uint32_t Position::get_fullmove_clock() const {
+    return m_fullmoves;
+}
+
+inline Piece Position::get_piece_at(Square square) const {
+    return m_piece_on_square[+square];
+}
+
+inline bool Position::can_castle(Color side, CastlingSide castle_side) const {
+    if (side == Color::White) {
+        return castle_side == CastlingSide::KingSide ?
+                (m_castling_rights & +CastlingFlag::WhiteKingSide) != 0
+                : (m_castling_rights & +CastlingFlag::WhiteQueenSide) != 0;
+    } else {
+        return castle_side == CastlingSide::KingSide ?
+                (m_castling_rights & +CastlingFlag::BlackKingSide) != 0
+                : (m_castling_rights & +CastlingFlag::BlackQueenSide) != 0;
+    }
+}

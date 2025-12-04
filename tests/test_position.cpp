@@ -37,31 +37,30 @@ TEST(BoardCopyTests, CopyConstructorWithHistory) {
 
 TEST(BitboardTests, FromValidLegalFEN) {
     Position board;
-    auto test_no_throw = [&board](const FEN& fen, bool allow_illegal) {
-        EXPECT_NO_THROW(board.from_fen(fen, allow_illegal)) << "Case: " << fen;
+    auto test_no_throw = [&board](const FEN& fen) {
+        EXPECT_NO_THROW(board.from_fen(fen)) << "Case: " << fen;
     };
 
-    test_no_throw("k1K5/8/8/4pP2/8/8/8/8", false); // Only board
-    test_no_throw("k1K5/8/8/4pP2/8/8/8/8 w - e6", false); // Valid white en passant
-    test_no_throw("k1K5/8/8/8/4pP2/8/8/8 b - f3", false); // Valid black en passant
-    test_no_throw("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1", false);
+    test_no_throw("k1K5/8/8/4pP2/8/8/8/8"); // Only board
+    test_no_throw("k1K5/8/8/4pP2/8/8/8/8 w - e6"); // Valid white en passant
+    test_no_throw("k1K5/8/8/8/4pP2/8/8/8 b - f3"); // Valid black en passant
+    test_no_throw("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
 }
 
 TEST(BitboardTests, FromValidIllegalFEN) {
     Position board;
-    auto test_illegal_but_valid = [&board](const FEN& fen) {
-        EXPECT_THROW(board.from_fen(fen, false), std::invalid_argument) << "Case: " << fen;
-        EXPECT_NO_THROW(board.from_fen(fen, true)) << "Case: " << fen;
+    auto test_illegal = [&board](const FEN& fen) {
+        EXPECT_THROW(board.from_fen(fen), std::invalid_argument) << "Case: " << fen;
     };
 
-    // Illegal (unreachable but valid) positions
-    test_illegal_but_valid("8/8/8/8/8/8/8/8"); // No kings
-    test_illegal_but_valid("8/8/8/8/K7/8/8/8"); // Only white king
-    test_illegal_but_valid("8/8/8/8/k7/8/8/8"); // Only black king
-    test_illegal_but_valid("8/KKK5/8/8/kkk5/8/8/7K"); // Multiple kings
-    test_illegal_but_valid("8/8/8/8/kK6/8/8/8"); // Both kings in check
-    test_illegal_but_valid("k1K4p/8/8/8/8/8/8/8"); // Pawn on rank 8
-    test_illegal_but_valid("k1K5/8/8/8/8/8/8/7P"); // Pawn on rank 1
+    // Illegal (unreachable) positions
+    test_illegal("8/8/8/8/8/8/8/8"); // No kings
+    test_illegal("8/8/8/8/K7/8/8/8"); // Only white king
+    test_illegal("8/8/8/8/k7/8/8/8"); // Only black king
+    test_illegal("8/KKK5/8/8/kkk5/8/8/7K"); // Multiple kings
+    test_illegal("8/8/8/8/kK6/8/8/8"); // Both kings in check
+    test_illegal("k1K4p/8/8/8/8/8/8/8"); // Pawn on rank 8
+    test_illegal("k1K5/8/8/8/8/8/8/7P"); // Pawn on rank 1
 }
 
 TEST(BitboardTests, FromInvalidFEN) {
@@ -123,7 +122,7 @@ TEST(BitboardTests, ToFEN) {
 
 TEST(BitboardTests, SideToMove) {
     Position board;
-    board.from_fen("8/8/8/8/6Nn/8/8/r7 b", true);
+    board.from_fen("1k1K4/8/8/8/6Nn/8/8/r7 b");
     EXPECT_EQ(board.get_side_to_move(), Color::Black) << "Case: correct after intial set from FEN.";
     board.make_move(MoveEncoding::encode<MoveType::Normal>(Square::A1, Square::A8));
     EXPECT_EQ(board.get_side_to_move(), Color::White) << "Case: correct after a move was made.";
@@ -175,6 +174,7 @@ TEST(BitboardTests, GetLastMove) {
 TEST(BitboardTests, Perft) {
     Position board;
     std::function<uint64_t(int)> perft = [&perft, &board](int depth) {
+        //std::cout << "Perft depth " << depth << " on board FEN: " << board.to_fen() << std::endl; // DEBUG
         if (depth == 0)
             return uint64_t(1);
             
@@ -187,9 +187,11 @@ TEST(BitboardTests, Perft) {
 
         for (const Move& move : move_list) {
             board.make_move(move);
-            EXPECT_FALSE(board.in_check(opponent(board.get_side_to_move())));
+            EXPECT_FALSE(board.in_check(opponent(board.get_side_to_move())))
+                << "Generated illegal move '" << MoveEncoding::to_uci(move)
+                <<  "' in perft. Board FEN: " << board.to_fen();
             node_count += perft(depth - 1);
-            EXPECT_TRUE(board.undo_move());
+            EXPECT_TRUE(board.undo_move()) << "Failed to undo move in perft.";
         }
 
         return node_count;
