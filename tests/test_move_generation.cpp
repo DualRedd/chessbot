@@ -57,7 +57,7 @@ TEST(MoveGenerationTests, CapturePlusQuietEqualsLegal) {
 
     const int tests = 100;
     MoveList all_moves, capture_moves, quiet_moves;
-    Position position(COMPLEX_POSITION);
+    Position position("rnbqkbnr/p3pppp/2p5/3p4/4P3/3P4/PpP2PPP/R1BQ1RK1 w kq - 0 1");
 
     for (int i = 0; i < tests; i++) {
         all_moves.generate<GenerateType::Legal>(position);

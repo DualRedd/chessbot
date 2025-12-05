@@ -15,8 +15,8 @@ constexpr int MAX_MOVE_LIST_SIZE = 256; // Upper limit for pseudo-legal moves in
 enum class GenerateType : uint8_t { Legal, PseudoLegal, Evasions, Captures, Quiets };
 
 /**
- * Generate moves of specified type for the given position.
- * Moves are legal except when GenerateType::PseudoLegal is used.
+ * Generate legal moves of specified type for the given position.
+ * @note Pseudo-legal move generation is not supported by this function.
  * @param pos Position to generate moves for.
  * @param move_list Pointer to the beginning of the move list array to fill.
  * @return Pointer to one past the last move written.
@@ -32,8 +32,8 @@ public:
     MoveList() : m_count(0) {}
 
     /**
-     * Fill the move list with moves for the given position.
-     * Moves are legal except when GenerateType::PseudoLegal is used.
+     * Fill the move list with legal moves of the specified type for the given position.
+     * @note Pseudo-legal move generation is not supported by this function.
      * @param gen_type Type of moves to generate.
      * @param pos Position to generate moves for.
      * @warning Evasions can only be generated when the side to move is in check. Captures and Quiets only when not in check.

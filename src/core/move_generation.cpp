@@ -283,13 +283,6 @@ Move* generate_moves(const Position& pos, Move* move_list) {
             }
         }
     }
-    else if constexpr (gen_type == GenerateType::PseudoLegal) {
-        if (pos.get_side_to_move() == Color::White) {
-            move_list = generate_moves_for_side<GenerateType::PseudoLegal, Color::White>(pos, move_list);
-        } else {
-            move_list = generate_moves_for_side<GenerateType::PseudoLegal, Color::Black>(pos, move_list);
-        }
-    }
     else { // Captures, Quiets, Evasions
         if (pos.get_side_to_move() == Color::White) {
             move_list = generate_legal_moves_for_side<gen_type, Color::White>(pos, move_list);
@@ -302,7 +295,6 @@ Move* generate_moves(const Position& pos, Move* move_list) {
 
 // Explicit template instantiations
 template Move* generate_moves<GenerateType::Legal>(const Position&, Move*);
-template Move* generate_moves<GenerateType::PseudoLegal>(const Position&, Move*);
 template Move* generate_moves<GenerateType::Evasions>(const Position&, Move*);
 template Move* generate_moves<GenerateType::Captures>(const Position&, Move*);
 template Move* generate_moves<GenerateType::Quiets>(const Position&, Move*);

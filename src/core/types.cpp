@@ -22,8 +22,8 @@ UCI MoveEncoding::to_uci(const Move& move) {
         case PieceType::Rook:   uci += 'r'; break;
         case PieceType::Bishop: uci += 'b'; break;
         case PieceType::Knight: uci += 'n'; break;
-        default: assert(false);
+        default: assert(false); // should never be hit
     }
 
-    return uci;
+    return uci; // GCOVR_EXCL_LINE
 }

@@ -338,6 +338,7 @@ void init_bitboards() {
     }
 }
 
+// GCOVR_EXCL_START: only for debugging
 std::string to_string(Bitboard bb) {
     std::string result;
     for (int rank = 7; rank >= 0; --rank) {
@@ -349,3 +350,4 @@ std::string to_string(Bitboard bb) {
     }
     return result;
 }
+// GCOVR_EXCL_STOP
