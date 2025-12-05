@@ -105,6 +105,11 @@ public:
     bool in_check(Color side) const;
 
     /**
+     * @return True if current side to move's king is in check, else false.
+     */
+    bool in_check() const;
+
+    /**
      * @param side the side of the attackers
      * @param square the square to query
      * @param occupied the occupancy bitboard to consider for sliders

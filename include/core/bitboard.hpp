@@ -6,7 +6,6 @@
 #include <immintrin.h>
 #define USE_PEXT
 #endif
-
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif
@@ -14,6 +13,7 @@
 // Bitboard type (64 bits)
 using Bitboard = uint64_t;
 
+// Convert bitboard to string representation
 std::string to_string(Bitboard bb);
 
 enum class CastlingSide : int8_t { KingSide = 0, QueenSide = 1 };
@@ -52,8 +52,10 @@ extern uint64_t ZOBRIST_CASTLING[16];         // [castling rights bitmask]
 extern uint64_t ZOBRIST_EP[8];                // [file of en passant square]
 extern uint64_t ZOBRIST_SIDE;                 // side to move
 
+// Precalculation function
 void init_bitboards();
 
+// Common bitboard constants
 constexpr Bitboard RANK_1 = 0x00000000000000FFULL;
 constexpr Bitboard RANK_2 = 0x000000000000FF00ULL;
 constexpr Bitboard RANK_3 = 0x0000000000FF0000ULL;
@@ -73,7 +75,7 @@ constexpr Bitboard FILE_H = 0x8080808080808080ULL;
 constexpr Bitboard PROMOTION_RANKS = RANK_1 | RANK_8;
 constexpr Bitboard FULL_BOARD = 0xFFFFFFFFFFFFFFFFULL;
 
-// Helper functions
+// Helper functions for castling
 constexpr int8_t castling_flag(Color color, CastlingSide side) {
     return int8_t{1} << ((static_cast<int8_t>(color) << 1) + static_cast<int8_t>(side));
 }
@@ -81,6 +83,7 @@ constexpr Square king_start_square(Color color) {
     return color == Color::White ? Square::E1 : Square::E8;
 }
 
+// Helper functions for bit operations
 constexpr void pop_lsb(Bitboard &b) { b &= b - 1; }
 constexpr bool more_than_1bit(Bitboard b) { return (b & (b - 1)) != 0ULL; }
 #ifdef _MSC_VER
@@ -109,6 +112,14 @@ constexpr inline Bitboard shift_bb(Bitboard bb) {
     else static_assert(false, "Unknown shift type");
 }
 
+/**
+ * Get attack bitboard for a piece from a given square, considering occupied squares.
+ * @tparam type of piece (except Pawn)
+ * @param square Square from which to calculate attacks
+ * @param occupied Bitboard of occupied squares
+ * @return Bitboard of attack squares
+ * @note Pawn attacks depend on color and are to be handled separately.
+ */
 template<PieceType type>
 inline Bitboard attacks_from(Square square, Bitboard occupied) {
     static_assert(type != PieceType::Pawn, "Pawn attacks depend on color and are to be handled separately");

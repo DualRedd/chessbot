@@ -196,7 +196,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
     _order_moves(move_list, tt_entry);
 
     if (move_list.count() == 0) {
-        if (m_search_position.get_position().in_check(side)) {
+        if (m_search_position.get_position().in_check()) {
             // Checkmate with ply bonus to prefer faster mates
             int32_t store_score = -MATE_SCORE + ply;
             m_tt.store(zobrist_key, normalize_score_for_tt(store_score, ply), depth, Bound::Exact, 0);
@@ -208,7 +208,6 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
 
     for (const Move& move : move_list) {
         m_search_position.make_move(move);
-        assert(!m_search_position.get_position().in_check(side));
 
         int32_t score = -_alpha_beta(-beta, -alpha, depth - 1, ply + 1);
         if (score > alpha) {

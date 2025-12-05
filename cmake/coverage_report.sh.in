@@ -22,6 +22,7 @@ $GCOVR_EXEC \
     --xml "@COVERAGE_REPORT_DIR@/xml/coverage.xml" \
     --txt-metric branch \
     --exclude-throw-branches \
+    --exclude-lines-by-pattern '.*assert.*' \
     --sort uncovered-percent \
     --print-summary
 

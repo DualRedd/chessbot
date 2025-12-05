@@ -306,6 +306,9 @@ bool Position::in_check(Color side) const {
     return attackers_exist(opponent(side), king_sq, get_pieces());
 }
 
+bool Position::in_check() const {
+    return in_check(m_side_to_move);
+}
 
 void Position::make_move(Move move) {
     const Color opp = opponent(m_side_to_move);

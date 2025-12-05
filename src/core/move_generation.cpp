@@ -132,12 +132,13 @@ inline Move* generate_piece_moves(const Position& pos, Move* move_list, Bitboard
     return move_list;
 }
 
+// Generates pseudo-legal moves for the given side and generation type
 template<GenerateType gen_type, Color side>
 inline Move* generate_moves_for_side(const Position& pos, Move* move_list) {
     static_assert(gen_type != GenerateType::Legal);
 
     // When in check only evasion generation should be called
-    assert(!(pos.in_check(side) && gen_type != GenerateType::Evasions));
+    assert(!(pos.in_check() && gen_type != GenerateType::Evasions));
 
     constexpr Color opp = opponent(side);
     const Square king_sq = lsb(pos.get_pieces(side, PieceType::King));
@@ -232,17 +233,14 @@ inline bool is_legal_move(const Position& pos, Move move) {
     return (!is_pinned || moves_on_line);
 }
 
-template<Color side>
+// Generates legal moves for the given side and generation type
+template<GenerateType gen_type, Color side>
 inline Move* generate_legal_moves_for_side(const Position& pos, Move* move_list) {
-    Move* cur = move_list;
+    static_assert(gen_type != GenerateType::Legal, "Invalid GenerateType for legal move generation (process generates pseudo-legal moves first)");
 
     // Generate pseudo-legal moves
-    if (pos.in_check(side)) {
-        move_list = generate_moves_for_side<GenerateType::Evasions, side>(pos, move_list);
-    }
-    else {
-        move_list = generate_moves_for_side<GenerateType::PseudoLegal, side>(pos, move_list);
-    }
+    Move* cur = move_list;
+    move_list = generate_moves_for_side<gen_type, side>(pos, move_list);
 
     // compress to legal
     for (Move* move_ptr = cur; move_ptr != move_list; ++move_ptr) {
@@ -250,27 +248,53 @@ inline Move* generate_legal_moves_for_side(const Position& pos, Move* move_list)
             *cur++ = *move_ptr;
         }
     }
+
     return cur;
 }
 
 } // namespace
 
 
-
 template<GenerateType gen_type>
 Move* generate_moves(const Position& pos, Move* move_list) {
+    // Evasion generation can only be used when in check
+    // Captures and Quiets only when not in check
+    if constexpr (gen_type == GenerateType::Evasions) {
+        assert(pos.in_check());
+    }
+    else if constexpr (gen_type == GenerateType::Captures || gen_type == GenerateType::Quiets) {
+        assert(!pos.in_check());
+    }
+
     if constexpr (gen_type == GenerateType::Legal){
         if (pos.get_side_to_move() == Color::White) {
-            move_list = generate_legal_moves_for_side<Color::White>(pos, move_list);
+            if (pos.in_check()) {
+                move_list = generate_legal_moves_for_side<GenerateType::Evasions, Color::White>(pos, move_list);
+            }
+            else {
+                move_list = generate_legal_moves_for_side<GenerateType::PseudoLegal, Color::White>(pos, move_list);
+            }
         } else {
-            move_list = generate_legal_moves_for_side<Color::Black>(pos, move_list);
+            if (pos.in_check()) {
+                move_list = generate_legal_moves_for_side<GenerateType::Evasions, Color::Black>(pos, move_list);
+            }
+            else {
+                move_list = generate_legal_moves_for_side<GenerateType::PseudoLegal, Color::Black>(pos, move_list);
+            }
         }
     }
-    else {
+    else if constexpr (gen_type == GenerateType::PseudoLegal) {
         if (pos.get_side_to_move() == Color::White) {
-            move_list = generate_moves_for_side<gen_type, Color::White>(pos, move_list);
+            move_list = generate_moves_for_side<GenerateType::PseudoLegal, Color::White>(pos, move_list);
         } else {
-            move_list = generate_moves_for_side<gen_type, Color::Black>(pos, move_list);
+            move_list = generate_moves_for_side<GenerateType::PseudoLegal, Color::Black>(pos, move_list);
+        }
+    }
+    else { // Captures, Quiets, Evasions
+        if (pos.get_side_to_move() == Color::White) {
+            move_list = generate_legal_moves_for_side<gen_type, Color::White>(pos, move_list);
+        } else {
+            move_list = generate_legal_moves_for_side<gen_type, Color::Black>(pos, move_list);
         }
     }
     return move_list;

@@ -37,6 +37,7 @@ struct Initializer {
 };
 static Initializer _init_once;
 
+// Precalculation function before magics are initialized
 template<Shift shift>
 static Bitboard sliding_attacks(Square square, Bitboard occupied) {
     Bitboard attacks = 0ULL;
@@ -49,6 +50,11 @@ static Bitboard sliding_attacks(Square square, Bitboard occupied) {
     return attacks;
 }
 
+/**
+ * Create attack table for sliding pieces (rook or bishop) from a given square.
+ * @tparam type of piece (Rook or Bishop)
+ * @param sq Square from which to calculate attacks
+ */
 template<PieceType type>
 static void create_attack_table(Square sq) {
     static_assert(type == PieceType::Rook || type == PieceType::Bishop, "create_attack_table is only for rook or bishop");

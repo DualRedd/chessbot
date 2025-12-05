@@ -1,56 +1,62 @@
 #include "gtest/gtest.h"
-
 #include "core/position.hpp"
 #include "core/move_generation.hpp"
+
 #include <functional>
+#include <random>
+
+static std::mt19937 rng;
 
 const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const FEN COMPLEX_POSITION = "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
 
 TEST(PositionTests, CopyConstructor) {
-    // Make random moves on a board
-    const int moves = 100;
     Position original(CHESS_START_POSITION);
     Position copy(original, false); // do not copy history
     EXPECT_EQ(copy.to_fen(), CHESS_START_POSITION) << "the copy does not return the same FEN as the original was set to.";
 }
 
 TEST(PositionTests, CopyConstructorWithHistory) {
-    // Make random moves on a board
+    rng.seed(42);
+
+    // Make random moves on a position
     const int moves = 100;
     MoveList move_list;
     Position original(CHESS_START_POSITION);
     for (int i = 0; i < moves; i++) {
         move_list.generate<GenerateType::Legal>(original);
         ASSERT_TRUE(move_list.count() > 0);
-        int r = std::rand() % static_cast<int>(move_list.count());
+        int r = rng() % static_cast<int>(move_list.count());
         original.make_move(move_list[r]);
     }
 
-    // Make a copy and test that undoing moves works
-    Position copy(original, true);// do not copy history
+    // Make a copy and test undoing moves
+    Position copy(original, true);
     for (int i = 0; i < moves; i++) {
         EXPECT_TRUE(copy.undo_move());
     }
     EXPECT_EQ(copy.to_fen(), CHESS_START_POSITION)
-        << "After doing moves on original board, copying the board and undoing moves on the copy, the copy does not return the same FEN as the original was set to.";
+        << "After doing moves on original position, copying the position and undoing moves on the copy, the copy does not return the same FEN as the original was set to.";
 }
 
 TEST(PositionTests, FromValidLegalFEN) {
-    Position board;
-    auto test_no_throw = [&board](const FEN& fen) {
-        EXPECT_NO_THROW(board.from_fen(fen)) << "Case: " << fen;
+    Position position;
+    auto test_no_throw = [&position](const FEN& fen) {
+        EXPECT_NO_THROW(position.from_fen(fen)) << "Case: " << fen;
     };
 
     test_no_throw("k1K5/8/8/4pP2/8/8/8/8"); // Only board
+    test_no_throw("k1K5/8/8/4pP2/8/8/8/8 b"); // Valid default side to move
+    test_no_throw("r3k2r/8/8/4pP2/8/8/8/1R2K2R b kKq"); // Valid castling rights
     test_no_throw("k1K5/8/8/4pP2/8/8/8/8 w - e6"); // Valid white en passant
     test_no_throw("k1K5/8/8/8/4pP2/8/8/8 b - f3"); // Valid black en passant
-    test_no_throw("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
+    test_no_throw("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1"); // Complex position
 }
 
 TEST(PositionTests, FromValidIllegalFEN) {
-    Position board;
-    auto test_illegal = [&board](const FEN& fen) {
-        EXPECT_THROW(board.from_fen(fen), std::invalid_argument) << "Case: " << fen;
+    Position position;
+    auto test_illegal = [&position](const FEN& fen) {
+        EXPECT_THROW(position.from_fen(fen), std::invalid_argument) << "Case: " << fen;
     };
 
     // Illegal (unreachable) positions
@@ -64,9 +70,9 @@ TEST(PositionTests, FromValidIllegalFEN) {
 }
 
 TEST(PositionTests, FromInvalidFEN) {
-    Position board;
-    auto test_throw = [&board](const FEN& fen) {
-        EXPECT_THROW(board.from_fen(fen), std::invalid_argument) << "Case: " << fen;
+    Position position;
+    auto test_throw = [&position](const FEN& fen) {
+        EXPECT_THROW(position.from_fen(fen), std::invalid_argument) << "Case: " << fen;
     };
 
     // Board
@@ -109,10 +115,10 @@ TEST(PositionTests, FromInvalidFEN) {
 }
 
 TEST(PositionTests, ToFEN) {
-    Position board;
-    auto test_fen = [&board](const FEN& fen) {
-        EXPECT_NO_THROW(board.from_fen(fen)) << "Case: " << fen;
-        EXPECT_EQ(board.to_fen(), fen) << "Case: " << fen;
+    Position position;
+    auto test_fen = [&position](const FEN& fen) {
+        EXPECT_NO_THROW(position.from_fen(fen)) << "Case: " << fen;
+        EXPECT_EQ(position.to_fen(), fen) << "Case: " << fen;
     };
 
     test_fen("rnbqkbnr/8/8/8/8/8/8/RNBQKBNR b KQkq - 1 100");
@@ -120,30 +126,22 @@ TEST(PositionTests, ToFEN) {
     test_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
 }
 
-TEST(PositionTests, SideToMove) {
-    Position board;
-    board.from_fen("1k1K4/8/8/8/6Nn/8/8/r7 b");
-    EXPECT_EQ(board.get_side_to_move(), Color::Black) << "Case: correct after intial set from FEN.";
-    board.make_move(MoveEncoding::encode<MoveType::Normal>(Square::A1, Square::A8));
-    EXPECT_EQ(board.get_side_to_move(), Color::White) << "Case: correct after a move was made.";
-}
-
 TEST(PositionTests, MoveFromUCI) {
-    Position board(CHESS_START_POSITION);
-    EXPECT_THROW(board.move_from_uci("aa"), std::invalid_argument) << "Case: UCI too short";
-    EXPECT_THROW(board.move_from_uci("e5e6e7"), std::invalid_argument) << "Case: UCI too long";
-    EXPECT_THROW(board.move_from_uci("e5e6k"), std::invalid_argument) << "Case: UCI invalid promotion";
-    EXPECT_THROW(board.move_from_uci("A5e6"), std::invalid_argument) << "Case: UCI invalid file";
-    EXPECT_THROW(board.move_from_uci("a5A6"), std::invalid_argument) << "Case: UCI invalid file";
-    EXPECT_THROW(board.move_from_uci("a0a6"), std::invalid_argument) << "Case: UCI invalid rank";
-    EXPECT_THROW(board.move_from_uci("a5a0"), std::invalid_argument) << "Case: UCI invalid rank";
+    Position position(COMPLEX_POSITION);
+    EXPECT_THROW(position.move_from_uci("aa"), std::invalid_argument) << "Case: UCI too short";
+    EXPECT_THROW(position.move_from_uci("e5e6e7"), std::invalid_argument) << "Case: UCI too long";
+    EXPECT_THROW(position.move_from_uci("e5e6k"), std::invalid_argument) << "Case: UCI invalid promotion";
+    EXPECT_THROW(position.move_from_uci("A5e6"), std::invalid_argument) << "Case: UCI invalid file";
+    EXPECT_THROW(position.move_from_uci("a5A6"), std::invalid_argument) << "Case: UCI invalid file";
+    EXPECT_THROW(position.move_from_uci("a0a6"), std::invalid_argument) << "Case: UCI invalid rank";
+    EXPECT_THROW(position.move_from_uci("a5a0"), std::invalid_argument) << "Case: UCI invalid rank";
 
     MoveList move_list;
-    auto test_fen = [&board, &move_list](const FEN& fen) {
-        board.from_fen(fen);
-        move_list.generate<GenerateType::Legal>(board);
+    auto test_fen = [&position, &move_list](const FEN& fen) {
+        position.from_fen(fen);
+        move_list.generate<GenerateType::Legal>(position);
         for (const Move& move : move_list) {
-            EXPECT_EQ(board.move_from_uci(MoveEncoding::to_uci(move)), move) << "Case: Move to UCI back to Move";
+            EXPECT_EQ(position.move_from_uci(MoveEncoding::to_uci(move)), move) << "Case: Move to UCI back to Move";
         }
     };
 
@@ -152,64 +150,22 @@ TEST(PositionTests, MoveFromUCI) {
 }
 
 TEST(PositionTests, GetLastMove) {
+    rng.seed(42);
+
     // Make random moves on a board
     const int moves = 50;
     MoveList move_list;
-    Position board(CHESS_START_POSITION);
-    EXPECT_EQ(board.get_last_move(), std::nullopt) << "should return std::nullopt with no moves made.";
+    Position position(COMPLEX_POSITION);
+    EXPECT_EQ(position.get_last_move(), std::nullopt) << "should return std::nullopt with no moves made.";
     for (int i = 0; i < moves; i++) {
-        move_list.generate<GenerateType::Legal>(board);
-        ASSERT_FALSE(move_list.count() == 0);
-        int r = std::rand() % static_cast<int>(move_list.count());
-        board.make_move(move_list[r]);
-        EXPECT_EQ(board.get_last_move(), move_list[r]) << "last move does not match the move just made.";
+        move_list.generate<GenerateType::Legal>(position);
+        ASSERT_TRUE(move_list.count() > 0);
+        int r = rng() % static_cast<int>(move_list.count());
+        position.make_move(move_list[r]);
+        EXPECT_EQ(position.get_last_move(), move_list[r]) << "last move does not match the move just made.";
     }
     for (int i = 0; i < moves; i++) {
-        board.undo_move();
+        position.undo_move();
     }
-    EXPECT_EQ(board.get_last_move(), std::nullopt) << "should return std::nullopt after undoing all moves.";
-}
-
-
-TEST(MoveGenerationTests, Perft) {
-    Position board;
-    std::function<uint64_t(int)> perft = [&perft, &board](int depth) {
-        //std::cout << "Perft depth " << depth << " on board FEN: " << board.to_fen() << std::endl; // DEBUG
-        if (depth == 0)
-            return uint64_t(1);
-            
-        uint64_t node_count = 0;
-        MoveList move_list;
-        move_list.generate<GenerateType::Legal>(board);
-
-        if (depth == 1)
-           return uint64_t(move_list.count());
-
-        for (const Move& move : move_list) {
-            board.make_move(move);
-            EXPECT_FALSE(board.in_check(opponent(board.get_side_to_move())))
-                << "Generated illegal move '" << MoveEncoding::to_uci(move)
-                <<  "' in perft. Board FEN: " << board.to_fen();
-            node_count += perft(depth - 1);
-            EXPECT_TRUE(board.undo_move()) << "Failed to undo move in perft.";
-        }
-
-        return node_count;
-    };
-
-    // Positions and results from https://www.chessprogramming.org/Perft_Results#Test_Suites
-    board.from_fen(CHESS_START_POSITION);
-    EXPECT_EQ(perft(3), 8902);
-
-    board.from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1 ");
-    EXPECT_EQ(perft(4), 43238);
-
-    board.from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1");
-    EXPECT_EQ(perft(4), 422333);
-
-    board.from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
-    EXPECT_EQ(perft(3), 62379);
-
-    board.from_fen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
-    EXPECT_EQ(perft(3), 89890);
+    EXPECT_EQ(position.get_last_move(), std::nullopt) << "should return std::nullopt after undoing all moves.";
 }

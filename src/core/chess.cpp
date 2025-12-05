@@ -161,7 +161,7 @@ std::optional<UCI> Chess::get_last_move() const {
 }
 
 Chess::GameState Chess::get_game_state() const {
-    if (m_position.in_check(get_side_to_move())) {
+    if (m_position.in_check()) {
         if (m_legal_moves.empty()) {
             return GameState::Checkmate;
         } else {
