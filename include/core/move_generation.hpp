@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include "position.hpp"
 
 constexpr int MAX_MOVE_LIST_SIZE = 256; // Upper limit for pseudo-legal moves in any position
@@ -13,9 +14,18 @@ constexpr int MAX_MOVE_LIST_SIZE = 256; // Upper limit for pseudo-legal moves in
  */
 enum class GenerateType : uint8_t { Legal, PseudoLegal, Evasions, Captures, Quiets,  };
 
+/**
+ * Generate moves of specified type for the given position.
+ * @param pos Position to generate moves for.
+ * @param move_list Pointer to the beginning of the move list array to fill.
+ * @return Pointer to one past the last move written.
+ */
 template<GenerateType gen_type>
 Move* generate_moves(const Position& pos, Move* move_list);
 
+/**
+ * Simple wrapper class to store and generate moves easily.
+ */
 class MoveList {
 public:
     MoveList() : m_count(0) {}
@@ -26,20 +36,12 @@ public:
         m_count = end - m_moves.begin();
     }
 
-    size_t count() const {
-        return m_count;
-    }
-
     Move& operator[](size_t index) { return m_moves[index]; }
     const Move& operator[](size_t index) const { return m_moves[index]; }
 
-    Move* begin() {
-        return m_moves.begin();
-    }
-
-    Move* end() {
-        return m_moves.begin() + m_count;
-    }
+    size_t count() const { return m_count; }
+    Move* begin() { return m_moves.begin(); }
+    Move* end() { return m_moves.begin() + m_count; }
 
 private:
     std::array<Move, MAX_MOVE_LIST_SIZE> m_moves;

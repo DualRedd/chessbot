@@ -1,5 +1,4 @@
 #include "core/types.hpp"
-#include <cassert>
 
 static std::string square_name(Square sq) {
     char file = 'a' + (+sq % 8);

@@ -1,5 +1,5 @@
 #include "core/move_generation.hpp"
-#include<iostream> // DEBUG 
+
 namespace {
 
 template<Shift shift>
@@ -116,7 +116,6 @@ inline Move* generate_pawn_moves(const Position& pos, Move* move_list, Bitboard 
     return move_list;
 }
 
-
 template<Color side, PieceType type>
 inline Move* generate_piece_moves(const Position& pos, Move* move_list, Bitboard targets) {
     static_assert(type != PieceType::Pawn, "Use generate_pawn_moves for pawns");
@@ -177,12 +176,12 @@ inline Move* generate_moves_for_side(const Position& pos, Move* move_list) {
     // Castling
     if ((gen_type == GenerateType::PseudoLegal || gen_type == GenerateType::Quiets) && att == 0ULL) {
         Square king_sq = king_start_square(side);
-        if (pos.can_castle(side, CastlingSide::KingSide)
+        if (pos.has_castle(side, CastlingSide::KingSide)
             && (pos.get_pieces() & (MASK_CASTLE_CLEAR[+side][+CastlingSide::KingSide])) == 0
             && !pos.attackers_exist(opponent(side), king_sq+1, pos.get_pieces())) {
             *move_list++ = MoveEncoding::encode<MoveType::Castle>(king_sq, king_sq+2);
         }
-        if (pos.can_castle(side, CastlingSide::QueenSide)
+        if (pos.has_castle(side, CastlingSide::QueenSide)
             && (pos.get_pieces() & (MASK_CASTLE_CLEAR[+side][+CastlingSide::QueenSide])) == 0
             && !pos.attackers_exist(opponent(side), king_sq-1, pos.get_pieces())) {
             *move_list++ = MoveEncoding::encode<MoveType::Castle>(king_sq, king_sq-2);
@@ -195,7 +194,7 @@ inline Move* generate_moves_for_side(const Position& pos, Move* move_list) {
 /**
  * If king is in check, this assumes the move is an evasion.
  * Therefore, generate pseudo-legal evasion moves when king is in check.
- * Also: https://chess.stackexchange.com/questions/15043/building-a-chess-using-magic-bitboard-how-do-i-know-if-the-movement-is-valid
+ * Some info: https://chess.stackexchange.com/questions/15043/building-a-chess-using-magic-bitboard-how-do-i-know-if-the-movement-is-valid
  */
 template<Color side>
 inline bool is_legal_move(const Position& pos, Move move) {
@@ -227,7 +226,7 @@ inline bool is_legal_move(const Position& pos, Move move) {
     }
 
     // Any other move is legal if the piece is not pinned or moves along the pin line
-    // Assuming evasion generation when in check
+    // (again assuming evasion generation when in check)
     const bool is_pinned = (pos.get_pinned() & MASK_SQUARE[+from]) != 0ULL;
     const bool moves_on_line = (MASK_LINE[+from][+to] & MASK_SQUARE[+king_sq]) != 0ULL;
     return (!is_pinned || moves_on_line);
@@ -263,8 +262,7 @@ Move* generate_moves(const Position& pos, Move* move_list) {
     if constexpr (gen_type == GenerateType::Legal){
         if (pos.get_side_to_move() == Color::White) {
             move_list = generate_legal_moves_for_side<Color::White>(pos, move_list);
-        }
-        else {
+        } else {
             move_list = generate_legal_moves_for_side<Color::Black>(pos, move_list);
         }
     }
@@ -278,9 +276,9 @@ Move* generate_moves(const Position& pos, Move* move_list) {
     return move_list;
 }
 
+// Explicit template instantiations
 template Move* generate_moves<GenerateType::Legal>(const Position&, Move*);
 template Move* generate_moves<GenerateType::PseudoLegal>(const Position&, Move*);
 template Move* generate_moves<GenerateType::Evasions>(const Position&, Move*);
 template Move* generate_moves<GenerateType::Captures>(const Position&, Move*);
 template Move* generate_moves<GenerateType::Quiets>(const Position&, Move*);
-

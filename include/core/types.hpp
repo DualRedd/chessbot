@@ -1,6 +1,5 @@
 #pragma once
 
-#include <string>
 #include <cstdint>
 #include <cassert>
 
@@ -30,68 +29,60 @@ enum class Shift : int8_t {
     DownLeft = -9
 };
 
+// Convenience integer conversion operators
 constexpr int8_t operator+(Square t) noexcept { return static_cast<int8_t>(t); }
 constexpr int8_t operator+(Shift t)  noexcept { return static_cast<int8_t>(t); }
 
-constexpr bool is_valid_square(Square sq) {
-    return sq >= Square::A1 && sq <= Square::H8;
-}
-constexpr Square operator+(Square sq, int i) {
-    return static_cast<Square>((+sq) + i);
-}
-constexpr Square operator-(Square sq, int i) {
-    return static_cast<Square>((+sq) - i);
-}
-constexpr Square operator-(int i, Square sq) {
-    return static_cast<Square>(i - (+sq));
-}
-constexpr Square operator+(Square sq, Shift sh) {
-    return static_cast<Square>((+sq) + (+sh));
-}
-constexpr Square operator-(Square sq, Shift sh) {
-    return static_cast<Square>((+sq) - (+sh));
-}
-constexpr Square& operator++(Square& sq) noexcept {
-    sq = static_cast<Square>(+sq + 1);
-    return sq;
-}
+// Rank and file helpers
+constexpr bool is_valid_square(Square sq)          noexcept { return sq >= Square::A1 && sq <= Square::H8;}
+constexpr Square create_square(int file, int rank) noexcept { return static_cast<Square>((rank << 3) + file); }
+constexpr int rank_of(Square square)               noexcept { return +square >> 3; }
+constexpr int file_of(Square square)               noexcept { return +square & 0x07; }
+
+// Square arithmetic operators
+constexpr Square operator+(Square sq, int i) noexcept { return static_cast<Square>((+sq) + i); }
+constexpr Square operator-(Square sq, int i) noexcept { return static_cast<Square>((+sq) - i); }
+constexpr Square operator+(int i, Square sq) noexcept { return static_cast<Square>(i + (+sq)); }
+constexpr Square operator-(int i, Square sq) noexcept { return static_cast<Square>(i - (+sq)); }
+constexpr Square& operator++(Square& sq)     noexcept { sq = static_cast<Square>(+sq + 1); return sq; }
+
+// Square shift operators
+constexpr Square operator+(Square sq, Shift sh) noexcept { return static_cast<Square>((+sq) + (+sh)); }
+constexpr Square operator-(Square sq, Shift sh) noexcept { return static_cast<Square>((+sq) - (+sh)); }
+
 
 // Piece features
 enum class PieceType : int8_t { Knight = 0, Bishop = 1, Rook = 2, Queen = 3, King = 4, Pawn = 5, None = 6};
 enum class Color : int8_t { White = 0, Black = 1 };
 
 // Piece = Color + PieceType
+// lower 3 bits: PieceType (0-5), bit 3: Color (0=White, 1=Black)
 enum class Piece : int8_t {
     WKnight = 0, WBishop = 1, WRook = 2, WQueen = 3, WKing = 4, WPawn = 5,
     BKnight = 8, BBishop = 9, BRook = 10, BQueen = 11, BKing = 12, BPawn = 13,
     None = 14
 };
-constexpr Piece create_piece(Color color, PieceType type) {
-    return static_cast<Piece>(static_cast<int8_t>(type) + (static_cast<int8_t>(color) << 3));
-}
-constexpr PieceType to_type(Piece p) {
-    return static_cast<PieceType>(static_cast<int8_t>(p) & 0x7);
-}
-constexpr Color to_color(Piece p) {
-    return (static_cast<int8_t>(p) < 8) ? Color::White : Color::Black;
-}
+
+// Convenience integer conversion operators
 constexpr int8_t operator+(PieceType t) noexcept { return static_cast<int8_t>(t); }
 constexpr int8_t operator+(Color c)     noexcept { return static_cast<int8_t>(c); }
 constexpr int8_t operator+(Piece p)     noexcept { return static_cast<int8_t>(p); }
 
+// Conversion helpers for pieces
+constexpr Piece create_piece(Color color, PieceType type) noexcept {
+    return static_cast<Piece>(static_cast<int8_t>(type) + (static_cast<int8_t>(color) << 3));
+}
+constexpr PieceType to_type(Piece p) noexcept {
+    return static_cast<PieceType>(static_cast<int8_t>(p) & 0x7);
+}
+constexpr Color to_color(Piece p) noexcept {
+    return (static_cast<int8_t>(p) < 8) ? Color::White : Color::Black;
+}
+
 // More helpers
-constexpr inline Square square_for_side(Square square, Color side) { return (side == Color::White) ? square : 63 - square; };
-constexpr Color opponent(Color side)                 { return side == Color::White ? Color::Black : Color::White; };
-constexpr Square create_square(int file, int rank)   { return static_cast<Square>(rank * 8 + file); }
-constexpr int square_index(int file, int rank)       { return rank * 8 + file;  }
-constexpr int rank_of(Square square)                 { return +square / 8; }
-constexpr int file_of(Square square)                 { return +square % 8; }
-constexpr int rank_of_relative(Square square, Color side) {
-    return side == Color::White ? rank_of(square) : 7 - rank_of(square);
-}
-constexpr int file_of_relative(Square square, Color side) {
-    return side == Color::White ? file_of(square) : 7 - file_of(square);
-}
+constexpr Square square_for_side(Square square, Color side) noexcept { return (side == Color::White) ? square : 63 - square; };
+constexpr Color opponent(Color side)                        noexcept { return side == Color::White ? Color::Black : Color::White; };
+
 
 // Move encoding to 16 bits
 // Bits 0-5:   from square (0-63)
@@ -106,8 +97,11 @@ enum class MoveType : int8_t {
     Castle = 2,
     EnPassant = 3
 };
+
+// Convenience integer conversion operator
 constexpr int8_t operator+(MoveType t)  noexcept { return static_cast<int8_t>(t); }
 
+// Move encoding and decoding functions
 namespace MoveEncoding {
     /**
      * Encode move description into 16-bits.
@@ -130,12 +124,12 @@ namespace MoveEncoding {
     }
 
     /**
-     * @return Origin square 0-63 (8 * rank + file).
+     * @return Origin square
      */
     constexpr Square from_sq(Move m) { return static_cast<Square>(m & 0x3F); }
 
     /**
-     * @return Target square 0-63 (8 * rank + file).
+     * @return Target square
      */
     constexpr Square to_sq(Move m) { return static_cast<Square>((m >> 6) & 0x3F); }
 

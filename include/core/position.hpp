@@ -1,8 +1,6 @@
 #pragma once
 
 #include <vector>
-#include <array>
-#include <string>
 #include <optional>
 
 #include "bitboard.hpp"
@@ -62,43 +60,84 @@ public:
     std::optional<Move> get_last_move() const;
 
     /**
-     * @return The number of halfmoves since the last capture or pawn move.
+     * @return The halfmove clock.
      */
     uint32_t get_halfmove_clock() const;
 
     /**
-     * @return The number of fullmoves since the start of the game.
+     * @return The fullmove clock.
      */
     uint32_t get_fullmove_clock() const;
 
     /**
-     * @param square index (8 * rank + file)
-     * @return The piece at that square. If there is no piece the type field will be PieceType::None.
+     * @param square the square to query
+     * @return The piece at that square. If there is no piece Piece::None is returned.
      */
     Piece get_piece_at(Square square) const;
 
+    /**
+     * @param color the color to query
+     * @param type the piece type to query
+     * @return Bitboard for the given color and piece type.
+     */
     Bitboard get_pieces(Color color, PieceType type) const;
+
+    /**
+     * @param color the color to query
+     * @return Bitboard for the given color.
+     */
     Bitboard get_pieces(Color color) const;
+
+    /**
+     * @return Bitboard for all pieces.
+     */
     Bitboard get_pieces() const;
+
+    /**
+     * @return En passant square if available, else Square::None.
+     */
     Square get_en_passant_square() const;
 
     /**
      * @param side White or Black
-     * @return True if this side's king(s) is in check, else false.
+     * @return True if this side's king is in check, else false.
      */
     bool in_check(Color side) const;
 
+    /**
+     * @param side the side of the attackers
+     * @param square the square to query
+     * @param occupied the occupancy bitboard to consider for sliders
+     * @return Bitboard of attackers from the given side to the given square.
+     */
     Bitboard attackers(Color side, Square square, Bitboard occupied) const;
+
+    /**
+     * @param side the side of the attackers
+     * @param square the square being attacked
+     * @param occupied the occupancy bitboard to consider for sliders
+     * @return True if there is at least one attacker from the given side to the given square, else false.
+     */
     bool attackers_exist(Color side, Square square, Bitboard occupied) const;
+
+    /**
+     * @return Bitboard of pinned pieces for the side to move.
+     */
     Bitboard get_pinned() const;
 
-    bool can_castle(Color side, CastlingSide castle_side) const;
+    /**
+     * @param side the color to query
+     * @param castle_side the castling side to query
+     * @return True if castling is still available for the given side and castling side.
+     * @note This does not check for legality of the castling move itself!
+     */
+    bool has_castle(Color side, CastlingSide castle_side) const;
 
     /**
      * Apply a Move on this board.
      * @param move the move.
      * @note Illegal moves can cause internal state to become invalid.
-     * There are no safety checks for performance reasons.
+     * There are no safety checks for performance.
      */
     void make_move(Move move);
 
@@ -108,19 +147,15 @@ public:
      */
     bool undo_move();
 
-    PieceType to_capture(Move move) const {
-        Square to = MoveEncoding::to_sq(move);
-        if (MoveEncoding::move_type(move) == MoveType::EnPassant) {
-            Square capture_square = (m_side_to_move == Color::White) ? (to + Shift::Down) : (to + Shift::Up);
-            return to_type(get_piece_at(capture_square));
-        }
-        return to_type(get_piece_at(to));
-    }
+    /**
+     * @return The piece type being captured by the given move, or Piece::None.
+     */
+    PieceType to_capture(Move move) const;
 
-    PieceType to_moved(Move move) const {
-        Square from = MoveEncoding::from_sq(move);
-        return to_type(get_piece_at(from));
-    }
+    /**
+     * @return The piece type being moved by the given move.
+     */
+    PieceType to_moved(Move move) const;
 
     /**
      * Convert UCI string to a Move on the current board.
@@ -217,7 +252,7 @@ inline Piece Position::get_piece_at(Square square) const {
     return m_piece_on_square[+square];
 }
 
-inline bool Position::can_castle(Color side, CastlingSide castle_side) const {
+inline bool Position::has_castle(Color side, CastlingSide castle_side) const {
     if (side == Color::White) {
         return castle_side == CastlingSide::KingSide ?
                 (m_castling_rights & +CastlingFlag::WhiteKingSide) != 0
@@ -265,5 +300,19 @@ inline bool Position::attackers_exist(Color side, Square square, Bitboard occupi
         return true;
 
     return false;
+}
+
+inline PieceType Position::to_capture(Move move) const {
+    Square to = MoveEncoding::to_sq(move);
+    if (MoveEncoding::move_type(move) == MoveType::EnPassant) {
+        Square capture_square = (m_side_to_move == Color::White) ? (to + Shift::Down) : (to + Shift::Up);
+        return to_type(get_piece_at(capture_square));
+    }
+    return to_type(get_piece_at(to));
+}
+
+inline PieceType Position::to_moved(Move move) const {
+    Square from = MoveEncoding::from_sq(move);
+    return to_type(get_piece_at(from));
 }
 
