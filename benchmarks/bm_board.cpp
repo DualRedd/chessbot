@@ -9,7 +9,7 @@ static uint64_t perft(Position &b, int depth) {
         return 1;
 
     MoveList move_list;
-    move_list.generate_legal(b);
+    move_list.generate<GenerateType::Legal>(b);
 
     uint64_t node_count = 0;
     for (Move& move : move_list) {
@@ -33,4 +33,4 @@ static void BM_perft(benchmark::State& state) {
     }
 }
 
-BENCHMARK(BM_perft)->Arg(3)->Arg(4)->Arg(5)->Arg(6)->Unit(benchmark::kMillisecond);
+BENCHMARK(BM_perft)->Arg(3)->Arg(4)->Arg(5)->Arg(6)->Arg(7)->Unit(benchmark::kMillisecond);

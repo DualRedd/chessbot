@@ -23,7 +23,7 @@ TEST(SearchPositionTests, MakeUndoConsistency) {
     eval_history.push_back(position.get_eval());
 
     for (int i = 0; i < move_count; ++i) {
-        move_list.generate_legal(position.get_position());
+        move_list.generate<GenerateType::Legal>(position.get_position());
         ASSERT_FALSE(move_list.count() == 0);
         int r = std::rand() % static_cast<int>(move_list.count());
         position.make_move(move_list[r]);

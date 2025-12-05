@@ -8,3 +8,6 @@ target_link_libraries(run_benchmarks PRIVATE
     chess_bots
     pthread
 )
+
+target_compile_options(run_benchmarks PRIVATE ${ENG_FLAGS})
+target_link_options(run_benchmarks PRIVATE ${LINK_FLAGS})

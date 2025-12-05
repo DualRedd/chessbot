@@ -44,17 +44,3 @@ TEST(BitboardTests, KingAttacks) {
     EXPECT_EQ(MASK_KING_ATTACKS[+Square::A1], expected);
 }
 
-TEST(BitboardTests, SlidingAttacksStopsAtBlocker) {
-    // Rook on A1 with a blocker at A3: should see A2 and A3 only upward
-    Bitboard occ = MASK_SQUARE[+Square::A3];
-    Bitboard attacks = sliding_attacks<Shift::Up>(Square::A1, occ);
-    Bitboard expected = MASK_SQUARE[+Square::A2] | MASK_SQUARE[+Square::A3];
-    EXPECT_EQ(attacks, expected);
-
-    // Bishop direction: from C1 with blocker at E3 should include D2 and E3 on that diagonal
-    occ = MASK_SQUARE[+Square::E3];
-    attacks = sliding_attacks<Shift::UpRight>(Square::C1, occ);
-    expected = MASK_SQUARE[+Square::D2] | MASK_SQUARE[+Square::E3];
-    EXPECT_EQ(attacks, expected);
-}
-

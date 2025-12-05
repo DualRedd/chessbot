@@ -2,6 +2,11 @@
 
 #include "types.hpp"
 
+#if defined(PEXT_ENABLED) && defined(__BMI2__) && (defined(__x86_64__) || defined(__i386__))
+#include <immintrin.h>
+#define USE_PEXT
+#endif
+
 #ifdef _MSC_VER
 #include <intrin.h>
 #endif
@@ -22,28 +27,30 @@ constexpr int8_t operator+(CastlingSide t) noexcept { return static_cast<int8_t>
 constexpr int8_t operator+(CastlingFlag t) noexcept { return static_cast<int8_t>(t); }
 
 // Precalculated masks and values
-extern Bitboard MASK_SQUARE[64];          // [square]
-extern Bitboard MASK_BETWEEN[64][64];     // [from square][to square] non-inclusive on both ends
-extern Bitboard MASK_LINE[64][64];        // [from square][to square] edge to edge
+extern Bitboard MASK_SQUARE[64];              // [square]
+extern Bitboard MASK_BETWEEN[64][64];         // [from square][to square] non-inclusive on both ends
+extern Bitboard MASK_LINE[64][64];            // [from square][to square] edge to edge
 
-extern Bitboard MASK_PAWN_ATTACKS[2][64]; // [color][square]
-extern Bitboard MASK_KNIGHT_ATTACKS[64];  // [square]
-extern Bitboard MASK_KING_ATTACKS[64];    // [square]
-extern Bitboard MASK_ROOK_ATTACKS[64];    // [square] non-blocking
-extern Bitboard MASK_BISHOP_ATTACKS[64];  // [square] non-blocking
+extern Bitboard MASK_PAWN_ATTACKS[2][64];     // [color][square]
+extern Bitboard MASK_KNIGHT_ATTACKS[64];      // [square]
+extern Bitboard MASK_KING_ATTACKS[64];        // [square]
+extern Bitboard MASK_ROOK_ATTACKS[64];        // [square] non-blocking
+extern Bitboard MASK_BISHOP_ATTACKS[64];      // [square] non-blocking
 
-/*extern uint64_t ROOK_MAGIC[64];           // [square]
-extern uint64_t BISHOP_MAGIC[64];         // [square]
-extern Bitboard MASK_ROOK_MAGIC[64];      // [square]
-extern Bitboard MASK_BISHOP_MAGIC[64];    // [square]*/
+extern uint64_t ROOK_MAGIC[64];               // [square]
+extern uint64_t BISHOP_MAGIC[64];             // [square]
+extern Bitboard MASK_ROOK_MAGIC[64];          // [square]
+extern Bitboard MASK_BISHOP_MAGIC[64];        // [square]
+extern Bitboard ROOK_ATTACK_TABLE[64][4096];  // [square][index]
+extern Bitboard BISHOP_ATTACK_TABLE[64][512]; // [square][index]
 
-extern Bitboard MASK_CASTLE_CLEAR[2][2];  // [color][0=queenside,1=kingside]
-extern int8_t MASK_CASTLE_FLAG[64];       // [square] combination of CastlingFlag to remove when moving from/to this square
+extern Bitboard MASK_CASTLE_CLEAR[2][2];      // [color][0=queenside,1=kingside]
+extern int8_t MASK_CASTLE_FLAG[64];           // [square] combination of CastlingFlag to remove when moving from/to this square
 
-extern uint64_t ZOBRIST_PIECE[2][6][64];  // [color][piece][square]
-extern uint64_t ZOBRIST_CASTLING[16];     // [castling rights bitmask]
-extern uint64_t ZOBRIST_EP[8];            // [file of en passant square]
-extern uint64_t ZOBRIST_SIDE;             // side to move
+extern uint64_t ZOBRIST_PIECE[2][6][64];      // [color][piece][square]
+extern uint64_t ZOBRIST_CASTLING[16];         // [castling rights bitmask]
+extern uint64_t ZOBRIST_EP[8];                // [file of en passant square]
+extern uint64_t ZOBRIST_SIDE;                 // side to move
 
 void init_bitboards();
 
@@ -74,14 +81,17 @@ constexpr Square king_start_square(Color color) {
     return color == Color::White ? Square::E1 : Square::E8;
 }
 
-
 constexpr void pop_lsb(Bitboard &b) { b &= b - 1; }
+constexpr bool more_than_1bit(Bitboard b) { return (b & (b - 1)) != 0ULL; }
 #ifdef _MSC_VER
 inline Square lsb(Bitboard b) { unsigned long index; _BitScanForward64(&index, b); return static_cast<Square>(index); }
 inline int popcount(Bitboard b) { return static_cast<int>(__popcnt64(b)); }
 #else
 inline Square lsb(Bitboard b) { return static_cast<Square>(__builtin_ctzll(b)); }
 inline int popcount(Bitboard b) { return static_cast<int>(__builtin_popcountll(b)); }
+#endif
+#ifdef USE_PEXT
+inline uint64_t pext(Bitboard val, Bitboard mask) { return _pext_u64(val, mask); }
 #endif
 
 template<Shift shift>
@@ -99,18 +109,6 @@ constexpr inline Bitboard shift_bb(Bitboard bb) {
     else static_assert(false, "Unknown shift type");
 }
 
-template<Shift shift>
-inline Bitboard sliding_attacks(Square square, Bitboard occupied) {
-    Bitboard attacks = 0ULL;
-    Bitboard ray = shift_bb<shift>(MASK_SQUARE[+square]);
-    while (ray) {
-        attacks |= ray;
-        if (ray & occupied) break;
-        ray = shift_bb<shift>(ray);
-    }
-    return attacks;
-}
-
 template<PieceType type>
 inline Bitboard attacks_from(Square square, Bitboard occupied) {
     static_assert(type != PieceType::Pawn, "Pawn attacks depend on color and are to be handled separately");
@@ -118,18 +116,28 @@ inline Bitboard attacks_from(Square square, Bitboard occupied) {
     if constexpr (type == PieceType::Knight) {
         return MASK_KNIGHT_ATTACKS[+square];
     }
+#ifdef USE_PEXT
     else if constexpr (type == PieceType::Bishop) {
-        return sliding_attacks<Shift::UpRight>(square, occupied)
-             | sliding_attacks<Shift::UpLeft>(square, occupied)
-             | sliding_attacks<Shift::DownRight>(square, occupied)
-             | sliding_attacks<Shift::DownLeft>(square, occupied);
+        uint64_t index = pext(occupied, MASK_BISHOP_MAGIC[+square]);
+        return BISHOP_ATTACK_TABLE[+square][index];
     }
     else if constexpr (type == PieceType::Rook) {
-        return sliding_attacks<Shift::Up>(square, occupied)
-             | sliding_attacks<Shift::Down>(square, occupied)
-             | sliding_attacks<Shift::Left>(square, occupied)
-             | sliding_attacks<Shift::Right>(square, occupied);
+        uint64_t index = pext(occupied, MASK_ROOK_MAGIC[+square]);
+        return ROOK_ATTACK_TABLE[+square][index];
     }
+#else
+    else if constexpr (type == PieceType::Bishop) {
+        constexpr int bits = 9;
+        uint64_t index = ((occupied & MASK_BISHOP_MAGIC[+square]) * BISHOP_MAGIC[+square]) >> (64 - bits);
+        return BISHOP_ATTACK_TABLE[+square][index];
+        
+    }
+    else if constexpr (type == PieceType::Rook) {
+        constexpr int bits = 12;
+        uint64_t index = ((occupied & MASK_ROOK_MAGIC[+square]) * ROOK_MAGIC[+square]) >> (64 - bits);
+        return ROOK_ATTACK_TABLE[+square][index];
+    }
+#endif
     else if constexpr (type == PieceType::Queen) {
         return attacks_from<PieceType::Bishop>(square, occupied)
              | attacks_from<PieceType::Rook>(square, occupied);
@@ -142,4 +150,5 @@ inline Bitboard attacks_from(Square square, Bitboard occupied) {
     }
 }
 
-
+        
+        

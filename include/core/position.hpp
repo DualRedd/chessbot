@@ -146,7 +146,7 @@ private:
             Square en_passant_square, uint32_t halfmoves, uint64_t zobristm, Bitboard pinned);
     };
 
-    void _calculate_pinned(Color side);
+    void _calculate_pinned(Color side) const;
 
 private:
     std::vector<StoredState> m_state_history;
@@ -154,8 +154,10 @@ private:
     Bitboard m_pieces[2][6];         // [color][piece]
     Bitboard m_occupied[2];          // [color]
     Bitboard m_occupied_all;         // all pieces
-    Bitboard m_pinned;               // pinned pieces
     Piece m_piece_on_square[64];     // [square]
+
+    mutable Bitboard m_pinned;       // pinned pieces
+    mutable bool m_pinned_calculated;
 
     Color m_side_to_move;
     uint8_t m_castling_rights;       // bitmask: WK=1, WQ=2, BK=4, BQ=8
@@ -166,13 +168,14 @@ private:
 };
 
 
-
 inline Bitboard Position::get_pieces(Color color, PieceType type) const {
     return m_pieces[+color][+type];
 }
+
 inline Bitboard Position::get_pieces(Color color) const {
     return m_occupied[+color];
 }
+
 inline Bitboard Position::get_pieces() const {
     return m_occupied_all;
 }
@@ -182,6 +185,10 @@ inline Square Position::get_en_passant_square() const {
 }
 
 inline Bitboard Position::get_pinned() const {
+    if (!m_pinned_calculated) {
+        _calculate_pinned(m_side_to_move);
+        m_pinned_calculated = true;
+    }
     return m_pinned;
 }
 

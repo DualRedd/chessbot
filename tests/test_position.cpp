@@ -20,7 +20,7 @@ TEST(PositionTests, CopyConstructorWithHistory) {
     MoveList move_list;
     Position original(CHESS_START_POSITION);
     for (int i = 0; i < moves; i++) {
-        move_list.generate_legal(original);
+        move_list.generate<GenerateType::Legal>(original);
         ASSERT_TRUE(move_list.count() > 0);
         int r = std::rand() % static_cast<int>(move_list.count());
         original.make_move(move_list[r]);
@@ -141,7 +141,7 @@ TEST(PositionTests, MoveFromUCI) {
     MoveList move_list;
     auto test_fen = [&board, &move_list](const FEN& fen) {
         board.from_fen(fen);
-        move_list.generate_legal(board);
+        move_list.generate<GenerateType::Legal>(board);
         for (const Move& move : move_list) {
             EXPECT_EQ(board.move_from_uci(MoveEncoding::to_uci(move)), move) << "Case: Move to UCI back to Move";
         }
@@ -158,7 +158,7 @@ TEST(PositionTests, GetLastMove) {
     Position board(CHESS_START_POSITION);
     EXPECT_EQ(board.get_last_move(), std::nullopt) << "should return std::nullopt with no moves made.";
     for (int i = 0; i < moves; i++) {
-        move_list.generate_legal(board);
+        move_list.generate<GenerateType::Legal>(board);
         ASSERT_FALSE(move_list.count() == 0);
         int r = std::rand() % static_cast<int>(move_list.count());
         board.make_move(move_list[r]);
@@ -180,7 +180,7 @@ TEST(MoveGenerationTests, Perft) {
             
         uint64_t node_count = 0;
         MoveList move_list;
-        move_list.generate_legal(board);
+        move_list.generate<GenerateType::Legal>(board);
 
         if (depth == 1)
            return uint64_t(move_list.count());

@@ -271,7 +271,7 @@ bool Chess::_is_threefold_repetition() const {
 void Chess::_update_legal_moves() {
     m_legal_moves.clear();
     MoveList move_list;
-    move_list.generate_legal(m_position);
+    move_list.generate<GenerateType::Legal>(m_position);
     for (size_t i = 0; i < move_list.count(); ++i) {
         m_legal_moves.push_back(MoveEncoding::to_uci(move_list[i]));
     }

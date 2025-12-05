@@ -2,6 +2,10 @@
 
 #include <random>
 #include <cstring>
+#include <stdexcept>
+#include <iostream>
+
+static std::mt19937_64 rng(42);
 
 Bitboard MASK_SQUARE[64];
 Bitboard MASK_BETWEEN[64][64];
@@ -12,6 +16,13 @@ Bitboard MASK_KNIGHT_ATTACKS[64];
 Bitboard MASK_KING_ATTACKS[64];
 Bitboard MASK_ROOK_ATTACKS[64];
 Bitboard MASK_BISHOP_ATTACKS[64];
+
+uint64_t ROOK_MAGIC[64];
+uint64_t BISHOP_MAGIC[64];
+Bitboard MASK_ROOK_MAGIC[64];
+Bitboard MASK_BISHOP_MAGIC[64];
+Bitboard ROOK_ATTACK_TABLE[64][4096];
+Bitboard BISHOP_ATTACK_TABLE[64][512];
 
 Bitboard MASK_CASTLE_CLEAR[2][2];
 int8_t  MASK_CASTLE_FLAG[64];
@@ -26,6 +37,113 @@ struct Initializer {
 };
 static Initializer _init_once;
 
+template<Shift shift>
+static Bitboard sliding_attacks(Square square, Bitboard occupied) {
+    Bitboard attacks = 0ULL;
+    Bitboard ray = shift_bb<shift>(MASK_SQUARE[+square]);
+    while (ray) {
+        attacks |= ray;
+        if (ray & occupied) break;
+        ray = shift_bb<shift>(ray);
+    }
+    return attacks;
+}
+
+template<PieceType type>
+static void create_attack_table(Square sq) {
+    static_assert(type == PieceType::Rook || type == PieceType::Bishop, "create_attack_table is only for rook or bishop");
+    assert(MASK_SQUARE[0] == 1); // initialization required for sliding_attacks()
+
+    constexpr int bits = type == PieceType::Rook ? 12 : 9;
+    
+    // Build relevant occupancy mask
+    Bitboard relevant_mask = 0ULL;
+    int file = file_of(sq), rank = rank_of(sq);
+    if constexpr (type == PieceType::Bishop) {
+        for (int f = file + 1, r = rank + 1; f <= 6 && r <= 6; f++, r++) relevant_mask |= 1ULL << (f + r * 8);
+        for (int f = file - 1, r = rank + 1; f >= 1 && r <= 6; f--, r++) relevant_mask |= 1ULL << (f + r * 8);
+        for (int f = file + 1, r = rank - 1; f <= 6 && r >= 1; f++, r--) relevant_mask |= 1ULL << (f + r * 8);
+        for (int f = file - 1, r = rank - 1; f >= 1 && r >= 1; f--, r--) relevant_mask |= 1ULL << (f + r * 8);
+    } else if constexpr (type == PieceType::Rook) {
+        for (int f = file + 1; f <= 6; f++) relevant_mask |= 1ULL << (f + rank * 8);
+        for (int f = file - 1; f >= 1; f--) relevant_mask |= 1ULL << (f + rank * 8);
+        for (int r = rank + 1; r <= 6; r++) relevant_mask |= 1ULL << (file + r * 8);
+        for (int r = rank - 1; r >= 1; r--) relevant_mask |= 1ULL << (file + r * 8);
+    }
+    
+    // Generate all subsets of the relevant occupancy mask
+    std::vector<Bitboard> subsets(1 << popcount(relevant_mask));
+    subsets[0] = relevant_mask;
+    for (size_t i = 1; i < subsets.size(); i++) {
+        subsets[i] = (subsets[i-1] - 1) & relevant_mask;
+    }
+
+#ifndef USE_PEXT
+    // Find magic number
+    uint64_t magic;
+    bool collision;
+    std::vector<uint32_t> used(1 << bits, 0);
+
+    for(uint32_t i = 1; i < 10'000'000; i++) {
+        magic = rng() & rng() & rng(); // low 1 bit count
+        if(popcount((relevant_mask * magic) & 0xFF00000000000000ULL) < 6) continue;
+
+        collision = false;
+        used.assign(used.size(), 0);
+
+        for (Bitboard occ : subsets) {
+            uint64_t index = (occ * magic) >> (64 - bits);
+            if (used[index] == i) {
+                collision = true;
+                break;
+            }
+            used[index] = i;
+        }
+
+        if (!collision) break;
+    }
+    
+    if (collision) {
+        throw std::runtime_error("Failed to find magic number in 10 million attempts.");
+    }
+    
+    if constexpr (type == PieceType::Rook) {
+        ROOK_MAGIC[+sq] = magic;
+    } else {
+        BISHOP_MAGIC[+sq] = magic;
+    }
+
+#endif
+    
+    if constexpr (type == PieceType::Rook) {
+        MASK_ROOK_MAGIC[+sq] = relevant_mask;
+        for (Bitboard occ : subsets) {
+#ifdef USE_PEXT
+            uint64_t index = pext(occ, relevant_mask);
+#else
+            uint64_t index = (occ * magic) >> (64 - bits);
+#endif
+            ROOK_ATTACK_TABLE[+sq][index] = sliding_attacks<Shift::Up>(sq, occ)
+                                            | sliding_attacks<Shift::Down>(sq, occ)
+                                            | sliding_attacks<Shift::Left>(sq, occ)
+                                            | sliding_attacks<Shift::Right>(sq, occ);
+        }
+    } else {
+        MASK_BISHOP_MAGIC[+sq] = relevant_mask;
+        for (Bitboard occ : subsets) {
+#ifdef USE_PEXT
+            uint64_t index = pext(occ, relevant_mask);
+#else
+            uint64_t index = (occ * magic) >> (64 - bits);
+#endif
+            BISHOP_ATTACK_TABLE[+sq][index] = sliding_attacks<Shift::UpRight>(sq, occ)
+                                            | sliding_attacks<Shift::UpLeft>(sq, occ)
+                                            | sliding_attacks<Shift::DownRight>(sq, occ)
+                                            | sliding_attacks<Shift::DownLeft>(sq, occ);
+        }
+    }
+}
+
 static void zero_tables() {
     std::memset(MASK_SQUARE, 0, sizeof(MASK_SQUARE));
     std::memset(MASK_BETWEEN, 0, sizeof(MASK_BETWEEN));
@@ -36,6 +154,13 @@ static void zero_tables() {
     std::memset(MASK_KING_ATTACKS, 0, sizeof(MASK_KING_ATTACKS));
     std::memset(MASK_ROOK_ATTACKS, 0, sizeof(MASK_ROOK_ATTACKS));
     std::memset(MASK_BISHOP_ATTACKS, 0, sizeof(MASK_BISHOP_ATTACKS));
+
+    std::memset(ROOK_MAGIC, 0, sizeof(ROOK_MAGIC));
+    std::memset(BISHOP_MAGIC, 0, sizeof(BISHOP_MAGIC));
+    std::memset(MASK_ROOK_MAGIC, 0, sizeof(MASK_ROOK_MAGIC));
+    std::memset(MASK_BISHOP_MAGIC, 0, sizeof(MASK_BISHOP_MAGIC));
+    std::memset(ROOK_ATTACK_TABLE, 0, sizeof(ROOK_ATTACK_TABLE));
+    std::memset(BISHOP_ATTACK_TABLE, 0, sizeof(BISHOP_ATTACK_TABLE));
 
     std::memset(MASK_CASTLE_CLEAR, 0, sizeof(MASK_CASTLE_CLEAR));
     std::memset(MASK_CASTLE_FLAG, 0, sizeof(MASK_CASTLE_FLAG));
@@ -181,24 +306,30 @@ void init_bitboards() {
     }
 
     // Zobrist hashing keys
-    std::random_device rd;
-    std::mt19937_64 rng(rd());
-    std::uniform_int_distribution<uint64_t> distr;
-
     for (int color = 0; color < 2; ++color) {
         for (int piece = 0; piece < 6; ++piece) {
             for (int square = 0; square < 64; ++square) {
-                ZOBRIST_PIECE[color][piece][square] = distr(rng);
+                ZOBRIST_PIECE[color][piece][square] = rng();
             }
         }
     }
     for (int i = 0; i < 16; ++i) {
-        ZOBRIST_CASTLING[i] = distr(rng);
+        ZOBRIST_CASTLING[i] = rng();
     }
     for (int f = 0; f < 8; ++f) {
-        ZOBRIST_EP[f] = distr(rng);
+        ZOBRIST_EP[f] = rng();
     }
-    ZOBRIST_SIDE = distr(rng);
+    ZOBRIST_SIDE = rng();
+
+    // Magics
+    rng.seed(3044); // 23922 collision tests required using this seed
+    for (int from = 0; from < 64; from++) {
+        create_attack_table<PieceType::Rook>(Square(from));
+    }
+    rng.seed(39024); // 935 collision tests required using this seed
+    for (int from = 0; from < 64; from++) {
+        create_attack_table<PieceType::Bishop>(Square(from));
+    }
 }
 
 std::string to_string(Bitboard bb) {

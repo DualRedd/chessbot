@@ -12,6 +12,13 @@ option(BUILD_TESTS "Build unit tests" ON)
 option(BUILD_BENCHMARKS "Build benchmarks" ON)
 option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
+option(ENABLE_NATIVE "Build with native architecture optimizations" ON)
+option(ENABLE_BMI2 "Build with BMI2 instruction set support" ON)
+
+if(NOT CMAKE_BUILD_TYPE)
+    message(STATUS "No build type selected, defaulting to Release")
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
+endif()
 
 if (ENABLE_ASAN)
     message(STATUS "AddressSanitizer enabled")
@@ -52,6 +59,40 @@ if(ENABLE_COVERAGE)
         message(WARNING "Install gcovr to generate coverage reports!")
     endif()
 endif()
+
+# --- optimized Release flags to engine targets ---
+set(ENG_FLAGS )
+set(LINK_FLAGS )
+if((CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo") AND NOT ENABLE_ASAN AND NOT ENABLE_COVERAGE)
+    if(NOT MSVC)
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            # Full optimized release
+            list(APPEND ENG_FLAGS -O3 -flto -funroll-loops -fomit-frame-pointer -ffunction-sections -fdata-sections -DNDEBUG)
+            list(APPEND LINK_FLAGS -flto -Wl,--gc-sections)
+        else()
+            # RelWithDebInfo: keep debug info and frame pointers for profiling
+            list(APPEND ENG_FLAGS -O3 -g -fno-omit-frame-pointer -funroll-loops -ffunction-sections -fdata-sections -DNDEBUG)
+            list(APPEND LINK_FLAGS -Wl,--gc-sections)
+        endif()
+
+        if(ENABLE_NATIVE)
+            list(APPEND ENG_FLAGS -march=native)
+            message(STATUS "Building engine with -march=native. Disable ENABLE_NATIVE to turn this off.")
+        endif()
+    else()
+        if(CMAKE_BUILD_TYPE STREQUAL "Release")
+            list(APPEND ENG_FLAGS /O2 /GL /DNDEBUG)
+            list(APPEND LINK_FLAGS /LTCG)
+        else()
+            # RelWithDebInfo: keep debug info and frame pointers for profiling
+            list(APPEND ENG_FLAGS /O2 /Zi /Zo /DNDEBUG)
+            list(APPEND LINK_FLAGS /DEBUG)
+        endif()
+    endif()
+else()
+    message(STATUS "Not applying engine Release/RelWithDebInfo optimizations (BuildType=${CMAKE_BUILD_TYPE}, ASAN=${ENABLE_ASAN}, COVERAGE=${ENABLE_COVERAGE})")
+endif()
+
 
 # --- SFML ---
 include(FetchContent)
@@ -96,8 +137,10 @@ if (BUILD_BENCHMARKS)
     FetchContent_MakeAvailable(goog_benchmark)
 endif()
 
+
 # --- Include directories ---
 include_directories(${PROJECT_SOURCE_DIR}/include)
+
 
 # --- Core library ---
 add_library(chess_core SHARED
@@ -108,6 +151,22 @@ add_library(chess_core SHARED
     src/core/chess.cpp
     src/core/ai_player.cpp
 )
+target_compile_options(chess_core PRIVATE ${ENG_FLAGS})
+target_link_options(chess_core PRIVATE ${LINK_FLAGS})
+
+# PEXT support for move generation
+if(ENABLE_BMI2)
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-mbmi2" COMPILER_HAS_MBMI2)
+    if(COMPILER_HAS_MBMI2)
+        message(STATUS "Enabling PEXT support for engine. Disable ENABLE_BMI2 to turn this off.")
+        target_compile_options(chess_core PRIVATE -mbmi2)
+        target_compile_definitions(chess_core PRIVATE PEXT_ENABLED)
+    else()
+        message(STATUS "No BMI2 compiler support detected; building without it")
+    endif()
+endif()
+
 
 # --- AIs ---
 add_library(chess_bots SHARED
@@ -120,6 +179,9 @@ add_library(chess_bots SHARED
 target_link_libraries(chess_bots PRIVATE
     chess_core
 )
+target_compile_options(chess_bots PRIVATE ${ENG_FLAGS})
+target_link_options(chess_bots PRIVATE ${LINK_FLAGS})
+
 
 # --- GUI executable ---
 add_executable(chess_gui
@@ -138,6 +200,7 @@ target_link_libraries(chess_gui PRIVATE
     SFML::Graphics
     TGUI::TGUI
 )
+
 
 # MSVC specific settings
 if(MSVC)

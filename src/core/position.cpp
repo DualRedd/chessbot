@@ -25,6 +25,9 @@ Position::Position(const Position& other, bool copy_history) {
     m_occupied_all = other.m_occupied_all;
     std::memcpy(m_piece_on_square, other.m_piece_on_square, sizeof(m_piece_on_square));
 
+    m_pinned = other.m_pinned;
+    m_pinned_calculated = other.m_pinned_calculated;
+
     m_side_to_move = other.m_side_to_move;
     m_castling_rights = other.m_castling_rights;
     m_en_passant_square = other.m_en_passant_square;
@@ -58,6 +61,9 @@ void Position::from_fen(const FEN& fen) {
     m_side_to_move = Color::White;
     m_castling_rights = 0;
     m_en_passant_square = Square::None;
+    m_zobrist = 0ULL;
+    m_pinned = 0ULL;
+    m_pinned_calculated = false;
 
     // Parse FEN
     std::istringstream iss(fen);
@@ -212,7 +218,6 @@ void Position::from_fen(const FEN& fen) {
     }
 
     // Compute Zobrist hash for current position
-    m_zobrist = 0;
     for (int color = 0; color < 2; ++color) {
         for (int piece = 0; piece < 6; ++piece) {
             Bitboard bb = m_pieces[color][piece];
@@ -297,16 +302,9 @@ FEN Position::to_fen() const {
 }
     
 bool Position::in_check(Color side) const {
-    Color opp = opponent(side);
-    Bitboard king_board = m_pieces[+side][+PieceType::King];
-    while (king_board != 0ULL) {
-        Square king_sq = lsb(king_board);
-        if (attackers_exist(opp, king_sq, get_pieces())) {
-            return true;
-        }
-        pop_lsb(king_board);
-    }
-    return false;
+    assert(m_pieces[+side][+PieceType::King] != 0ULL);
+    Square king_sq = lsb(m_pieces[+side][+PieceType::King]);
+    return attackers_exist(opponent(side), king_sq, get_pieces());
 }
 
 
@@ -416,7 +414,7 @@ void Position::make_move(Move move) {
     // Next turn
     m_side_to_move = (m_side_to_move == Color::White) ? Color::Black : Color::White;
     m_zobrist ^= ZOBRIST_SIDE;
-    _calculate_pinned(m_side_to_move);
+    m_pinned_calculated = false;
 }
 
 bool Position::undo_move() {
@@ -541,7 +539,7 @@ Move Position::move_from_uci(const UCI& uci) const {
     return MoveEncoding::encode<MoveType::Normal>(from, to);
 }
 
-void Position::_calculate_pinned(Color side) {
+void Position::_calculate_pinned(Color side) const {
     Color opp = opponent(side);
     Square king_sq = lsb(get_pieces(side, PieceType::King)); 
     

@@ -21,7 +21,7 @@ TEST(ZobristTests, RebuildFromFENMatches) {
     // play random legal moves
     MoveList move_list;
     for (int i = 0; i < moves; ++i) {
-        move_list.generate_legal(board);
+        move_list.generate<GenerateType::Legal>(board);
         ASSERT_FALSE(move_list.count() == 0);
         int r = std::rand() % static_cast<int>(move_list.count());
         board.make_move(move_list[r]);
@@ -42,7 +42,7 @@ TEST(ZobristTests, IncrementalMakeUndoConsistency) {
     // play random moves and store hashes after each make
     MoveList move_list;
     for (int i = 0; i < moves; ++i) {
-        move_list.generate_legal(board);
+        move_list.generate<GenerateType::Legal>(board);
         ASSERT_FALSE(move_list.count() == 0);
         int r = std::rand() % static_cast<int>(move_list.count());
         board.make_move(move_list[r]);
@@ -65,7 +65,7 @@ TEST(ZobristTests, SpecialMoves) {
     Position board;
     MoveList move_list;
     auto is_legal_move = [&board, &move_list](const Move& move) {
-        move_list.generate_legal(board);
+        move_list.generate<GenerateType::Legal>(board);
         return std::find(move_list.begin(), move_list.end(), move) != move_list.end();
     };
 
@@ -122,7 +122,7 @@ TEST(ZobristTests, CollisionCheck) {
     for (int g = 0; g < games; ++g) {
         board.from_fen(COMPLEX_POSITION);
         for (int m = 0; m < moves_per_game; ++m) {
-            move_list.generate_legal(board);
+            move_list.generate<GenerateType::Legal>(board);
             if (move_list.count() == 0) break;
 
             std::uniform_int_distribution<size_t> dist(0, move_list.count() - 1);

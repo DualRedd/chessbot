@@ -51,7 +51,7 @@ void MinimaxAI::_set_board(const FEN& fen) {
 void MinimaxAI::_apply_move(const UCI& uci_move) {
     MoveList move_list;
     Move move = m_search_position.get_position().move_from_uci(uci_move);
-    move_list.generate_legal(m_search_position.get_position());
+    move_list.generate<GenerateType::Legal>(m_search_position.get_position());
     if (std::find(move_list.begin(), move_list.end(), move) == move_list.end()) {
         throw std::invalid_argument("MinimaxAI::apply_move() - illegal move!");
     }
@@ -66,7 +66,7 @@ void MinimaxAI::_undo_move() {
 
 UCI MinimaxAI::_compute_move() {
     MoveList move_list;
-    move_list.generate_legal(m_search_position.get_position());
+    move_list.generate<GenerateType::Legal>(m_search_position.get_position());
     if(move_list.count() == 0) {
         throw std::invalid_argument("MinimaxAI::compute_move() - no legal moves!");
     }
@@ -133,12 +133,11 @@ std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, in
     Move best_move = 0;
 
     MoveList move_list;
-    move_list.generate_legal(m_search_position.get_position());
+    move_list.generate<GenerateType::Legal>(m_search_position.get_position());
     _order_moves(move_list, m_tt.find(zobrist_key));
-    
+
     for (const Move& move : move_list) {
-        m_search_position.make_move(move); 
-        assert(!m_search_position.get_position().in_check(side));
+        m_search_position.make_move(move);
 
         int32_t score = -_alpha_beta(-beta, -alpha, search_depth - 1, 1);
         if (score > alpha) {
@@ -185,7 +184,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
         if (alpha >= beta) {
             ++m_stats.tt_cutoffs;
             return stored;
-        } 
+        }
     }
 
     Color side = m_search_position.get_position().get_side_to_move();
@@ -193,7 +192,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
     Move best_move;
 
     MoveList move_list;
-    move_list.generate_legal(m_search_position.get_position());
+    move_list.generate<GenerateType::Legal>(m_search_position.get_position());
     _order_moves(move_list, tt_entry);
 
     if (move_list.count() == 0) {
@@ -246,7 +245,7 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int ply) {
 
     uint64_t zobrist_key = m_search_position.get_position().get_zobrist_hash();
     MoveList move_list;
-    move_list.generate_legal(m_search_position.get_position());
+    move_list.generate<GenerateType::Legal>(m_search_position.get_position());
     _order_moves(move_list, m_tt.find(zobrist_key));
 
     if (move_list.count() == 0) 
@@ -270,7 +269,7 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int ply) {
 }
 
 inline void MinimaxAI::_order_moves(MoveList& move_list, const TTEntry* tt_entry) const {
-    thread_local static std::array<int32_t, MoveList::MAX_SIZE> scores;
+    thread_local static std::array<int32_t, MAX_MOVE_LIST_SIZE> scores;
     Move tt_best = tt_entry ? tt_entry->best_move : 0;
 
     for (size_t i = 0; i < move_list.count(); i++) {

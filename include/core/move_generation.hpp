@@ -2,38 +2,29 @@
 
 #include "position.hpp"
 
-Move* generate_pseudo_legal_moves(const Position& pos, Move* move_list);
+constexpr int MAX_MOVE_LIST_SIZE = 256; // Upper limit for pseudo-legal moves in any position
 
-Move* generate_legal_moves(const Position& pos, Move* move_list);
+/**
+ * Legal: Generate only legal moves
+ * PseudoLegal: Generate all pseudo-legal moves
+ * Evasions: Generate pseudo-legal moves that could evade check
+ * Captures: Generate pseudo-legal capture moves
+ * Quiets: Generate pseudo-legal non-capture moves
+ */
+enum class GenerateType : uint8_t { Legal, PseudoLegal, Evasions, Captures, Quiets,  };
+
+template<GenerateType gen_type>
+Move* generate_moves(const Position& pos, Move* move_list);
 
 class MoveList {
 public:
     MoveList() : m_count(0) {}
 
-    void generate_pseudo(const Position& pos) {
-        Move* end = generate_pseudo_legal_moves(pos, m_moves.begin());
+    template<GenerateType gen_type>
+    void generate(const Position& pos) {
+        Move* end = generate_moves<gen_type>(pos, m_moves.begin());
         m_count = end - m_moves.begin();
     }
-
-    void generate_legal(const Position& pos) {
-        Move* end = generate_legal_moves(pos, m_moves.begin());
-        m_count = end - m_moves.begin();
-    }
-
-    /*void generate_legal(const Position& pos) {
-        Position copy(pos, false);
-        m_count = 0;
-        Move* end = generate_pseudo_legal_moves(pos, m_moves.begin());
-
-        for (Move* move_ptr = m_moves.begin(); move_ptr != end; ++move_ptr) {
-            Move move = *move_ptr;
-            copy.make_move(move);
-            if (!copy.in_check(pos.get_side_to_move())) {
-                m_moves[m_count++] = *move_ptr;
-            }
-            copy.undo_move();
-        }
-    }*/
 
     size_t count() const {
         return m_count;
@@ -50,9 +41,7 @@ public:
         return m_moves.begin() + m_count;
     }
 
-public:
-    static constexpr int MAX_SIZE = 280; // Upper limit for pseudo-legal moves in any position
 private:
-    std::array<Move, MAX_SIZE> m_moves;
+    std::array<Move, MAX_MOVE_LIST_SIZE> m_moves;
     size_t m_count;
 };

@@ -27,7 +27,7 @@ void RandomAI::_set_board(const FEN& fen) {
 
 void RandomAI::_apply_move(const UCI& uci_move) {
     Move move = m_board.move_from_uci(uci_move);
-    m_move_list.generate_legal(m_board);
+    m_move_list.generate<GenerateType::Legal>(m_board);
     if (std::find(m_move_list.begin(), m_move_list.end(), move) == m_move_list.end()) {
         throw std::invalid_argument("RandomAI::apply_move() - illegal move!");
     }
@@ -41,7 +41,7 @@ void RandomAI::_undo_move() {
 }
 
 UCI RandomAI::_compute_move() {
-    m_move_list.generate_legal(m_board);
+    m_move_list.generate<GenerateType::Legal>(m_board);
     if (m_move_list.count() == 0) {
         throw std::runtime_error("RandomAI::compute_move() - no legal moves!");
     }
