@@ -17,7 +17,7 @@ $GCOVR_EXEC \
     --filter "@CMAKE_SOURCE_DIR@/src/core/.*" \
     --filter "@CMAKE_SOURCE_DIR@/include/core/.*" \
     --filter "@CMAKE_SOURCE_DIR@/src/ai/.*" \
-    --filter "@CMAKE_SOURCE_DIR@/src/ai/.*" \
+    --filter "@CMAKE_SOURCE_DIR@/include/ai/.*" \
     --html-details "@COVERAGE_REPORT_DIR@/html/coverage.html" \
     --xml "@COVERAGE_REPORT_DIR@/xml/coverage.xml" \
     --txt-metric branch \

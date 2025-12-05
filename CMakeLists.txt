@@ -218,6 +218,9 @@ add_custom_command(TARGET chess_gui POST_BUILD
 
 # --- Tests ---
 if (BUILD_TESTS)
+    include(CTest)
+    include(GoogleTest)
+    enable_testing()
     add_subdirectory(tests)
 endif()
 
