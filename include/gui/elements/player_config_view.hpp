@@ -21,7 +21,7 @@ public:
      * @param gui TGUI object this view will be part of
      * @param color Which player (black or white) this configuration view is for
      */
-    PlayerConfigView(tgui::GrowVerticalLayout::Ptr parent, PlayerColor color);
+    PlayerConfigView(tgui::GrowVerticalLayout::Ptr parent, Color color);
 
     /**
      * @return PlayerConfiguration representing the current configurations selected in in the GUI for this player.

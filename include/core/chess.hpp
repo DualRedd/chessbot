@@ -1,7 +1,7 @@
 #pragma once
 
 #include <unordered_map>
-#include "board.hpp"
+#include "position.hpp"
 
 const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -81,7 +81,7 @@ public:
     /**
      * @return Which sides turn to move it is currently.
      */
-    PlayerColor get_side_to_move() const;
+    Color get_side_to_move() const;
 
     /**
      * @param tile the tile
@@ -141,7 +141,7 @@ private:
     bool _is_threefold_repetition() const;
 
 private:
-    Board m_board;
+    Position m_position;
     std::vector<UCI> m_legal_moves;
 
     // Zobrist history for threefold-repetition detection

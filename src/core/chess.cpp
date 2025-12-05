@@ -1,5 +1,6 @@
 #include "core/chess.hpp"
 
+#include "core/move_generation.hpp"
 #include <stdexcept>
 #include <algorithm>
 
@@ -84,27 +85,27 @@ Chess::Chess() {
 Chess::~Chess() = default;
 
 void Chess::new_board(const FEN& position) {
-    m_board.set_from_fen(position);
+    m_position.from_fen(position);
     _update_legal_moves();
 
     m_zobrist_history.clear();
     m_zobrist_counts.clear();
     m_fen_history.clear();
-    m_zobrist_history.push_back(m_board.get_zobrist_hash());
-    m_zobrist_counts[m_board.get_zobrist_hash()] = 1;
-    m_fen_history.push_back(m_board.to_fen());
+    m_zobrist_history.push_back(m_position.get_zobrist_hash());
+    m_zobrist_counts[m_position.get_zobrist_hash()] = 1;
+    m_fen_history.push_back(m_position.to_fen());
 }
 
 FEN Chess::get_board_as_fen() const {
-    return m_board.to_fen();
+    return m_position.to_fen();
 }
 
-PlayerColor Chess::get_side_to_move() const {
-    return m_board.get_side_to_move();
+Color Chess::get_side_to_move() const {
+    return m_position.get_side_to_move();
 }
 
 Piece Chess::get_piece_at(const Tile& tile) const {
-    return m_board.get_piece_at(tile.to_index());
+    return m_position.get_piece_at(Square(tile.to_index()));
 }
 
 std::vector<UCI> Chess::get_legal_moves() const {
@@ -118,19 +119,19 @@ bool Chess::is_legal_move(const UCI& move) const {
 bool Chess::play_move(const UCI& move) {
     if (!is_legal_move(move)) return false;
 
-    m_board.make_move(m_board.move_from_uci(move));
+    m_position.make_move(m_position.move_from_uci(move));
     _update_legal_moves();
 
-    uint64_t key = m_board.get_zobrist_hash();
+    uint64_t key = m_position.get_zobrist_hash();
     m_zobrist_history.push_back(key);
     m_zobrist_counts[key] += 1;
-    m_fen_history.push_back(m_board.to_fen());
+    m_fen_history.push_back(m_position.to_fen());
 
     return true;
 }
 
 bool Chess::undo_move() {
-    bool success = m_board.undo_move();
+    bool success = m_position.undo_move();
     if (success) {
         _update_legal_moves();
 
@@ -154,13 +155,13 @@ bool Chess::undo_move() {
 }
 
 std::optional<UCI> Chess::get_last_move() const {
-    auto move = m_board.get_last_move();
+    auto move = m_position.get_last_move();
     if (!move.has_value()) return std::nullopt;
     return MoveEncoding::to_uci(move.value());
 }
 
 Chess::GameState Chess::get_game_state() const {
-    if (m_board.in_check(get_side_to_move())) {
+    if (m_position.in_check(get_side_to_move())) {
         if (m_legal_moves.empty()) {
             return GameState::Checkmate;
         } else {
@@ -169,7 +170,7 @@ Chess::GameState Chess::get_game_state() const {
     } else {
         if (m_legal_moves.empty()) {
             return GameState::Stalemate;
-        } else if (m_board.get_halfmove_clock() >= 100) {
+        } else if (m_position.get_halfmove_clock() >= 100) {
             return GameState::DrawByFiftyMoveRule;
         } else if (_is_insufficient_material()) {
             return GameState::DrawByInsufficientMaterial;
@@ -189,12 +190,15 @@ bool Chess::_is_insufficient_material() const {
     int white_other = 0;
     int black_other = 0;
 
-    for (int square = 0; square < 64; ++square) {
-        Piece piece = m_board.get_piece_at(square);
-        if (piece.type == PieceType::None) continue;
+    for (Square square = Square::A1; square < Square::H8; ++square) {
+        Piece piece = m_position.get_piece_at(square);
+        PieceType type = to_type(piece);
+        Color color = to_color(piece);
 
-        if(piece.color == PlayerColor::White){
-            switch(piece.type){
+        if (type == PieceType::None) continue;
+
+        if(color == Color::White){
+            switch( type){
                 case PieceType::Bishop: white_bishops++; break;
                 case PieceType::Knight: white_knights++; break;
                 case PieceType::Pawn:
@@ -204,7 +208,7 @@ bool Chess::_is_insufficient_material() const {
                 default: break;
             }
         } else {
-            switch(piece.type){
+            switch(type){
                 case PieceType::Bishop: black_bishops++; break;
                 case PieceType::Knight: black_knights++; break;
                 case PieceType::Pawn:
@@ -234,7 +238,7 @@ bool Chess::_is_insufficient_material() const {
 }
 
 bool Chess::_is_threefold_repetition() const {
-    uint64_t key = m_board.get_zobrist_hash();
+    uint64_t key = m_position.get_zobrist_hash();
     auto it = m_zobrist_counts.find(key);
     if (it == m_zobrist_counts.end() || it->second < 3) {
         return false;
@@ -254,7 +258,7 @@ bool Chess::_is_threefold_repetition() const {
         return fen;
     };
 
-    const FEN cur = strip_counters(m_board.to_fen());
+    const FEN cur = strip_counters(m_position.to_fen());
     int exact = 0;
     for (const auto& f : m_fen_history) {
         if (strip_counters(f) == cur && ++exact >= 3) {
@@ -266,7 +270,9 @@ bool Chess::_is_threefold_repetition() const {
 
 void Chess::_update_legal_moves() {
     m_legal_moves.clear();
-    for (const Move& move : m_board.generate_legal_moves()) {
-        m_legal_moves.push_back(MoveEncoding::to_uci(move));
+    MoveList move_list;
+    move_list.generate<GenerateType::Legal>(m_position);
+    for (size_t i = 0; i < move_list.count(); ++i) {
+        m_legal_moves.push_back(MoveEncoding::to_uci(move_list[i]));
     }
 }

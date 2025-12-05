@@ -19,8 +19,8 @@ ChessGUI::ChessGUI(int window_width, int window_height)
     // Callbacks
     m_side_panel.on_new_game_pressed([this]() {
         m_game_manager.new_game(
-            m_side_panel.get_player_configuration(PlayerColor::White),
-            m_side_panel.get_player_configuration(PlayerColor::Black),
+            m_side_panel.get_player_configuration(Color::White),
+            m_side_panel.get_player_configuration(Color::Black),
             CHESS_START_POSITION
         );
     });

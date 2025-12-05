@@ -2,7 +2,8 @@ include(CTest)
 enable_testing()
 
 add_executable(unit_tests
-    test_board.cpp
+    test_bitboard.cpp
+    test_position.cpp
     test_zobrist.cpp
     test_search_position.cpp
 )

@@ -3,7 +3,8 @@
 #include <random>
 
 #include "registry.hpp"
-#include "../core/board.hpp"
+#include "../core/position.hpp"
+#include "../core/move_generation.hpp"
 
 void registerRandomAI();
 
@@ -18,6 +19,7 @@ private:
     void _undo_move() override;
     UCI _compute_move() override;
 
-    Board m_board;
+    Position m_board;
+    MoveList m_move_list;
     std::mt19937 m_rng;
 };

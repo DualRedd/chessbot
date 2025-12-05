@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../core/board.hpp"
+#include "../core/position.hpp"
 
 /**
- * Incremental evaluation wrapper for Board.
+ * Incremental evaluation wrapper for Position.
  */
 class SearchPosition {
 public:
@@ -52,7 +52,7 @@ public:
     /**
      * @return The underlying board.
      */
-    const Board& get_board() const;
+    const Position& get_position() const;
 
     /**
      * @param type piece type
@@ -68,7 +68,7 @@ private:
      * @param square square index 0-63 (8 * rank + file)
      * @return Evaluation value for the piece on the square.
      */
-    int32_t _pst_value(PieceType type, PlayerColor color, int square) const;
+    int32_t _pst_value(PieceType type, Color color, Square square) const;
 
     /**
      * Calculate the full evaluation from the current position.
@@ -77,7 +77,7 @@ private:
     int32_t _compute_full_eval();
 
 private:
-    Board m_board;
+    Position m_position;
 
     int32_t m_eval; // Evaluation from white's perspective
     std::vector<int32_t> m_eval_history;

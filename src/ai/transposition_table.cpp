@@ -1,4 +1,5 @@
 #include "ai/transposition_table.hpp"
+#include <limits>
 
 TranspositionTable::TranspositionTable(size_t megabytes) {
     size_t bytes = megabytes * 1024ULL * 1024ULL;
@@ -31,29 +32,30 @@ void TranspositionTable::store(uint64_t key, int32_t score, int16_t depth,
                                 Bound bound, Move best_move) {
     size_t idx = key & m_mask;
     size_t replace_idx = idx;
+
+    int best_keep_score = std::numeric_limits<int>::max();
     for (size_t i = 0; i < m_probe_window; ++i) {
-        TTEntry& entry = m_table[idx];
-        if (entry.key == 0) {
-            replace_idx = idx; // empty
-            break;
-        }
-        if (entry.key == key) {
-            replace_idx = idx;  // same key (overwrite)
-            break;
+        TTEntry &entry = m_table[idx];
+        if (entry.key == 0) { replace_idx = idx; break; } // empty slot: free to use
+        if (entry.key == key) { replace_idx = idx; break; } // same key: overwrite
+
+        // prefer entries with same age and deeper depth
+        int keep_score = entry.depth + ((entry.age == m_age) ? 100000 : 0);
+
+        // replace the entry with the smallest keep_score
+        if (keep_score < best_keep_score) {
+            best_keep_score = keep_score;
+            replace_idx = idx;
         }
 
-        // replace older entries and/or shallower entries
-        if (entry.age != m_age || entry.depth < depth) {
-            replace_idx = idx;
-            break;
-        }
         idx = (idx + 1) & m_mask;
     }
+
     auto &dst = m_table[replace_idx];
     dst.key = key;
     dst.score = score;
     dst.depth = depth;
-    dst.bound = static_cast<uint8_t>(bound);
+    dst.bound = bound;
     dst.best_move = best_move;
     dst.age = m_age;
 }

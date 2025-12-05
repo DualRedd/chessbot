@@ -1,21 +1,19 @@
 #include "benchmark/benchmark.h"
-#include "core/board.hpp"
-#include "ai/search_position.hpp"
+#include "core/position.hpp"
+#include "core/move_generation.hpp"
 
 const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
-static uint64_t perft(Board &b, int depth) {
+static uint64_t perft(Position &b, int depth) {
     if (depth == 0)
         return 1;
 
-    auto moves = b.generate_legal_moves();
-
-    if (depth == 1)
-        return uint64_t(moves.size());
+    MoveList move_list;
+    move_list.generate<GenerateType::Legal>(b);
 
     uint64_t node_count = 0;
-    for (auto mv : moves) {
-        b.make_move(mv);
+    for (Move& move : move_list) {
+        b.make_move(move);
         node_count += perft(b, depth - 1);
         b.undo_move();
     }
@@ -24,7 +22,7 @@ static uint64_t perft(Board &b, int depth) {
 
 static void BM_perft(benchmark::State& state) {
     int depth = static_cast<int>(state.range(0));
-    Board b(CHESS_START_POSITION);
+    Position b(CHESS_START_POSITION);
 
     for (auto _ : state) {
         uint64_t nodes = perft(b, depth);
@@ -35,4 +33,4 @@ static void BM_perft(benchmark::State& state) {
     }
 }
 
-BENCHMARK(BM_perft)->Arg(3)->Arg(4)->Arg(5)->Arg(6)->Unit(benchmark::kMillisecond);
+BENCHMARK(BM_perft)->Arg(3)->Arg(4)->Arg(5)->Arg(6)->Arg(7)->Unit(benchmark::kMillisecond);

@@ -8,8 +8,8 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
     m_flip_board_button(tgui::Button::create("Flip Board")),
     m_middle_scroll_panel(tgui::ScrollablePanel::create()),
     m_middle_grow_panel(tgui::GrowVerticalLayout::create()),
-    m_black_player_config(m_middle_grow_panel, PlayerColor::Black),
-    m_white_player_config(m_middle_grow_panel, PlayerColor::White)
+    m_black_player_config(m_middle_grow_panel, Color::Black),
+    m_white_player_config(m_middle_grow_panel, Color::White)
 {   
     // Main panel
     gui.add(m_panel);
@@ -103,8 +103,8 @@ void SidePanelView::on_ai_speed_changed(std::function<void(double)> callback) {
     });
 }
 
-PlayerConfiguration SidePanelView::get_player_configuration(PlayerColor side) {
-    if (side == PlayerColor::Black) {
+PlayerConfiguration SidePanelView::get_player_configuration(Color side) {
+    if (side == Color::Black) {
         return m_black_player_config.get_current_configuration();
     } else {
         return m_white_player_config.get_current_configuration();

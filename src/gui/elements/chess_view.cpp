@@ -113,7 +113,7 @@ void ChessView::_on_mouse_left_down(sf::Vector2i screen_position) {
             }
 
             // Start a drag if the tile has some piece
-            if (m_game_manager.get_game().get_piece_at(tile.value()).type != PieceType::None) {
+            if (to_type(m_game_manager.get_game().get_piece_at(tile.value())) != PieceType::None) {
                 m_is_dragging = true;
                 m_selected_tile = tile;
                 m_drag_screen_position = sf::Vector2f(screen_position);
@@ -181,7 +181,7 @@ void ChessView::_draw_board(sf::RenderWindow& window) {
 
 void ChessView::_draw_promotion_prompt(sf::RenderWindow& window) {
     int dir = m_promotion_prompt_tile.rank == 7 ? -1 : 1;
-    PlayerColor color = m_promotion_prompt_tile.rank == 7 ? PlayerColor::White : PlayerColor::Black;
+    Color color = m_promotion_prompt_tile.rank == 7 ? Color::White : Color::Black;
 
     // Draw background
     sf::RectangleShape background;
@@ -195,7 +195,7 @@ void ChessView::_draw_promotion_prompt(sf::RenderWindow& window) {
     // Draw pieces
     for (int i = 0; i < 4; i++) {
         Chess::Tile tile(m_promotion_prompt_tile.file, m_promotion_prompt_tile.rank + i * dir);
-        _draw_piece(window, Piece(s_promotion_pieces[i], color), _board_to_screen_space(tile));
+        _draw_piece(window, create_piece(color, s_promotion_pieces[i]), _board_to_screen_space(tile));
     }
 
     // Draw x icon
@@ -212,7 +212,7 @@ void ChessView::_draw_legal_moves(sf::RenderWindow& window, Chess::Tile tile) {
     std::vector<UCI> moves(m_game_manager.get_game().get_legal_moves());
     if (moves.empty()) return;
 
-    PieceType selected_piece = m_game_manager.get_game().get_piece_at(tile).type;
+    PieceType selected_piece = to_type(m_game_manager.get_game().get_piece_at(tile));
     for (const UCI& move : moves) {
         auto [from, to, promo] = Chess::uci_parse(move);
         if (from != tile) continue;
@@ -223,7 +223,7 @@ void ChessView::_draw_legal_moves(sf::RenderWindow& window, Chess::Tile tile) {
             continue;
         }
 
-        PieceType target_piece = m_game_manager.get_game().get_piece_at(to).type;
+        PieceType target_piece = to_type(m_game_manager.get_game().get_piece_at(to));
         bool is_capture = (target_piece != PieceType::None)                             // normal capture
                         || (selected_piece == PieceType::Pawn && from.file != to.file); // en passant / pawn capture
 
@@ -239,7 +239,7 @@ void ChessView::_draw_legal_moves(sf::RenderWindow& window, Chess::Tile tile) {
 }
 
 void ChessView::_draw_piece(sf::RenderWindow& window, Piece piece, sf::Vector2f position) {
-    if (piece.type == PieceType::None) return;
+    if (to_type(piece) == PieceType::None) return;
 
     sf::Sprite sprite(m_texture_pieces[piece]);
 
@@ -318,14 +318,14 @@ void ChessView::_load_assets() {
     }
 
     // Pieces
-    for (PlayerColor color : {PlayerColor::White, PlayerColor::Black}) {
-        std::string prefix = (color == PlayerColor::White ? "w" : "b");
-        m_texture_pieces[{PieceType::Pawn, color}] = load_svg("pieces/" + prefix + "P.svg");
-        m_texture_pieces[{PieceType::Knight, color}] = load_svg("pieces/" + prefix + "N.svg");
-        m_texture_pieces[{PieceType::Bishop, color}] = load_svg("pieces/" + prefix + "B.svg");
-        m_texture_pieces[{PieceType::Rook, color}] = load_svg("pieces/" + prefix + "R.svg");
-        m_texture_pieces[{PieceType::Queen, color}] = load_svg("pieces/" + prefix + "Q.svg");
-        m_texture_pieces[{PieceType::King, color}] = load_svg("pieces/" + prefix + "K.svg");
+    for (Color color : {Color::White, Color::Black}) {
+        std::string prefix = (color == Color::White ? "w" : "b");
+        m_texture_pieces[create_piece(color, PieceType::Pawn)]   = load_svg("pieces/" + prefix + "P.svg");
+        m_texture_pieces[create_piece(color, PieceType::Knight)] = load_svg("pieces/" + prefix + "N.svg");
+        m_texture_pieces[create_piece(color, PieceType::Bishop)] = load_svg("pieces/" + prefix + "B.svg");
+        m_texture_pieces[create_piece(color, PieceType::Rook)]   = load_svg("pieces/" + prefix + "R.svg");
+        m_texture_pieces[create_piece(color, PieceType::Queen)]  = load_svg("pieces/" + prefix + "Q.svg");
+        m_texture_pieces[create_piece(color, PieceType::King)]   = load_svg("pieces/" + prefix + "K.svg");
     }
 
     // Other
@@ -372,8 +372,8 @@ sf::Vector2f ChessView::_board_to_screen_space(Chess::Tile tile) const {
 std::string ChessView::_game_state_to_message(Chess::GameState state) const {
     switch(state) {
         case Chess::GameState::Checkmate: {
-            PlayerColor loser = m_game_manager.get_game().get_side_to_move();
-            return (loser == PlayerColor::White) ? "Black wins by checkmate" : "White wins by checkmate";
+            Color loser = m_game_manager.get_game().get_side_to_move();
+            return (loser == Color::White) ? "Black wins by checkmate" : "White wins by checkmate";
         }
         case Chess::GameState::Stalemate:
             return "Draw by stalemate";
