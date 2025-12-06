@@ -1,6 +1,7 @@
 #include "ai/ai_minimax.hpp"
-#include<iostream> // DEBUG
+#include <iostream>
 
+static constexpr int32_t NULL_SCORE = 111'111'111;
 static constexpr int32_t INF_SCORE = 100'000'000;
 static constexpr int32_t MATE_SCORE = 100'000;
 static constexpr int32_t DRAW_SCORE = 0;
@@ -32,17 +33,63 @@ void registerMinimaxAI() {
         {"aspiration_window", "Aspiration window (centipawns)", FieldType::Int, 50}
     };
 
-
     AIRegistry::registerAI("Minimax", cfg, createMinimaxAI);
 }
 
 MinimaxAI::MinimaxAI(const std::vector<ConfigField>& cfg)
-  : m_search_position(),
-    m_tt(1000ULL),
-    m_time_limit_seconds(get_config_field_value<double>(cfg, "time_limit")),
+  : m_time_limit_seconds(get_config_field_value<double>(cfg, "time_limit")),
     m_aspiration_window_enabled(get_config_field_value<bool>(cfg, "aspiration_window_enabled")),
-    m_aspiration_window(get_config_field_value<int>(cfg, "aspiration_window"))
+    m_aspiration_window(get_config_field_value<int>(cfg, "aspiration_window")),
+    m_search_position(),
+    m_tt(m_tt_size_megabytes)
 {}
+
+MinimaxAI::MinimaxAI(const int32_t max_depth,
+                    const double time_limit_seconds,
+                    const size_t tt_size_megabytes,
+                    const bool aspiration_window_enabled,
+                    const int32_t aspiration_window,
+                    const bool enable_debug_output) 
+  : m_max_depth(max_depth),
+    m_time_limit_seconds(time_limit_seconds),
+    m_tt_size_megabytes(tt_size_megabytes),
+    m_aspiration_window_enabled(aspiration_window_enabled),
+    m_aspiration_window(aspiration_window),
+    m_search_position(),
+    m_tt(m_tt_size_megabytes),
+    m_enable_debug_output(enable_debug_output)
+{}
+
+void MinimaxAI::Stats::reset() {
+    depth = 0;
+    alpha_beta_nodes = 0;
+    quiescence_nodes = 0;
+    aspiration_misses = 0;
+    aspiration_miss_nodes = 0;
+    tt_raw_hits = 0;
+    tt_usable_hits = 0;
+    tt_cutoffs = 0;
+    eval = 0;
+    time_seconds = 0.0;
+}
+void MinimaxAI::Stats::print() const {
+    std::cout << "Stats:\n";
+    std::cout << "   Search depth: " << depth << "\n";
+    std::cout << "   Best move eval: " << eval << "\n";
+    std::cout << "   Alpha-Beta nodes: " << alpha_beta_nodes << "\n";
+    std::cout << "   Alpha-Beta nps: " << (double)alpha_beta_nodes / time_seconds << "\n";
+    std::cout << "   Quiescence nodes: " << quiescence_nodes << "\n";
+    std::cout << "   Quiescence nps: " << (double)quiescence_nodes / time_seconds << "\n";
+    std::cout << "   Aspiration misses: " << aspiration_misses << "\n";
+    std::cout << "   Aspiration miss nodes: " << aspiration_miss_nodes << "\n";
+    std::cout << "   TT raw hit %: " << (double)tt_raw_hits / (double)alpha_beta_nodes * 100.0 << "\n";
+    std::cout << "   TT usable hit %: " << (double)tt_usable_hits / (double)alpha_beta_nodes * 100.0 << "\n";
+    std::cout << "   TT cutoff %: " << (double)tt_cutoffs / (double)alpha_beta_nodes * 100.0 << "\n";
+}
+
+auto MinimaxAI::get_stats() const -> Stats {
+    return m_stats;
+}
 
 void MinimaxAI::_set_board(const FEN& fen) {
     m_search_position.set_board(fen);
@@ -79,12 +126,11 @@ UCI MinimaxAI::_compute_move() {
     m_stop_search = false;
     m_nodes_visited = 0;
 
-    uint64_t zobrist_key = m_search_position.get_position().get_zobrist_hash();
     Move best_move = 0;
     int32_t prev_score = 0;
     
     int target_depth = 1;
-    for (; target_depth <= 999; ++target_depth) {
+    for (; target_depth <= m_max_depth; ++target_depth) {
         int32_t score;
         Move move;
 
@@ -93,66 +139,75 @@ UCI MinimaxAI::_compute_move() {
             uint32_t nodes_before = m_stats.alpha_beta_nodes;
             int32_t alpha = std::max(-INF_SCORE, prev_score - m_aspiration_window);
             int32_t beta  = std::min(INF_SCORE,  prev_score + m_aspiration_window);
-            std::tie(score, move) = _root_search(alpha, beta, target_depth);
+            std::tie(score, move) = _root_search(alpha, beta, target_depth, best_move);
 
-            if (_timer_check())
+            if (m_stop_search)
                 break;
 
             // failed low or high, do a full window search
             if (score <= alpha || score >= beta) {
                 ++m_stats.aspiration_misses;
                 m_stats.aspiration_miss_nodes += m_stats.alpha_beta_nodes - nodes_before;
-                std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth);
+                std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth, best_move);
             }
         }
         else {
             // Normal search
-            std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth);
+            std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth, best_move);
         }
 
-        if (_timer_check())
+        if (m_stop_search)
             break;
-
-        int32_t store_score = normalize_score_for_tt(score, 0);
-        m_tt.store(zobrist_key, store_score, target_depth, Bound::Exact, move);
 
         prev_score = score;
         best_move = move;
     }
-    
+
     m_stats.depth = target_depth - 1;
     m_stats.eval = prev_score;
-    m_stats.print();
+    m_stats.time_seconds = m_time_limit_seconds + std::chrono::duration<double>(m_deadline - std::chrono::steady_clock::now()).count();
+
+    if (m_enable_debug_output)
+        m_stats.print();
+
     return MoveEncoding::to_uci(best_move);
 }
 
-std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, int32_t search_depth) {
+std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, int32_t search_depth, Move previous_best) {
     ++m_stats.alpha_beta_nodes;
-    uint64_t zobrist_key = m_search_position.get_position().get_zobrist_hash();
+
     Color side = m_search_position.get_position().get_side_to_move();
     Move best_move = 0;
 
     MoveList move_list;
     move_list.generate<GenerateType::Legal>(m_search_position.get_position());
-    _order_moves(move_list, m_tt.find(zobrist_key));
+    _order_moves(move_list, previous_best);
 
     for (const Move& move : move_list) {
         m_search_position.make_move(move);
-
         int32_t score = -_alpha_beta(-beta, -alpha, search_depth - 1, 1);
+        m_search_position.undo_move();
+
+        if (m_stop_search) {
+            return {NULL_SCORE, 0}; // timed out
+        }
+
         if (score > alpha) {
             alpha = score;
             best_move = move;
         }
-        m_search_position.undo_move();
+        if (alpha >= beta) {
+            // refutation move found, fail-high node
+            return {alpha, best_move};
+        }
     }
 
     return {alpha, best_move};
 }
 
-int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) {
+int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32_t ply) {
     if (_timer_check())
-        return DRAW_SCORE;
+        return NULL_SCORE;
 
     if (m_search_position.get_position().get_halfmove_clock() >= 100)
         return DRAW_SCORE; // fifty-move rule
@@ -162,10 +217,13 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
             return DRAW_SCORE; // threefold repetition
     }
 
-    if (depth == 0)
+    if (depth <= 0)
         return _quiescence(alpha, beta, ply);
 
     ++m_stats.alpha_beta_nodes;
+
+    Color side = m_search_position.get_position().get_side_to_move();
+    int32_t starting_alpha = alpha;
 
     uint64_t zobrist_key = m_search_position.get_position().get_zobrist_hash();
     const TTEntry* tt_entry = m_tt.find(zobrist_key);
@@ -174,26 +232,28 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
         ++m_stats.tt_usable_hits;
         // use stored entry (adjusted mate-distance for current ply)
         int32_t stored = adjust_score_from_tt(tt_entry->score, ply);
-        Bound bound = static_cast<Bound>(tt_entry->bound);
-        if (bound == Bound::Exact) {
+        if (tt_entry->bound == Bound::Exact) {
             ++m_stats.tt_cutoffs;
             return stored;
         } 
-        if (bound == Bound::Lower) alpha = std::max(alpha, stored);
-        else if (bound == Bound::Upper) beta = std::min(beta, stored);
+        else if (tt_entry->bound == Bound::Lower) {
+            alpha = std::max(alpha, stored);
+        }
+        else if (tt_entry->bound == Bound::Upper) {
+            beta = std::min(beta, stored);
+        }
         if (alpha >= beta) {
             ++m_stats.tt_cutoffs;
             return stored;
         }
     }
 
-    Color side = m_search_position.get_position().get_side_to_move();
-    int32_t starting_alpha = alpha;
-    Move best_move;
+    int32_t best_score = -INF_SCORE;
+    Move best_move = 0;
 
     MoveList move_list;
     move_list.generate<GenerateType::Legal>(m_search_position.get_position());
-    _order_moves(move_list, tt_entry);
+    _order_moves(move_list, tt_entry ? tt_entry->best_move : 0);
 
     if (move_list.count() == 0) {
         if (m_search_position.get_position().in_check()) {
@@ -210,108 +270,163 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int depth, int ply) 
         m_search_position.make_move(move);
 
         int32_t score = -_alpha_beta(-beta, -alpha, depth - 1, ply + 1);
-        if (score > alpha) {
-            // best move found so far
-            alpha = score;
-            best_move = move;
-        }
-        if (alpha >= beta) {
-            // refutation move found, fail-high node
-            m_search_position.undo_move();
-            int32_t store_score = normalize_score_for_tt(alpha, ply);
-            m_tt.store(zobrist_key, store_score, depth, Bound::Lower, best_move);
-            return beta;
-        }
         m_search_position.undo_move();
+
+        if (m_stop_search) {
+            return NULL_SCORE; // timed out
+        }
+
+        if (score > best_score) {
+            best_score = score;
+            best_move = move;
+
+            if (score > alpha) {
+                if (score < beta) {
+                    // continue searching
+                    alpha = score;
+                }
+                else {
+                    // refutation move found, fail-high node
+                    break;
+                }
+            }
+        }
     }
 
-    int32_t store_score = normalize_score_for_tt(alpha, ply);
-    Bound bound = (alpha > starting_alpha) ? Bound::Exact : Bound::Upper;
+    int32_t store_score = normalize_score_for_tt(best_score, ply);
+    Bound bound = (best_score <= starting_alpha) ? Bound::Upper
+                          : (best_score >= beta) ? Bound::Lower
+                                                 : Bound::Exact;
     m_tt.store(zobrist_key, store_score, depth, bound, best_move);
 
-    return alpha;
+    return best_score;
 }
 
-inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int ply) {
+inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int32_t ply) {
     ++m_stats.quiescence_nodes;
     if (_timer_check())
-        return DRAW_SCORE;
+        return NULL_SCORE;
 
-    // Stand pat evaluation
-    int32_t best_score = m_search_position.get_eval();
-    if (best_score >= beta) return best_score;
-    if (best_score > alpha) alpha = best_score;
-
-    uint64_t zobrist_key = m_search_position.get_position().get_zobrist_hash();
     MoveList move_list;
-    move_list.generate<GenerateType::Legal>(m_search_position.get_position());
-    _order_moves(move_list, m_tt.find(zobrist_key));
+    int32_t best_score;
+    
+    if (!m_search_position.get_position().in_check()) {
+        // Stand pat evaluation
+        best_score = m_search_position.get_eval();
+        if (best_score >= beta) return best_score;
+        if (best_score > alpha) alpha = best_score;
+
+        move_list.generate<GenerateType::Captures>(m_search_position.get_position());
+        if (move_list.count() == 0) {
+            // No captures and not in check, return static eval
+            return alpha;
+        }
+    } 
+    else {
+        best_score = -INF_SCORE;
+        move_list.generate<GenerateType::Evasions>(m_search_position.get_position());
+        if (move_list.count() == 0) {
+            // Checkmate with ply bonus to prefer faster mates
+            return -MATE_SCORE + ply;
+        }
+    }
+
+    // not probing TT in quiescence search, tested to be faster
+    _order_moves(move_list, 0);
 
     if (move_list.count() == 0) 
         return alpha;
 
     for (const Move& move : move_list) {
-        // Only consider captures in quiescence search
-        PieceType captured = m_search_position.get_position().to_capture(move);
-        if (captured == PieceType::None)
-            continue;
-
         m_search_position.make_move(move);
+
         int32_t score = -_quiescence(-beta, -alpha, ply + 1);
         m_search_position.undo_move();
-        if (score >= beta) return score;
-        if (score > best_score) best_score = score;
-        if (score > alpha) alpha = score;
+
+        if (score > best_score) {
+            best_score = score;
+
+            if (score > alpha) {
+                if (score < beta) {
+                    alpha = score;
+                }
+                else {
+                    // fail-high
+                    break;
+                }
+            }
+        }
     }
 
     return best_score;
 }
 
-inline void MinimaxAI::_order_moves(MoveList& move_list, const TTEntry* tt_entry) const {
-    thread_local static std::array<int32_t, MAX_MOVE_LIST_SIZE> scores;
-    Move tt_best = tt_entry ? tt_entry->best_move : 0;
+inline void MinimaxAI::_order_moves(MoveList& move_list, const Move tt_move) const {
+    struct Scored {
+        Move move;
+        int32_t score;
+    };
+    thread_local static std::array<Scored, MAX_MOVE_LIST_SIZE> scored;
 
-    for (size_t i = 0; i < move_list.count(); i++) {
-        scores[i] = 0;
-        Move& move = move_list[i];
-        MoveType move_type = MoveEncoding::move_type(move);
+    size_t n = move_list.count();
+    for (size_t i = 0; i < n; i++) {
+        scored[i].score = 0;
+        scored[i].move = move_list[i];
 
         // TT best move top priority
-        if (move == tt_best) {
-            scores[i] += 10'000'000;
+        if (scored[i].move == tt_move) {
+            scored[i].score += 10'000'000;
+            continue;
         }
 
         // Captures, least valuable attacker capturing most valuable victim
-        PieceType captured = m_search_position.get_position().to_capture(move);
+        PieceType captured = m_search_position.get_position().to_capture(scored[i].move);
         if (captured != PieceType::None) {
-            PieceType attacker = m_search_position.get_position().to_moved(move);
-            scores[i] += 1'000'000 + m_search_position.material_value(captured) * 100 - m_search_position.material_value(attacker);
+            PieceType attacker = m_search_position.get_position().to_moved(scored[i].move);
+            scored[i].score += 1'000'000 + m_search_position.material_value(captured) * 100 - m_search_position.material_value(attacker);
+            continue;
         }
 
         // Promotions
-        if (move_type == MoveType::Promotion) {
-            PieceType promo = MoveEncoding::promo(move);
-            scores[i] += 800'000 + m_search_position.material_value(promo) * 100;
+        if (MoveEncoding::move_type(scored[i].move) == MoveType::Promotion) {
+            PieceType promo = MoveEncoding::promo(scored[i].move);
+            scored[i].score += 800'000 + m_search_position.material_value(promo) * 100;
+            continue;
         }
 
-        // Prefer quiet moves that move towards center
-        Square to = MoveEncoding::to_sq(move);
+        // Quiet moves left
+
+        // Prefer non-pawn non-king moves
+        PieceType mover = m_search_position.get_position().to_moved(scored[i].move);
+        scored[i].score += (mover < PieceType::Pawn) ? 1'000 : 0;
+
+        // Prefer moves that move towards center
+        Square to = MoveEncoding::to_sq(scored[i].move);
         int center_dist = std::abs(3 - file_of(to)) + std::abs(3 - rank_of(to));
-        scores[i] += (10 - center_dist);
+        scored[i].score += (10 - center_dist);
     }
 
-    // insertion sort (descending)
-    for (size_t i = 1; i < move_list.count(); ++i) {
-        Move move = move_list[i];
-        int32_t score = scores[i];
-        ssize_t j = (ssize_t)i - 1;
-        while (j >= 0 && scores[j] < score) {
-            move_list[j + 1] = move_list[j];
-            scores[j + 1] = scores[j];
-            --j;
+    if (n <= 32) {
+        // insertion sort (descending)
+        for (size_t i = 1; i < n; ++i) {
+            Scored item = scored[i];
+            ssize_t j = (ssize_t)i - 1;
+            while (j >= 0 && scored[j].score < item.score) {
+                move_list[j + 1] = move_list[j];
+                scored[j + 1] = scored[j];
+                --j;
+            }
+            move_list[j + 1] = item.move;
+            scored[j + 1] = item;
         }
-        move_list[j + 1] = move;
-        scores[j + 1] = score;
+    }
+    else {
+        // normal sort (descending)
+        std::stable_sort(scored.begin(), scored.begin() + n, [&](Scored a, Scored b) {
+            return a.score > b.score;
+        });
+        for (size_t i = 0; i < n; ++i)
+            move_list[i] = scored[i].move;
     }
 }
 

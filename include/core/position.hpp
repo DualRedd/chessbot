@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <array>
 #include <optional>
 
 #include "bitboard.hpp"
@@ -89,6 +90,12 @@ public:
     Bitboard get_pieces(Color color) const;
 
     /**
+     * @param type the piece type to query
+     * @return Bitboard for the given piece type.
+     */
+    Bitboard get_pieces(PieceType type) const;
+
+    /**
      * @return Bitboard for all pieces.
      */
     Bitboard get_pieces() const;
@@ -126,9 +133,16 @@ public:
     bool attackers_exist(Color side, Square square, Bitboard occupied) const;
 
     /**
-     * @return Bitboard of pinned pieces for the side to move.
+     * @param side the side to query
+     * @return Bitboard of check blockers for the given side (can be opponent pieces too).
      */
-    Bitboard get_pinned() const;
+    Bitboard get_king_blockers(Color side) const;
+
+    /**
+     * @param side the side to query
+     * @return Bitboard of pinners for the given side.
+     */
+    Bitboard get_pinners(Color side) const;
 
     /**
      * @param side the color to query
@@ -137,6 +151,12 @@ public:
      * @note This does not check for legality of the castling move itself!
      */
     bool has_castle(Color side, CastlingSide castle_side) const;
+
+    /**
+     * @param move the move to evaluate
+     * @return Static Exchange Evaluation (SEE) value for the given move.
+     */
+    uint32_t static_exchange_evaluation(Move move) const;
 
     /**
      * Apply a Move on this board.
@@ -172,64 +192,81 @@ public:
 
 private:
     /**
-     * Reversable state transition.
+     * Reversable state transition. 48 bytes, no padding.
      */
     struct StoredState {
+        uint64_t zobrist;
         Move move;
+        Piece captured_piece;
         uint8_t castling_rights;
         Square en_passant_square;
-        Piece captured_piece;
-        uint64_t zobrist;
-        Bitboard pinned;
-        uint32_t halfmoves;
+        uint8_t halfmoves;
+        std::array<bool, 2> pins_computed;
+        std::array<Bitboard, 2> king_blockers;
+        std::array<Bitboard, 2> pinners;
         StoredState(Move move, Piece captured_piece, uint8_t castling_rights,
-            Square en_passant_square, uint32_t halfmoves, uint64_t zobristm, Bitboard pinned);
+            Square en_passant_square, uint8_t halfmoves, uint64_t zobrist,
+            std::array<Bitboard, 2> king_blockers, std::array<Bitboard, 2> pinners,
+            std::array<bool, 2> pins_computed);
     };
 
-    void _calculate_pinned(Color side) const;
+    // Helper to compute pins and blockers for the given side
+    void _compute_pins(Color side) const;
 
 private:
     std::vector<StoredState> m_state_history;
 
-    Bitboard m_pieces[2][6];         // [color][piece]
-    Bitboard m_occupied[2];          // [color]
-    Bitboard m_occupied_all;         // all pieces
-    Piece m_piece_on_square[64];     // [square]
-
-    mutable Bitboard m_pinned;       // pinned pieces
-    mutable bool m_pinned_calculated;
+    Bitboard m_pieces_by_type[7];   // [piece type]
+    Bitboard m_pieces_by_color[2];  // [color]
+    Piece m_piece_on_square[64];    // [square]
+    
+    mutable std::array<Bitboard, 2> m_king_blockers; // [color]
+    mutable std::array<Bitboard, 2> m_pinners;       // [color]
+    mutable std::array<bool, 2> m_pins_computed;     // [color]
 
     Color m_side_to_move;
-    uint8_t m_castling_rights;       // bitmask: WK=1, WQ=2, BK=4, BQ=8
-    Square m_en_passant_square;      // 0–63 or -1 if none
-    uint32_t m_halfmoves;
+    uint8_t m_castling_rights;      // bitmask: WK=1, WQ=2, BK=4, BQ=8
+    Square m_en_passant_square;     // 0–63 or -1 if none
+    uint8_t m_halfmoves;
     uint32_t m_fullmoves;
     uint64_t m_zobrist;
 };
 
 
 inline Bitboard Position::get_pieces(Color color, PieceType type) const {
-    return m_pieces[+color][+type];
+    return m_pieces_by_type[+type] & m_pieces_by_color[+color];
 }
 
 inline Bitboard Position::get_pieces(Color color) const {
-    return m_occupied[+color];
+    return m_pieces_by_color[+color];
+}
+
+inline Bitboard Position::get_pieces(PieceType type) const {
+    return m_pieces_by_type[+type];
 }
 
 inline Bitboard Position::get_pieces() const {
-    return m_occupied_all;
+    return m_pieces_by_type[+PieceType::All];
 }
 
 inline Square Position::get_en_passant_square() const {
     return m_en_passant_square;
 }
 
-inline Bitboard Position::get_pinned() const {
-    if (!m_pinned_calculated) {
-        _calculate_pinned(m_side_to_move);
-        m_pinned_calculated = true;
+inline Bitboard Position::get_king_blockers(Color side) const {
+    if (!m_pins_computed[+side]) {
+        _compute_pins(side);
+        m_pins_computed[+side] = true;
     }
-    return m_pinned;
+    return m_king_blockers[+side];
+}
+
+inline Bitboard Position::get_pinners(Color side) const {
+    if (!m_pins_computed[+side]) {
+        _compute_pins(side);
+        m_pins_computed[+side] = true;
+    }
+    return m_pinners[+side];
 }
 
 inline uint64_t Position::get_zobrist_hash() const {
@@ -270,13 +307,11 @@ inline bool Position::has_castle(Color side, CastlingSide castle_side) const {
 }
 
 inline Bitboard Position::attackers(Color side, Square square, Bitboard occupied) const {
-    Color opp = opponent(side);
+    const Color opp = opponent(side);
+    const Bitboard bishops = get_pieces(side, PieceType::Bishop) | get_pieces(side, PieceType::Queen);
+    const Bitboard rooks = get_pieces(side, PieceType::Rook) | get_pieces(side, PieceType::Queen);
+
     Bitboard attackers = 0ULL;
-
-    Bitboard bishops = get_pieces(side, PieceType::Bishop) | get_pieces(side, PieceType::Queen);
-    Bitboard rooks = get_pieces(side, PieceType::Rook) | get_pieces(side, PieceType::Queen);
-
-    // Pawn attacks
     attackers |= MASK_PAWN_ATTACKS[+opp][+square] & get_pieces(side, PieceType::Pawn);
     attackers |= MASK_KNIGHT_ATTACKS[+square] & get_pieces(side, PieceType::Knight);
     attackers |= MASK_KING_ATTACKS[+square] & get_pieces(side, PieceType::King);
@@ -287,7 +322,9 @@ inline Bitboard Position::attackers(Color side, Square square, Bitboard occupied
 }
 
 inline bool Position::attackers_exist(Color side, Square square, Bitboard occupied) const {
-    Color opp = opponent(side);
+    const Color opp = opponent(side);
+    const Bitboard bishops = get_pieces(side, PieceType::Bishop) | get_pieces(side, PieceType::Queen);
+    const Bitboard rooks = get_pieces(side, PieceType::Rook) | get_pieces(side, PieceType::Queen);
 
     if (MASK_PAWN_ATTACKS[+opp][+square] & get_pieces(side, PieceType::Pawn))
         return true;
@@ -295,12 +332,8 @@ inline bool Position::attackers_exist(Color side, Square square, Bitboard occupi
         return true;
     if (MASK_KING_ATTACKS[+square] & get_pieces(side, PieceType::King))
         return true;
-
-    Bitboard bishops = get_pieces(side, PieceType::Bishop) | get_pieces(side, PieceType::Queen);
     if (attacks_from<PieceType::Bishop>(square, occupied) & bishops)
         return true;
-
-    Bitboard rooks = get_pieces(side, PieceType::Rook) | get_pieces(side, PieceType::Queen);
     if (attacks_from<PieceType::Rook>(square, occupied) & rooks)
         return true;
 
@@ -308,16 +341,15 @@ inline bool Position::attackers_exist(Color side, Square square, Bitboard occupi
 }
 
 inline PieceType Position::to_capture(Move move) const {
-    Square to = MoveEncoding::to_sq(move);
+    const Square to = MoveEncoding::to_sq(move);
     if (MoveEncoding::move_type(move) == MoveType::EnPassant) {
-        Square capture_square = (m_side_to_move == Color::White) ? (to + Shift::Down) : (to + Shift::Up);
+        const Square capture_square = (m_side_to_move == Color::White) ? (to + Shift::Down) : (to + Shift::Up);
         return to_type(get_piece_at(capture_square));
     }
     return to_type(get_piece_at(to));
 }
 
 inline PieceType Position::to_moved(Move move) const {
-    Square from = MoveEncoding::from_sq(move);
+    const Square from = MoveEncoding::from_sq(move);
     return to_type(get_piece_at(from));
 }
-

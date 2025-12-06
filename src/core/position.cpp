@@ -4,29 +4,31 @@
 #include <sstream>
 
 Position::StoredState::StoredState(Move move, Piece captured_piece, uint8_t castling_rights,
-            Square en_passant_square, uint32_t halfmoves, uint64_t zobrist, Bitboard pinned) 
+            Square en_passant_square, uint8_t halfmoves, uint64_t zobrist,
+            std::array<Bitboard, 2> king_blockers, std::array<Bitboard, 2> pinners,
+            std::array<bool, 2> pins_computed) 
   : move(move),
     captured_piece(captured_piece),
     castling_rights(castling_rights),
     en_passant_square(en_passant_square),
     zobrist(zobrist),
     halfmoves(halfmoves),
-    pinned(pinned) {}
-
+    king_blockers(king_blockers),
+    pinners(pinners),
+    pins_computed(pins_computed) {}
 
 Position::Position(const FEN& fen) {
     from_fen(fen);
+    m_state_history.reserve(500);
 }
 
 Position::Position(const Position& other, bool copy_history) {
-    std::memcpy(m_pieces, other.m_pieces, sizeof(m_pieces));
-    std::memcpy(m_occupied, other.m_occupied, sizeof(m_occupied));
-    m_occupied_all = other.m_occupied_all;
+    std::memcpy(m_pieces_by_type, other.m_pieces_by_type, sizeof(m_pieces_by_type));
+    std::memcpy(m_pieces_by_color, other.m_pieces_by_color, sizeof(m_pieces_by_color));
     std::memcpy(m_piece_on_square, other.m_piece_on_square, sizeof(m_piece_on_square));
 
-    m_pinned = other.m_pinned;
-    m_pinned_calculated = other.m_pinned_calculated;
-
+    m_king_blockers = other.m_king_blockers;
+    m_pins_computed = other.m_pins_computed;
     m_side_to_move = other.m_side_to_move;
     m_castling_rights = other.m_castling_rights;
     m_en_passant_square = other.m_en_passant_square;
@@ -40,16 +42,9 @@ Position::Position(const Position& other, bool copy_history) {
 
 void Position::from_fen(const FEN& fen) {
     // Clear the board
-    m_occupied_all = 0ULL;
-    for (int color = 0; color < 2; ++color) {
-        m_occupied[color] = 0ULL;
-        for (int piece = 0; piece < 6; ++piece) {
-            m_pieces[color][piece] = 0ULL;
-        }
-    }
-    for (int square = 0; square < 64; square++) {
-        m_piece_on_square[square] = Piece::None;
-    }
+    std::memset(m_pieces_by_type, 0, sizeof(m_pieces_by_type));
+    std::memset(m_pieces_by_color, 0, sizeof(m_pieces_by_color));
+    std::memset(m_piece_on_square, static_cast<int>(Piece::None), sizeof(m_piece_on_square));
 
     // Clear state history
     m_state_history.clear();
@@ -61,8 +56,7 @@ void Position::from_fen(const FEN& fen) {
     m_castling_rights = 0;
     m_en_passant_square = Square::None;
     m_zobrist = 0ULL;
-    m_pinned = 0ULL;
-    m_pinned_calculated = false;
+    m_pins_computed.fill(false);
 
     // Parse FEN
     std::istringstream iss(fen);
@@ -128,9 +122,9 @@ void Position::from_fen(const FEN& fen) {
 
         Square square = create_square(file, rank);
         m_piece_on_square[+square] = create_piece(color, type);
-        m_pieces[+color][+type] |= MASK_SQUARE[+square];
-        m_occupied[+color] |= MASK_SQUARE[+square];
-        m_occupied_all |= MASK_SQUARE[+square];
+        m_pieces_by_color[+color] |= MASK_SQUARE[+square];
+        m_pieces_by_type[+type] |= MASK_SQUARE[+square];
+        m_pieces_by_type[+PieceType::All] |= MASK_SQUARE[+square];
 
         file++;
     }
@@ -158,7 +152,7 @@ void Position::from_fen(const FEN& fen) {
                     {
                         throw std::invalid_argument("Position::from_fen() - FEN castling rights description does not match board state! '" + fen + "'");
                     }
-                    m_castling_rights |= castling_flag(Color::White, CastlingSide::KingSide);  break; 
+                    m_castling_rights |= +CastlingFlag::WhiteKingSide; break; 
                 }
                 case 'Q': { // white queenside
                     if(m_piece_on_square[+king_start_square(Color::White)] != Piece::WKing
@@ -166,7 +160,7 @@ void Position::from_fen(const FEN& fen) {
                     {
                         throw std::invalid_argument("Position::from_fen() - FEN castling rights description does not match board state! '" + fen + "'");
                     }
-                    m_castling_rights |= castling_flag(Color::White, CastlingSide::QueenSide); break;
+                    m_castling_rights |= +CastlingFlag::WhiteQueenSide; break;
                 }
                 case 'k': { // black kingside
                     if(m_piece_on_square[+king_start_square(Color::Black)] != Piece::BKing
@@ -174,7 +168,7 @@ void Position::from_fen(const FEN& fen) {
                     {
                         throw std::invalid_argument("Position::from_fen() - FEN castling rights description does not match board state! '" + fen + "'");
                     }
-                    m_castling_rights |= castling_flag(Color::Black, CastlingSide::KingSide); break; 
+                    m_castling_rights |= +CastlingFlag::BlackKingSide; break; 
                 }
                 case 'q': { // black queenside
                     if(m_piece_on_square[+king_start_square(Color::Black)] != Piece::BKing
@@ -182,7 +176,7 @@ void Position::from_fen(const FEN& fen) {
                     {
                         throw std::invalid_argument("Position::from_fen() - FEN castling rights description does not match board state! '" + fen + "'");
                     }
-                    m_castling_rights |= castling_flag(Color::Black, CastlingSide::QueenSide); break; 
+                    m_castling_rights |= +CastlingFlag::BlackQueenSide; break; 
                 }
                 default: throw std::invalid_argument(std::string("Position::from_fen() - FEN castling rights description unknown character '") + c + "'!");
             }
@@ -200,7 +194,7 @@ void Position::from_fen(const FEN& fen) {
         m_en_passant_square = create_square(file, rank);
 
         Square capture_piece_square = m_en_passant_square + (m_side_to_move == Color::White ? Shift::Down : Shift::Up);
-        if ((m_pieces[+opponent(m_side_to_move)][+PieceType::Pawn] & MASK_SQUARE[+capture_piece_square]) == 0ULL) {
+        if (get_piece_at(capture_piece_square) != create_piece(opponent(m_side_to_move), PieceType::Pawn)) {
             throw std::invalid_argument("Position::from_fen() - FEN invalid en passant description! Missing pawn to capture.");
         }
     }
@@ -212,27 +206,21 @@ void Position::from_fen(const FEN& fen) {
     if (in_check(opponent(m_side_to_move))) {
         throw std::invalid_argument("Position::from_fen() - illegal FEN! King capture possible.");
     }
-    if (PROMOTION_RANKS & (m_pieces[+Color::White][+PieceType::Pawn] | m_pieces[+Color::Black][+PieceType::Pawn])) {
+    if (PROMOTION_RANKS & get_pieces(PieceType::Pawn)) {
         throw std::invalid_argument("Position::from_fen() - illegal FEN! Unpromoted pawn on last rank.");
     }
 
     // Compute Zobrist hash for current position
-    for (int color = 0; color < 2; ++color) {
-        for (int piece = 0; piece < 6; ++piece) {
-            Bitboard bb = m_pieces[color][piece];
-            while (bb) {
-                Square square = lsb(bb);
-                m_zobrist ^= ZOBRIST_PIECE[color][piece][+square];
-                pop_lsb(bb);
-            }
+    for(int sq = 0; sq < 64; sq++) {
+        Piece piece = get_piece_at(Square(sq));
+        assert(piece != Piece::All);
+        if (piece != Piece::None) {
+            m_zobrist ^= ZOBRIST_PIECE[+piece][sq];
         }
     }
     m_zobrist ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F];
     if (m_en_passant_square != Square::None) m_zobrist ^= ZOBRIST_EP[+file_of(m_en_passant_square)];
     if (m_side_to_move == Color::Black) m_zobrist ^= ZOBRIST_SIDE;
-
-    // Compute pinned pieces
-    _calculate_pinned(m_side_to_move);
 }
 
 FEN Position::to_fen() const {
@@ -295,14 +283,14 @@ FEN Position::to_fen() const {
     }
 
     // 5. Halfmove and fullmove counters
-    oss << ' ' << m_halfmoves << ' ' << m_fullmoves;
+    oss << ' ' << (int)m_halfmoves << ' ' << (int)m_fullmoves;
 
     return oss.str();
 }
     
 bool Position::in_check(Color side) const {
-    assert(m_pieces[+side][+PieceType::King] != 0ULL);
-    Square king_sq = lsb(m_pieces[+side][+PieceType::King]);
+    assert(get_pieces(side, PieceType::King) != 0ULL);
+    Square king_sq = lsb(get_pieces(side, PieceType::King));
     return attackers_exist(opponent(side), king_sq, get_pieces());
 }
 
@@ -310,69 +298,111 @@ bool Position::in_check() const {
     return in_check(m_side_to_move);
 }
 
+
+uint32_t Position::static_exchange_evaluation(Move move) const {
+    // WIP
+    /*const MoveType move_type = MoveEncoding::move_type(move);
+    
+    if (move_type != MoveType::Normal) {
+        return 0;
+    }
+
+    const Square from = MoveEncoding::from_sq(move);
+    const Square to = MoveEncoding::to_sq(move);
+    const PieceType promo = MoveEncoding::promo(move);
+
+    Color side = m_side_to_move;
+    Bitboard occupied = get_pieces() ^ MASK_SQUARE[+from];
+    Bitboard all_attackers = attackers(side, to, occupied) | attackers(opponent(side), to, occupied);
+    Bitboard pc;
+
+    while (true) {
+        side = opponent(side);
+        Bitboard side_attackers = all_attackers & get_pieces(side);
+
+        // Remove pinned pieces from attackers if pinners still exist
+        if ((get_pinners(side) && occupied) != 0ULL) {
+            side_attackers &= ~get_king_blockers(side);
+        }
+
+        if (side_attackers == 0ULL)
+            break; // No more attackers
+
+        // Find least valuable attacker
+        pc = get_pieces(side, PieceType::Pawn) & side_attackers;
+        if (pc != 0ULL) {
+            occupied ^= MASK_SQUARE[+lsb(pc)];
+
+            // add possible discovered attacks
+            all_attackers |= attacks_from<PieceType::Bishop>(to, occupied)
+                            & (get_pieces(side, PieceType::Bishop) | get_pieces(side, PieceType::Queen)
+                            | get_pieces(opponent(side), PieceType::Bishop) | get_pieces(opponent(side), PieceType::Queen));
+        }
+
+        pc = get_pieces(side, PieceType::Knight) & side_attackers;
+    }*/
+
+    return 0;
+}
+
+
 void Position::make_move(Move move) {
     const Color opp = opponent(m_side_to_move);
     const Square from = MoveEncoding::from_sq(move);
     const Square to = MoveEncoding::to_sq(move);
     const PieceType promo = MoveEncoding::promo(move);
     const MoveType move_type = MoveEncoding::move_type(move);
-    const Piece moved_piece = m_piece_on_square[+from];
+    const Piece moved_piece = get_piece_at(from);
 
     assert(is_valid_square(from) && is_valid_square(to) && from != to);
-    assert(m_piece_on_square[+from] != Piece::None);
-    assert(to_color(m_piece_on_square[+from]) == m_side_to_move);
+    assert(to_color(moved_piece) == m_side_to_move);
+    assert(moved_piece != Piece::None && moved_piece != Piece::All);
 
-    // Determine capture square (handling en passant)
-    Square capture_square = to;
-    if (move_type == MoveType::EnPassant) {
-        capture_square = (m_side_to_move == Color::White) ? (to + Shift::Down) : (to + Shift::Up);
+    // Determine capture (handling en passant)
+    const Square capture_square = move_type == MoveType::EnPassant ? to - pawn_dir(m_side_to_move) : to;
+    const Piece captured = get_piece_at(capture_square);
 
-        assert(to == m_en_passant_square);
-        assert(m_piece_on_square[+capture_square] == create_piece(opp, PieceType::Pawn));
-        assert(m_piece_on_square[+to] == Piece::None);
-        assert(rank_of(to) == (m_side_to_move == Color::White ? 5 : 2));
-    }
+    assert(captured != Piece::All);
+    assert(move_type != MoveType::EnPassant || to == m_en_passant_square);
+    assert(move_type != MoveType::EnPassant || get_piece_at(capture_square) == create_piece(opp, PieceType::Pawn));
+    assert(move_type != MoveType::EnPassant || get_piece_at(to) == Piece::None);
+    assert(move_type != MoveType::EnPassant || rank_of(to) == (m_side_to_move == Color::White ? 5 : 2));
 
     // Store state to history
-    m_state_history.emplace_back(StoredState(move, m_piece_on_square[+capture_square], m_castling_rights,
-                                            m_en_passant_square, m_halfmoves, m_zobrist, m_pinned));
+    m_state_history.emplace_back(StoredState(move, captured, m_castling_rights, m_en_passant_square,
+                                    m_halfmoves, m_zobrist, m_king_blockers, m_pinners, m_pins_computed));
 
     // Update move counters
     m_halfmoves++;
-    if (m_side_to_move == Color::Black) m_fullmoves++;
+    m_fullmoves += +m_side_to_move; // Black = 1
 
     // Remove moved piece from the origin square
-    m_pieces[+m_side_to_move][+to_type(moved_piece)] &= ~MASK_SQUARE[+from];
-    m_occupied[+m_side_to_move] &= ~MASK_SQUARE[+from];
+    m_pieces_by_type[+to_type(moved_piece)] &= ~MASK_SQUARE[+from];
+    m_pieces_by_type[+PieceType::All] &= ~MASK_SQUARE[+from];
+    m_pieces_by_color[+m_side_to_move] &= ~MASK_SQUARE[+from];
     m_piece_on_square[+from] = Piece::None;
-    m_zobrist ^= ZOBRIST_PIECE[+m_side_to_move][+to_type(moved_piece)][+from];
+    m_zobrist ^= ZOBRIST_PIECE[+moved_piece][+from];
 
     // Remove captured piece
-    PieceType captured_piece_type = to_type(m_piece_on_square[+capture_square]);
-    if (captured_piece_type != PieceType::None) {
-        assert(m_piece_on_square[+capture_square] != Piece::None);
-        assert(to_color(m_piece_on_square[+capture_square]) == opp);
+    if (captured != Piece::None) {
+        assert(get_piece_at(capture_square) != Piece::None);
+        assert(to_color(get_piece_at(capture_square)) == opp);
 
-        m_pieces[+opp][+captured_piece_type] &= ~MASK_SQUARE[+capture_square];
-        m_occupied[+opp] &= ~MASK_SQUARE[+capture_square];
+        m_pieces_by_type[+to_type(captured)] &= ~MASK_SQUARE[+capture_square];
+        m_pieces_by_type[+PieceType::All] &= ~MASK_SQUARE[+capture_square];
+        m_pieces_by_color[+opp] &= ~MASK_SQUARE[+capture_square];
         m_piece_on_square[+capture_square] = Piece::None;
-        m_zobrist ^= ZOBRIST_PIECE[+opp][+captured_piece_type][+capture_square];
+        m_zobrist ^= ZOBRIST_PIECE[+captured][+capture_square];
         m_halfmoves = 0; // reset on capture
     }
 
     // Place moved piece / promotion on target square
-    if (move_type == MoveType::Promotion) {
-        m_occupied[+m_side_to_move] |= MASK_SQUARE[+to];
-        m_pieces[+m_side_to_move][+promo] |= MASK_SQUARE[+to];
-        m_piece_on_square[+to] = create_piece(m_side_to_move, promo);
-        m_zobrist ^= ZOBRIST_PIECE[+m_side_to_move][+promo][+to];
-    }
-    else {
-        m_occupied[+m_side_to_move] |= MASK_SQUARE[+to];
-        m_pieces[+m_side_to_move][+to_type(moved_piece)] |= MASK_SQUARE[+to];
-        m_piece_on_square[+to] = moved_piece;
-        m_zobrist ^= ZOBRIST_PIECE[+m_side_to_move][+to_type(moved_piece)][+to];
-    }
+    const Piece to_add = (move_type == MoveType::Promotion) ? create_piece(m_side_to_move, promo) : moved_piece;
+    m_pieces_by_type[+to_type(to_add)] |= MASK_SQUARE[+to];
+    m_pieces_by_type[+PieceType::All] |= MASK_SQUARE[+to];
+    m_pieces_by_color[+m_side_to_move] |= MASK_SQUARE[+to];
+    m_piece_on_square[+to] = to_add;
+    m_zobrist ^= ZOBRIST_PIECE[+to_add][+to];
 
     // Handle castling
     if (move_type == MoveType::Castle) {
@@ -380,56 +410,47 @@ void Position::make_move(Move move) {
         Square rook_to = static_cast<Square>((+to + +from) >> 1); // to + from / 2
 
         assert(from == king_start_square(m_side_to_move));
-        assert(m_piece_on_square[+rook_from] == create_piece(m_side_to_move, PieceType::Rook));
-        assert(m_piece_on_square[+rook_to] == Piece::None);
+        assert(get_piece_at(rook_from) == create_piece(m_side_to_move, PieceType::Rook));
+        assert(get_piece_at(rook_to) == Piece::None);
 
-        // Add rook
-        m_pieces[+m_side_to_move][+PieceType::Rook] |= MASK_SQUARE[+rook_to];
-        m_occupied[+m_side_to_move] |= MASK_SQUARE[+rook_to];
+        m_pieces_by_type[+PieceType::Rook] ^= MASK_SQUARE[+rook_from] | MASK_SQUARE[+rook_to];
+        m_pieces_by_type[+PieceType::All] ^= MASK_SQUARE[+rook_from] | MASK_SQUARE[+rook_to];
+        m_pieces_by_color[+m_side_to_move] ^= MASK_SQUARE[+rook_from] | MASK_SQUARE[+rook_to];
         m_piece_on_square[+rook_to] = m_piece_on_square[+rook_from];
-        m_zobrist ^= ZOBRIST_PIECE[+m_side_to_move][+PieceType::Rook][+rook_to];
-
-        // Remove rook
-        m_pieces[+m_side_to_move][+PieceType::Rook] &= ~MASK_SQUARE[+rook_from];
-        m_occupied[+m_side_to_move] &= ~MASK_SQUARE[+rook_from];
         m_piece_on_square[+rook_from] = Piece::None;
-        m_zobrist ^= ZOBRIST_PIECE[+m_side_to_move][+PieceType::Rook][+rook_from];
+        m_zobrist ^= ZOBRIST_PIECE[+m_piece_on_square[+rook_to]][+rook_from]
+                   ^ ZOBRIST_PIECE[+m_piece_on_square[+rook_to]][+rook_to];
     }
 
-    // Update all occupancy
-    m_occupied_all = m_occupied[0] | m_occupied[1];
-
     // Update castling rights
-    if(m_castling_rights && (MASK_CASTLE_FLAG[+from] | MASK_CASTLE_FLAG[+to])) {
+    if(m_castling_rights & (MASK_CASTLE_FLAG[+from] | MASK_CASTLE_FLAG[+to])) {
         m_zobrist ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F];
         m_castling_rights &= ~(MASK_CASTLE_FLAG[+from] | MASK_CASTLE_FLAG[+to]);
         m_zobrist ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F];
     }
 
     // Update en passant square
-    if (m_en_passant_square != Square::None) {
-        m_zobrist ^= ZOBRIST_EP[+file_of(m_en_passant_square)];
-    }
+    m_zobrist ^= (m_en_passant_square != Square::None) * ZOBRIST_EP[+file_of(m_en_passant_square)];
     m_en_passant_square = Square::None;
     if (to_type(moved_piece) == PieceType::Pawn) {
         if (std::abs(int(to) - int(from)) == 16) {
-            m_en_passant_square = from + ((to > from) ? Shift::Up : Shift::Down);
+            m_en_passant_square = from + pawn_dir(m_side_to_move);
             m_zobrist ^= ZOBRIST_EP[+file_of(m_en_passant_square)];
         }
         m_halfmoves = 0; // reset on pawn move
     }
 
     // Next turn
-    m_side_to_move = (m_side_to_move == Color::White) ? Color::Black : Color::White;
+    m_side_to_move = opp;
     m_zobrist ^= ZOBRIST_SIDE;
-    m_pinned_calculated = false;
+    m_pins_computed.fill(false);
 }
 
 bool Position::undo_move() {
     if (m_state_history.size() == 0) return false;
 
     // Get previous state
-    const StoredState& state = m_state_history.back();
+    StoredState& state = m_state_history.back();
 
     // Previous turn
     m_side_to_move = (m_side_to_move == Color::White) ? Color::Black : Color::White;
@@ -440,50 +461,40 @@ bool Position::undo_move() {
     const PieceType promo = MoveEncoding::promo(state.move);
     const MoveType move_type = MoveEncoding::move_type(state.move);
     const Piece moved_piece = move_type == MoveType::Promotion ? create_piece(m_side_to_move, PieceType::Pawn) : m_piece_on_square[+to];
+    const Piece& captured = state.captured_piece;
 
     // Remove moved piece / promoted piece on target square
-    m_occupied[+m_side_to_move] &= ~MASK_SQUARE[+to];
+    m_pieces_by_type[+to_type(m_piece_on_square[+to])] &= ~MASK_SQUARE[+to];
+    m_pieces_by_type[+PieceType::All] &= ~MASK_SQUARE[+to];
+    m_pieces_by_color[+m_side_to_move] &= ~MASK_SQUARE[+to];
     m_piece_on_square[+to] = Piece::None;
-    if (move_type == MoveType::Promotion) {
-        m_pieces[+m_side_to_move][+promo] &= ~MASK_SQUARE[+to];
-    } else {
-        m_pieces[+m_side_to_move][+to_type(moved_piece)] &= ~MASK_SQUARE[+to];
-    }
 
     // Add captured piece (and handle en passant)
-    if (state.captured_piece != Piece::None) {
-        Square capture_square = to;
-        if (move_type == MoveType::EnPassant) {
-            capture_square = (m_side_to_move == Color::White) ? (to + Shift::Down) : (to + Shift::Up);
-        }
-        m_pieces[+opp][+to_type(state.captured_piece)] |= MASK_SQUARE[+capture_square];
-        m_occupied[+opp] |= MASK_SQUARE[+capture_square];
-        m_piece_on_square[+capture_square] = state.captured_piece;
+    if (captured != Piece::None) {
+        const Square capture_square = move_type == MoveType::EnPassant ? to - pawn_dir(m_side_to_move) : to;
+        m_pieces_by_type[+to_type(captured)] |= MASK_SQUARE[+capture_square];
+        m_pieces_by_type[+PieceType::All] |= MASK_SQUARE[+capture_square];
+        m_pieces_by_color[+opp] |= MASK_SQUARE[+capture_square];
+        m_piece_on_square[+capture_square] = captured;
     }
 
     // Add moved piece to the origin square
-    m_pieces[+m_side_to_move][+to_type(moved_piece)] |= MASK_SQUARE[+from];
-    m_occupied[+m_side_to_move] |= MASK_SQUARE[+from];
+    m_pieces_by_type[+to_type(moved_piece)] |= MASK_SQUARE[+from];
+    m_pieces_by_type[+PieceType::All] |= MASK_SQUARE[+from];
+    m_pieces_by_color[+m_side_to_move] |= MASK_SQUARE[+from];
     m_piece_on_square[+from] = moved_piece;
 
     // Handle castling
     if (move_type == MoveType::Castle) {
         Square rook_from = to > from ? from + 3 : from - 4;
-        Square rook_to = to > from ? from + 1 : from - 1;
+        Square rook_to = static_cast<Square>((+to + +from) >> 1); // to + from / 2
 
-        // Add rook
-        m_pieces[+m_side_to_move][+PieceType::Rook] |= MASK_SQUARE[+rook_from];
-        m_occupied[+m_side_to_move] |= MASK_SQUARE[+rook_from];
+        m_pieces_by_type[+PieceType::Rook] ^= MASK_SQUARE[+rook_from] | MASK_SQUARE[+rook_to];
+        m_pieces_by_type[+PieceType::All] ^= MASK_SQUARE[+rook_from] | MASK_SQUARE[+rook_to];
+        m_pieces_by_color[+m_side_to_move] ^= MASK_SQUARE[+rook_from] | MASK_SQUARE[+rook_to];
         m_piece_on_square[+rook_from] = m_piece_on_square[+rook_to];
-
-        // Remove rook
-        m_pieces[+m_side_to_move][+PieceType::Rook] &= ~MASK_SQUARE[+rook_to];
-        m_occupied[+m_side_to_move] &= ~MASK_SQUARE[+rook_to];
         m_piece_on_square[+rook_to] = Piece::None;
     }
-
-    // Update all occupancy status
-    m_occupied_all = m_occupied[0] | m_occupied[1];
 
     // Update castling status
     m_castling_rights = state.castling_rights;
@@ -492,14 +503,16 @@ bool Position::undo_move() {
     m_en_passant_square = state.en_passant_square;
 
     // Update move counters
-    if (m_side_to_move == Color::Black) m_fullmoves--;
+    m_fullmoves -= +m_side_to_move; // Black = 1 
     m_halfmoves = state.halfmoves;
 
     // restore zobrist
     m_zobrist = state.zobrist;
 
-    // restore pinned
-    m_pinned = state.pinned;
+    // restore pinners and blockers state
+    std::memcpy(&m_king_blockers, &state.king_blockers, sizeof(m_king_blockers));
+    std::memcpy(&m_pinners, &state.pinners, sizeof(m_pinners));
+    std::memcpy(&m_pins_computed, &state.pins_computed, sizeof(m_pins_computed));
 
     m_state_history.pop_back();
     return true;
@@ -546,23 +559,25 @@ Move Position::move_from_uci(const UCI& uci) const {
     return MoveEncoding::encode<MoveType::Normal>(from, to);
 }
 
-void Position::_calculate_pinned(Color side) const {
-    Color opp = opponent(side);
-    Square king_sq = lsb(get_pieces(side, PieceType::King)); 
-    
-    m_pinned = 0ULL;
+void Position::_compute_pins(Color side) const {
+    m_king_blockers[+side] = m_pinners[+side] = 0ULL;
 
+    const Color opp = opponent(side);
+    const Square king_sq = lsb(get_pieces(side, PieceType::King)); 
+    
     Bitboard possible_pinners = (MASK_ROOK_ATTACKS[+king_sq] & (get_pieces(opp, PieceType::Rook) | get_pieces(opp, PieceType::Queen)))
                               | (MASK_BISHOP_ATTACKS[+king_sq] & (get_pieces(opp, PieceType::Bishop) | get_pieces(opp, PieceType::Queen)));
     Bitboard occupancy = get_pieces() ^ possible_pinners;
-
+    
     while(possible_pinners) {
         Square pinner_sq = lsb(possible_pinners);
         Bitboard blockers = MASK_BETWEEN[+king_sq][+pinner_sq] & occupancy;
 
-        if (popcount(blockers) == 1 && (blockers & m_occupied[+side])) {
-            // correct color blocker    
-            m_pinned |= blockers;
+        if (popcount(blockers) == 1) {
+            m_king_blockers[+side] |= blockers;
+            if (blockers & get_pieces(side)) {
+                m_pinners[+side] |= MASK_SQUARE[+pinner_sq];
+            }
         }
         pop_lsb(possible_pinners);
     }

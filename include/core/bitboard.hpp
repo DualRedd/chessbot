@@ -47,7 +47,7 @@ extern Bitboard BISHOP_ATTACK_TABLE[64][512]; // [square][index]
 extern Bitboard MASK_CASTLE_CLEAR[2][2];      // [color][0=queenside,1=kingside]
 extern int8_t MASK_CASTLE_FLAG[64];           // [square] combination of CastlingFlag to remove when moving from/to this square
 
-extern uint64_t ZOBRIST_PIECE[2][6][64];      // [color][piece][square]
+extern uint64_t ZOBRIST_PIECE[14][64];      // [piece][square]
 extern uint64_t ZOBRIST_CASTLING[16];         // [castling rights bitmask]
 extern uint64_t ZOBRIST_EP[8];                // [file of en passant square]
 extern uint64_t ZOBRIST_SIDE;                 // side to move

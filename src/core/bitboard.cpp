@@ -27,7 +27,7 @@ Bitboard BISHOP_ATTACK_TABLE[64][512];
 Bitboard MASK_CASTLE_CLEAR[2][2];
 int8_t  MASK_CASTLE_FLAG[64];
 
-uint64_t ZOBRIST_PIECE[2][6][64];
+uint64_t ZOBRIST_PIECE[14][64];
 uint64_t ZOBRIST_CASTLING[16];
 uint64_t ZOBRIST_EP[8];
 uint64_t ZOBRIST_SIDE;
@@ -312,11 +312,9 @@ void init_bitboards() {
     }
 
     // Zobrist hashing keys
-    for (int color = 0; color < 2; ++color) {
-        for (int piece = 0; piece < 6; ++piece) {
-            for (int square = 0; square < 64; ++square) {
-                ZOBRIST_PIECE[color][piece][square] = rng();
-            }
+    for (int j = 0; j < 14; ++j) {
+        for (int i = 0; i < 64; ++i) {
+            ZOBRIST_PIECE[j][i] = rng();
         }
     }
     for (int i = 0; i < 16; ++i) {

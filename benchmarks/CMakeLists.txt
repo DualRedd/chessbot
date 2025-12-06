@@ -1,5 +1,6 @@
 add_executable(run_benchmarks
-    bm_board.cpp
+    bm_perft.cpp
+    bm_minimax_ai.cpp
 )
 
 target_link_libraries(run_benchmarks PRIVATE

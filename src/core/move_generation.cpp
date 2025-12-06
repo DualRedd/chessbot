@@ -103,11 +103,13 @@ inline Move* generate_pawn_moves(const Position& pos, Move* move_list, Bitboard 
             // move that makes en passant available cannot also cause a discovered check 
             if (gen_type != GenerateType::Evasions || (targets & MASK_SQUARE[+(pos.get_en_passant_square() + forward)]) == 0ULL) {
                 // If this is an evasion generation, now we know the pawn is the checker (if there is one)
-                Bitboard capturers = MASK_PAWN_ATTACKS[+opp][+pos.get_en_passant_square()] & pos.get_pieces(side, PieceType::Pawn);
-                while(capturers) {
-                    Square from_sq = lsb(capturers);
-                    *move_list++ = MoveEncoding::encode<MoveType::EnPassant>(from_sq, pos.get_en_passant_square());
+                Bitboard capturers = MASK_PAWN_ATTACKS[+opp][+pos.get_en_passant_square()] & pawns_not_on_rank_7;
+                if (capturers) {
+                    *move_list++ = MoveEncoding::encode<MoveType::EnPassant>(lsb(capturers), pos.get_en_passant_square());
                     pop_lsb(capturers);
+                }
+                if (capturers) {
+                    *move_list++ = MoveEncoding::encode<MoveType::EnPassant>(lsb(capturers), pos.get_en_passant_square());
                 }
             } // else: If generating evasions, we know the check was discovered, so en passant cannot be legal here
         }
@@ -228,7 +230,7 @@ inline bool is_legal_move(const Position& pos, Move move) {
 
     // Any other move is legal if the piece is not pinned or moves along the pin line
     // (again assuming evasion generation when in check)
-    const bool is_pinned = (pos.get_pinned() & MASK_SQUARE[+from]) != 0ULL;
+    const bool is_pinned = (pos.get_king_blockers(side) & MASK_SQUARE[+from]) != 0ULL;
     const bool moves_on_line = (MASK_LINE[+from][+to] & MASK_SQUARE[+king_sq]) != 0ULL;
     return (!is_pinned || moves_on_line);
 }

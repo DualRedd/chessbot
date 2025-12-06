@@ -52,7 +52,7 @@ constexpr Square operator-(Square sq, Shift sh) noexcept { return static_cast<Sq
 
 
 // Piece features
-enum class PieceType : int8_t { Knight = 0, Bishop = 1, Rook = 2, Queen = 3, King = 4, Pawn = 5, None = 6};
+enum class PieceType : int8_t { Knight = 0, Bishop = 1, Rook = 2, Queen = 3, King = 4, Pawn = 5, All = 6, None = 7};
 enum class Color : int8_t { White = 0, Black = 1 };
 
 // Piece = Color + PieceType
@@ -60,7 +60,7 @@ enum class Color : int8_t { White = 0, Black = 1 };
 enum class Piece : int8_t {
     WKnight = 0, WBishop = 1, WRook = 2, WQueen = 3, WKing = 4, WPawn = 5,
     BKnight = 8, BBishop = 9, BRook = 10, BQueen = 11, BKing = 12, BPawn = 13,
-    None = 14
+    All = 14, None = 15
 };
 
 // Convenience integer conversion operators
@@ -82,13 +82,13 @@ constexpr Color to_color(Piece p) noexcept {
 // More helpers
 constexpr Square square_for_side(Square square, Color side) noexcept { return (side == Color::White) ? square : 63 - square; };
 constexpr Color opponent(Color side)                        noexcept { return side == Color::White ? Color::Black : Color::White; };
-
+constexpr Shift pawn_dir(Color side)                        noexcept { return side == Color::White ? Shift::Up : Shift::Down; };
 
 // Move encoding to 16 bits
 // Bits 0-5:   from square (0-63)
 // Bits 6-11:  to square (0-63)
 // Bits 12-13: promoted piece type
-// Bit  14-15: MoveType
+// Bits 14-15: MoveType
 using Move = uint16_t;
 
 enum class MoveType : int8_t {
