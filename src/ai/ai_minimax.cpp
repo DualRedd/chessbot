@@ -1,4 +1,6 @@
 #include "ai/ai_minimax.hpp"
+
+#include <algorithm>
 #include <iostream>
 
 static constexpr int32_t NULL_SCORE = 111'111'111;
@@ -410,7 +412,7 @@ inline void MinimaxAI::_order_moves(MoveList& move_list, const Move tt_move) con
         // insertion sort (descending)
         for (size_t i = 1; i < n; ++i) {
             Scored item = scored[i];
-            ssize_t j = (ssize_t)i - 1;
+            int32_t j = (int32_t)i - 1;
             while (j >= 0 && scored[j].score < item.score) {
                 move_list[j + 1] = move_list[j];
                 scored[j + 1] = scored[j];

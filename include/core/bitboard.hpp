@@ -1,5 +1,16 @@
 #pragma once
 
+// Export macro for Windows DLLs
+#if defined(_WIN32)
+  #if defined(CHESS_CORE_EXPORTS)
+    #define API __declspec(dllexport)
+  #else
+    #define API __declspec(dllimport)
+  #endif
+#else
+  #define API
+#endif
+
 #include "types.hpp"
 
 #if defined(PEXT_ENABLED) && defined(__BMI2__) && (defined(__x86_64__) || defined(__i386__))
@@ -27,35 +38,35 @@ constexpr int8_t operator+(CastlingSide t) noexcept { return static_cast<int8_t>
 constexpr int8_t operator+(CastlingFlag t) noexcept { return static_cast<int8_t>(t); }
 
 // Precalculated masks and values
-extern Bitboard MASK_SQUARE[64];              // [square]
-extern Bitboard MASK_BETWEEN[64][64];         // [from square][to square] non-inclusive on both ends
-extern Bitboard MASK_LINE[64][64];            // [from square][to square] edge to edge
+extern API Bitboard MASK_SQUARE[64];              // [square]
+extern API Bitboard MASK_BETWEEN[64][64];         // [from square][to square] non-inclusive on both ends
+extern API Bitboard MASK_LINE[64][64];            // [from square][to square] edge to edge
 
-extern Bitboard MASK_PAWN_ATTACKS[2][64];     // [color][square]
-extern Bitboard MASK_KNIGHT_ATTACKS[64];      // [square]
-extern Bitboard MASK_KING_ATTACKS[64];        // [square]
-extern Bitboard MASK_ROOK_ATTACKS[64];        // [square] non-blocking
-extern Bitboard MASK_BISHOP_ATTACKS[64];      // [square] non-blocking
+extern API Bitboard MASK_PAWN_ATTACKS[2][64];     // [color][square]
+extern API Bitboard MASK_KNIGHT_ATTACKS[64];      // [square]
+extern API Bitboard MASK_KING_ATTACKS[64];        // [square]
+extern API Bitboard MASK_ROOK_ATTACKS[64];        // [square] non-blocking
+extern API Bitboard MASK_BISHOP_ATTACKS[64];      // [square] non-blocking
 
-extern uint64_t ROOK_MAGIC[64];               // [square]
-extern uint64_t BISHOP_MAGIC[64];             // [square]
-extern Bitboard MASK_ROOK_MAGIC[64];          // [square]
-extern Bitboard MASK_BISHOP_MAGIC[64];        // [square]
-extern Bitboard ROOK_ATTACK_TABLE[64][4096];  // [square][index]
-extern Bitboard BISHOP_ATTACK_TABLE[64][512]; // [square][index]
+extern API uint64_t ROOK_MAGIC[64];               // [square]
+extern API uint64_t BISHOP_MAGIC[64];             // [square]
+extern API Bitboard MASK_ROOK_MAGIC[64];          // [square]
+extern API Bitboard MASK_BISHOP_MAGIC[64];        // [square]
+extern API Bitboard ROOK_ATTACK_TABLE[64][4096];  // [square][index]
+extern API Bitboard BISHOP_ATTACK_TABLE[64][512]; // [square][index]
 
-extern Bitboard MASK_CASTLE_CLEAR[2][2];      // [color][0=queenside,1=kingside]
-extern int8_t MASK_CASTLE_FLAG[64];           // [square] combination of CastlingFlag to remove when moving from/to this square
+extern API Bitboard MASK_CASTLE_CLEAR[2][2];      // [color][side]
+extern API int8_t MASK_CASTLE_FLAG[64];           // [square]
 
-extern uint64_t ZOBRIST_PIECE[14][64];      // [piece][square]
-extern uint64_t ZOBRIST_CASTLING[16];         // [castling rights bitmask]
-extern uint64_t ZOBRIST_EP[8];                // [file of en passant square]
-extern uint64_t ZOBRIST_SIDE;                 // side to move
+extern API uint64_t ZOBRIST_PIECE[14][64];        // [piece][square]
+extern API uint64_t ZOBRIST_CASTLING[16];         // castling rights bitmask
+extern API uint64_t ZOBRIST_EP[8];                // file of en passant square
+extern API uint64_t ZOBRIST_SIDE;                 // side to move
 
 // Precalculation function
 void init_bitboards();
 
-// Common bitboard constants
+// Bitboard constants
 constexpr Bitboard RANK_1 = 0x00000000000000FFULL;
 constexpr Bitboard RANK_2 = 0x000000000000FF00ULL;
 constexpr Bitboard RANK_3 = 0x0000000000FF0000ULL;
@@ -109,7 +120,6 @@ constexpr inline Bitboard shift_bb(Bitboard bb) {
     else if constexpr (shift == Shift::UpLeft)     return (bb & ~FILE_A) << 7;
     else if constexpr (shift == Shift::DownRight)  return (bb & ~FILE_H) >> 7;
     else if constexpr (shift == Shift::DownLeft)   return (bb & ~FILE_A) >> 9;
-    else static_assert(false, "Unknown shift type");
 }
 
 /**
@@ -156,10 +166,6 @@ inline Bitboard attacks_from(Square square, Bitboard occupied) {
     else if constexpr (type == PieceType::King) {
         return MASK_KING_ATTACKS[+square];
     }
-    else {
-        static_assert(false, "Unknown piece type");
-    }
 }
 
-        
-        
+

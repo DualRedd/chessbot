@@ -529,8 +529,13 @@ Move Position::move_from_uci(const UCI& uci) const {
         throw std::invalid_argument("Position::move_from_uci() - invalid input UCI!");
     }
 
-    Square from = create_square(uci[0] - 'a', uci[1] - '1');
-    Square to = create_square(uci[2] - 'a', uci[3] - '1');
+    int from_file = static_cast<unsigned char>(uci[0]) - static_cast<int>('a');
+    int from_rank = static_cast<unsigned char>(uci[1]) - static_cast<int>('1');
+    int to_file   = static_cast<unsigned char>(uci[2]) - static_cast<int>('a');
+    int to_rank   = static_cast<unsigned char>(uci[3]) - static_cast<int>('1');
+
+    Square from = create_square(from_file, from_rank);
+    Square to   = create_square(to_file, to_rank);
     Piece piece = m_piece_on_square[+from];
 
     // Promotion
