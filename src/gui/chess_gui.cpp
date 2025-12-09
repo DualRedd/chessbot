@@ -86,7 +86,8 @@ void ChessGUI::_on_window_resize() {
 void ChessGUI::_update_element_transforms() {
     sf::Vector2f window_size = sf::Vector2f(m_window.getView().getSize());
 
-    float side_panel_width = std::clamp(window_size.x * 0.4f, 200.f, 300.f);
+    float wanted_side_panel_width = std::max(window_size.x * 0.3f, window_size.x - window_size.y);
+    float side_panel_width = std::clamp(wanted_side_panel_width, 200.f, 440.f);
     float board_size = std::min(window_size.x - side_panel_width, float(window_size.y));
 
     // Board
