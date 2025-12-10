@@ -1,5 +1,6 @@
 #include "ai/ai_minimax.hpp"
 
+#include "ai/value_tables.hpp"
 #include <algorithm>
 #include <iostream>
 
@@ -30,20 +31,26 @@ void registerMinimaxAI() {
     };
 
     std::vector<ConfigField> cfg = {
+        {"enable_info", "Enable search info output", FieldType::Bool, false},
         {"time_limit", "Thinking time (s)", FieldType::Double, 5.0},
+        {"tt_size_megabytes", "Transposition table size (MB)", FieldType::Int, 256},
         {"aspiration_window_enabled", "Enable aspiration window", FieldType::Bool, true},
-        {"aspiration_window", "Aspiration window (centipawns)", FieldType::Int, 50}
+        {"aspiration_window", "Aspiration window (centipawns)", FieldType::Int, 50},
+        {"max_depth", "Maximum search depth", FieldType::Int, 99},
     };
 
     AIRegistry::registerAI("Minimax", cfg, createMinimaxAI);
 }
 
 MinimaxAI::MinimaxAI(const std::vector<ConfigField>& cfg)
-  : m_time_limit_seconds(get_config_field_value<double>(cfg, "time_limit")),
+  : m_max_depth(get_config_field_value<int>(cfg, "max_depth")),
+    m_time_limit_seconds(get_config_field_value<double>(cfg, "time_limit")),
+    m_tt_size_megabytes(get_config_field_value<int>(cfg, "tt_size_megabytes")),
     m_aspiration_window_enabled(get_config_field_value<bool>(cfg, "aspiration_window_enabled")),
     m_aspiration_window(get_config_field_value<int>(cfg, "aspiration_window")),
     m_search_position(),
-    m_tt(m_tt_size_megabytes)
+    m_tt(m_tt_size_megabytes),
+    m_enable_info_output(get_config_field_value<bool>(cfg, "enable_info"))
 {}
 
 MinimaxAI::MinimaxAI(const int32_t max_depth,
@@ -51,7 +58,7 @@ MinimaxAI::MinimaxAI(const int32_t max_depth,
                     const size_t tt_size_megabytes,
                     const bool aspiration_window_enabled,
                     const int32_t aspiration_window,
-                    const bool enable_debug_output) 
+                    const bool enable_info_output) 
   : m_max_depth(max_depth),
     m_time_limit_seconds(time_limit_seconds),
     m_tt_size_megabytes(tt_size_megabytes),
@@ -59,8 +66,21 @@ MinimaxAI::MinimaxAI(const int32_t max_depth,
     m_aspiration_window(aspiration_window),
     m_search_position(),
     m_tt(m_tt_size_megabytes),
-    m_enable_debug_output(enable_debug_output)
+    m_enable_info_output(enable_info_output)
 {}
+
+void MinimaxAI::set_time_limit_seconds(double secs) {
+    m_time_limit_seconds = secs < 0.0 ? 1e6 : secs;
+}
+void MinimaxAI::set_max_depth(int depth) {
+    m_max_depth = depth < 0 ? 9999 : depth;
+}
+void MinimaxAI::set_max_nodes(int64_t nodes) {
+    m_max_nodes = nodes < 0 ? std::numeric_limits<int64_t>::max() : nodes;
+}
+void MinimaxAI::clear_transposition_table() {
+    m_tt.clear();
+}
 
 void MinimaxAI::Stats::reset() {
     depth = 0;
@@ -122,9 +142,9 @@ UCI MinimaxAI::_compute_move() {
 
     m_stats.reset();
     m_tt.new_search_iteration();
-    m_deadline = std::chrono::steady_clock::now()
-               + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-                    std::chrono::duration<double>(m_time_limit_seconds));
+
+    auto start_time = std::chrono::steady_clock::now();
+    m_deadline = start_time + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(m_time_limit_seconds));
     m_stop_search = false;
     m_nodes_visited = 0;
 
@@ -133,6 +153,13 @@ UCI MinimaxAI::_compute_move() {
     
     int target_depth = 1;
     for (; target_depth <= m_max_depth; ++target_depth) {
+        bool enable_root_info_output = false;
+        if (m_enable_info_output) {
+            std::cout << "info depth " << target_depth << "\n" << std::flush;
+            auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time);
+            if (time_elapsed.count() > 1200) enable_root_info_output = true;
+        }
+
         int32_t score;
         Move move;
 
@@ -141,7 +168,7 @@ UCI MinimaxAI::_compute_move() {
             uint32_t nodes_before = m_stats.alpha_beta_nodes;
             int32_t alpha = std::max(-INF_SCORE, prev_score - m_aspiration_window);
             int32_t beta  = std::min(INF_SCORE,  prev_score + m_aspiration_window);
-            std::tie(score, move) = _root_search(alpha, beta, target_depth, best_move);
+            std::tie(score, move) = _root_search(alpha, beta, target_depth, best_move, enable_root_info_output);
 
             if (m_stop_search)
                 break;
@@ -150,12 +177,12 @@ UCI MinimaxAI::_compute_move() {
             if (score <= alpha || score >= beta) {
                 ++m_stats.aspiration_misses;
                 m_stats.aspiration_miss_nodes += m_stats.alpha_beta_nodes - nodes_before;
-                std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth, best_move);
+                std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth, best_move, enable_root_info_output);
             }
         }
         else {
             // Normal search
-            std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth, best_move);
+            std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth, best_move, enable_root_info_output);
         }
 
         if (m_stop_search)
@@ -163,19 +190,24 @@ UCI MinimaxAI::_compute_move() {
 
         prev_score = score;
         best_move = move;
+
+        if (m_enable_info_output) {
+            auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time);
+            std::cout << "info depth " << target_depth << " score cp " << score << " nodes " << m_stats.alpha_beta_nodes
+                    << " nps " << (double)m_stats.alpha_beta_nodes / time_elapsed.count() * 1000.0
+                    << " time " << time_elapsed.count()
+                    << " move " << MoveEncoding::to_uci(best_move) << "\n" << std::flush;
+        }
     }
 
     m_stats.depth = target_depth - 1;
     m_stats.eval = prev_score;
     m_stats.time_seconds = m_time_limit_seconds + std::chrono::duration<double>(m_deadline - std::chrono::steady_clock::now()).count();
 
-    if (m_enable_debug_output)
-        m_stats.print();
-
     return MoveEncoding::to_uci(best_move);
 }
 
-std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, int32_t search_depth, Move previous_best) {
+std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, int32_t search_depth, Move previous_best, bool info_output) {
     ++m_stats.alpha_beta_nodes;
 
     Color side = m_search_position.get_position().get_side_to_move();
@@ -185,7 +217,13 @@ std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, in
     move_list.generate<GenerateType::Legal>(m_search_position.get_position());
     _order_moves(move_list, previous_best);
 
-    for (const Move& move : move_list) {
+
+    for (size_t i = 0; i < move_list.count(); ++i) {
+        const Move& move = move_list[i];
+        if (info_output) {
+            std::cout << "info depth " << search_depth << " currmove " << MoveEncoding::to_uci(move) << " currmovenumber " << i+1 << "\n" << std::flush;
+        }
+
         m_search_position.make_move(move);
         int32_t score = -_alpha_beta(-beta, -alpha, search_depth - 1, 1);
         m_search_position.undo_move();
@@ -208,7 +246,7 @@ std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, in
 }
 
 int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32_t ply) {
-    if (_timer_check())
+    if (_stop_check())
         return NULL_SCORE;
 
     if (m_search_position.get_position().get_halfmove_clock() >= 100)
@@ -306,23 +344,20 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32
 
 inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int32_t ply) {
     ++m_stats.quiescence_nodes;
-    if (_timer_check())
+    if (_stop_check())
         return NULL_SCORE;
 
     MoveList move_list;
     int32_t best_score;
-    
-    if (!m_search_position.get_position().in_check()) {
+
+    const bool in_check = m_search_position.get_position().in_check();
+    if (!in_check) {
         // Stand pat evaluation
         best_score = m_search_position.get_eval();
         if (best_score >= beta) return best_score;
         if (best_score > alpha) alpha = best_score;
 
         move_list.generate<GenerateType::Captures>(m_search_position.get_position());
-        if (move_list.count() == 0) {
-            // No captures and not in check, return static eval
-            return alpha;
-        }
     } 
     else {
         best_score = -INF_SCORE;
@@ -336,10 +371,14 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int32_t ply) 
     // not probing TT in quiescence search, tested to be faster
     _order_moves(move_list, 0);
 
-    if (move_list.count() == 0) 
-        return alpha;
-
     for (const Move& move : move_list) {
+        if (!in_check) {
+            // SEE pruning for non-check captures
+            if (!static_exchange_evaluation(move, alpha)) {
+                continue;
+            }
+        }
+
         m_search_position.make_move(move);
 
         int32_t score = -_quiescence(-beta, -alpha, ply + 1);
@@ -385,14 +424,14 @@ inline void MinimaxAI::_order_moves(MoveList& move_list, const Move tt_move) con
         PieceType captured = m_search_position.get_position().to_capture(scored[i].move);
         if (captured != PieceType::None) {
             PieceType attacker = m_search_position.get_position().to_moved(scored[i].move);
-            scored[i].score += 1'000'000 + m_search_position.material_value(captured) * 100 - m_search_position.material_value(attacker);
+            scored[i].score += 1'000'000 + PIECE_VALUES[+captured] * 100 - PIECE_VALUES[+attacker];
             continue;
         }
 
         // Promotions
         if (MoveEncoding::move_type(scored[i].move) == MoveType::Promotion) {
             PieceType promo = MoveEncoding::promo(scored[i].move);
-            scored[i].score += 800'000 + m_search_position.material_value(promo) * 100;
+            scored[i].score += 800'000 + PIECE_VALUES[+promo] * 100;
             continue;
         }
 
@@ -432,12 +471,129 @@ inline void MinimaxAI::_order_moves(MoveList& move_list, const Move tt_move) con
     }
 }
 
-inline bool MinimaxAI::_timer_check() {
-    constexpr uint32_t mask = (1<<10) - 1; // every 1024 nodes
+inline bool MinimaxAI::_stop_check() {
+    constexpr int64_t mask = (1<<10) - 1; // every 1024 nodes
     if ((++m_nodes_visited & mask) == 0) {
-        if (std::chrono::steady_clock::now() >= m_deadline || _stop_requested()) {
+        if (std::chrono::steady_clock::now() >= m_deadline
+            || (m_max_nodes >= 0 && m_nodes_visited >= m_max_nodes)
+            || _stop_requested()) {
             m_stop_search = true;
         }
     }
     return m_stop_search;
+}
+
+inline bool MinimaxAI::static_exchange_evaluation(Move move, int32_t min_eval) const {
+    // https://www.chessprogramming.net/static-exchange-evaluation-in-chess/
+
+    if (MoveEncoding::move_type(move) != MoveType::Normal) {
+        return 0 >= min_eval;
+    }
+
+    const Position& pos = m_search_position.get_position();
+    const Square from = MoveEncoding::from_sq(move);
+    const Square to = MoveEncoding::to_sq(move);
+
+    assert(pos.get_piece_at(from) != Piece::None);
+    assert(to_type(pos.get_piece_at(to)) != PieceType::King);
+
+    int32_t see = PIECE_VALUES[+to_type(pos.get_piece_at(to))] - min_eval;
+    if (see < 0) // side to move losing already
+        return false;
+    see = PIECE_VALUES[+to_type(pos.get_piece_at(from))] - see;
+    if (see < 0) // opponent losing after recapture
+        return true;
+
+    Color side = pos.get_side_to_move();
+    Bitboard occupied = pos.get_pieces() ^ MASK_SQUARE[+from];
+    Bitboard all_attackers = pos.attackers(to, occupied);
+    Bitboard pc;
+    bool stm_winning = true;
+
+    while (true) {
+        side = opponent(side);
+        all_attackers &= occupied;
+        Bitboard side_attackers = all_attackers & pos.get_pieces(side);
+
+        // Remove pinned pieces from attackers if pinners still exist
+        if ((pos.get_pinners(opponent(side)) & occupied) != 0ULL) {
+            side_attackers &= ~pos.get_king_blockers(side);
+        }
+
+        if (side_attackers == 0ULL)
+            return stm_winning; // No more attackers
+        stm_winning = !stm_winning;
+
+        // Find least valuable attacker
+        pc = pos.get_pieces(side, PieceType::Pawn) & side_attackers;
+        if (pc != 0ULL) {
+            see = PIECE_VALUES[+PieceType::Pawn] - see;
+            if (see < 0)
+                return stm_winning;
+
+            occupied ^= MASK_SQUARE[+lsb(pc)];
+            // add possible discovered attacks
+            all_attackers |= attacks_from<PieceType::Bishop>(to, occupied)
+                            & (pos.get_pieces(PieceType::Bishop) | pos.get_pieces(PieceType::Queen));
+            continue;
+        }
+
+        pc = pos.get_pieces(side, PieceType::Knight) & side_attackers;
+        if (pc != 0ULL) {
+            see = PIECE_VALUES[+PieceType::Knight] - see;
+            if (see < 0)
+                return stm_winning;
+
+            occupied ^= MASK_SQUARE[+lsb(pc)];
+            // no possible discovered attacks
+            continue;
+        }
+
+        pc = pos.get_pieces(side, PieceType::Bishop) & side_attackers;
+        if (pc != 0ULL) {
+            see = PIECE_VALUES[+PieceType::Bishop] - see;
+            if (see < 0)
+                return stm_winning;
+
+            occupied ^= MASK_SQUARE[+lsb(pc)];
+            // add possible discovered attacks
+            all_attackers |= attacks_from<PieceType::Bishop>(to, occupied)
+                            & (pos.get_pieces(PieceType::Bishop) | pos.get_pieces(PieceType::Queen));
+            continue;
+        }
+
+        pc = pos.get_pieces(side, PieceType::Rook) & side_attackers;
+        if (pc != 0ULL) {
+            see = PIECE_VALUES[+PieceType::Rook] - see;
+            if (see < 0)
+                return stm_winning;
+
+            occupied ^= MASK_SQUARE[+lsb(pc)];
+            // add possible discovered attacks
+            all_attackers |= attacks_from<PieceType::Rook>(to, occupied)
+                            & (pos.get_pieces(PieceType::Rook) | pos.get_pieces(PieceType::Queen));
+            continue;
+        }
+
+        pc = pos.get_pieces(side, PieceType::Queen) & side_attackers;
+        if (pc != 0ULL) {
+            see = PIECE_VALUES[+PieceType::Queen] - see;
+            if (see < 0)
+                return stm_winning;
+
+            occupied ^= MASK_SQUARE[+lsb(pc)];
+            // add possible discovered attacks
+            all_attackers |= (attacks_from<PieceType::Bishop>(to, occupied)
+                            | attacks_from<PieceType::Rook>(to, occupied))
+                            & (pos.get_pieces(PieceType::Bishop) | pos.get_pieces(PieceType::Rook) | pos.get_pieces(PieceType::Queen));
+            continue;
+        }
+
+        // Only king left
+        // no possible discovered attacks
+        // if attackers left for opponent, opponent wins
+        if (all_attackers & ~pos.get_pieces(side))
+            return !stm_winning;
+        return stm_winning;
+    }
 }

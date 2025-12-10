@@ -54,12 +54,6 @@ public:
      */
     const Position& get_position() const;
 
-    /**
-     * @param type piece type
-     * @return Evaluation material value for the piece.
-     */
-    int32_t material_value(PieceType type) const;
-
 private:
     /**
      * Piece-Square Table value.
@@ -69,6 +63,12 @@ private:
      * @return Evaluation value for the piece on the square.
      */
     int32_t _pst_value(PieceType type, Color color, Square square) const;
+
+    /**
+     * @param type piece type
+     * @return Evaluation material value for the piece.
+     */
+    int32_t _material_value(PieceType type) const;
 
     /**
      * Calculate the full evaluation from the current position.

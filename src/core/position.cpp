@@ -287,64 +287,6 @@ FEN Position::to_fen() const {
 
     return oss.str();
 }
-    
-bool Position::in_check(Color side) const {
-    assert(get_pieces(side, PieceType::King) != 0ULL);
-    Square king_sq = lsb(get_pieces(side, PieceType::King));
-    return attackers_exist(opponent(side), king_sq, get_pieces());
-}
-
-bool Position::in_check() const {
-    return in_check(m_side_to_move);
-}
-
-
-uint32_t Position::static_exchange_evaluation(Move move) const {
-    // WIP
-    /*const MoveType move_type = MoveEncoding::move_type(move);
-    
-    if (move_type != MoveType::Normal) {
-        return 0;
-    }
-
-    const Square from = MoveEncoding::from_sq(move);
-    const Square to = MoveEncoding::to_sq(move);
-    const PieceType promo = MoveEncoding::promo(move);
-
-    Color side = m_side_to_move;
-    Bitboard occupied = get_pieces() ^ MASK_SQUARE[+from];
-    Bitboard all_attackers = attackers(side, to, occupied) | attackers(opponent(side), to, occupied);
-    Bitboard pc;
-
-    while (true) {
-        side = opponent(side);
-        Bitboard side_attackers = all_attackers & get_pieces(side);
-
-        // Remove pinned pieces from attackers if pinners still exist
-        if ((get_pinners(side) && occupied) != 0ULL) {
-            side_attackers &= ~get_king_blockers(side);
-        }
-
-        if (side_attackers == 0ULL)
-            break; // No more attackers
-
-        // Find least valuable attacker
-        pc = get_pieces(side, PieceType::Pawn) & side_attackers;
-        if (pc != 0ULL) {
-            occupied ^= MASK_SQUARE[+lsb(pc)];
-
-            // add possible discovered attacks
-            all_attackers |= attacks_from<PieceType::Bishop>(to, occupied)
-                            & (get_pieces(side, PieceType::Bishop) | get_pieces(side, PieceType::Queen)
-                            | get_pieces(opponent(side), PieceType::Bishop) | get_pieces(opponent(side), PieceType::Queen));
-        }
-
-        pc = get_pieces(side, PieceType::Knight) & side_attackers;
-    }*/
-
-    return 0;
-}
-
 
 void Position::make_move(Move move) {
     const Color opp = opponent(m_side_to_move);
