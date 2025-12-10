@@ -1,5 +1,6 @@
 #include "gui/game_manager.hpp"
-#include "engine/registry.hpp"
+
+#include "core/registry.hpp"
 
 // Helper: check if state is terminal
 static inline bool _is_terminal_state(Chess::GameState s) {
@@ -19,6 +20,13 @@ void GameManager::set_ai_move_delay(double seconds) {
 
 void GameManager::on_game_end(std::function<void(Chess::GameState)> cb) {
     m_on_game_end = std::move(cb);
+}
+
+void GameManager::end_game() {
+    m_game_ended = true;
+    m_ai_move.reset();
+    if (m_white_ai) m_white_ai->request_stop();
+    if (m_black_ai) m_black_ai->request_stop();
 }
 
 bool GameManager::game_ended() const {

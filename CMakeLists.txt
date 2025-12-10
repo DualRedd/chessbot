@@ -156,18 +156,18 @@ add_library(chess_core STATIC
     src/core/bitboard.cpp
     src/core/position.cpp
     src/core/move_generation.cpp
+    src/core/registry.cpp
     src/core/ai_player.cpp
-    # -- AI ---
-    src/engine/registry.cpp
+    src/core/uci_player.cpp
+    # -- Custom Minimax Engine ---
+    src/engine/minimax_engine.cpp
     src/engine/search_position.cpp
     src/engine/transposition_table.cpp
-    src/engine/uci_engine.cpp
-    src/engine/minimax_engine.cpp
 )
 target_compile_options(chess_core PRIVATE ${ENG_FLAGS})
 target_link_options(chess_core PRIVATE ${LINK_FLAGS})
 
-# --- Minimax engine executable ---
+# --- Minimax engine cli ---
 add_executable(minimax_cli
     src/cli/minimax_cli.cpp
 )

@@ -4,8 +4,8 @@
 #include <functional>
 #include <chrono>
 
-#include "chess.hpp"
 #include "../core/ai_player.hpp"
+#include "chess.hpp"
 #include "player_configuration.hpp"
 
 /**
@@ -27,6 +27,11 @@ public:
      * @param callback the callback with the final game state as parameter
      */
     void on_game_end(std::function<void(Chess::GameState)> cb);
+
+    /**
+     * End the current game immediately.
+     */
+    void end_game();
 
     /**
      * @return True if the game has ended, else false.

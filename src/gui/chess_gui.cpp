@@ -1,5 +1,6 @@
 #include "gui/chess_gui.hpp"
-#include "engine/registry.hpp"
+
+#include "gui/assets.hpp"
 
 ChessGUI::ChessGUI(int window_width, int window_height)
     : m_game_manager(),
@@ -36,14 +37,26 @@ ChessGUI::ChessGUI(int window_width, int window_height)
 
     // UI element setup
     _update_element_transforms();
+
+    // Font
+    if (!m_font.openFromFile(get_executable_dir() / "assets/fonts/Roboto-Regular.ttf")) {
+        throw std::runtime_error("ChessGUI - Failed to load font!");
+    }
 }
 
 ChessGUI::~ChessGUI() = default;
 
 void ChessGUI::run() {
     while (m_window.isOpen()) {
-        _handle_events();
-        m_game_manager.update();
+        try {
+            _handle_events();
+            m_game_manager.update();
+        }
+        catch (const std::exception& e) {
+            m_game_manager.end_game();
+            m_error_popup_active = true;
+            m_error_message = std::string("Error! ") + e.what();
+        }
         _draw();
     }
 }
@@ -60,7 +73,17 @@ void ChessGUI::_handle_events() {
             resized = true;
         }
 
-        m_chess_view.handle_event(event.value());
+        // If popup active dont handle child events
+        if (m_error_popup_active) {
+            if (const auto& mouse_press_event = event->getIf<sf::Event::MouseButtonPressed>()) {
+                if (mouse_press_event->button == sf::Mouse::Button::Left) {
+                    m_error_popup_active = false;
+                }
+            }
+        }
+        else {
+            m_chess_view.handle_event(event.value());
+        }
     }
 
     if (resized) _on_window_resize();
@@ -72,8 +95,51 @@ void ChessGUI::_draw() {
     m_tgui.draw();
     m_chess_view.draw(m_window);
 
+    if (m_error_popup_active) {
+        _draw_error_popup(m_window);
+    }
+
     m_window.display();
 }
+
+void ChessGUI::_draw_error_popup(sf::RenderWindow& window) {
+    // Popup box
+    sf::RectangleShape popup_box;
+    popup_box.setFillColor(sf::Color(90, 6, 6));
+    popup_box.setOutlineColor(sf::Color(180, 0, 0));
+    popup_box.setOutlineThickness(4.f);
+
+    // Text
+    int popup_font_size = 24;
+    sf::Text popup_text(m_font);
+    popup_text.setCharacterSize(popup_font_size);
+    popup_text.setString(m_error_message);
+    popup_text.setFillColor(sf::Color::White);
+
+    // Layout popup text and buttons
+    sf::Vector2u size = m_window.getSize();
+    const float padding = 28.f;
+    float box_width = std::min(size.x - 10.f, popup_text.getLocalBounds().size.x + padding * 2.f);
+    float box_height = std::min(size.y - 10.f, popup_text.getLocalBounds().size.y + padding * 2.f);
+
+    // Scale text if needed
+    while (popup_font_size > 1 && popup_text.getLocalBounds().size.x > box_width - 10.f) {
+        popup_font_size -= 1;
+        popup_text.setCharacterSize(popup_font_size);
+        box_height = std::min(size.y - 10.f, popup_text.getLocalBounds().size.y + padding * 2.f);
+    }
+
+    sf::Vector2f center = sf::Vector2f(size.x * 0.5f, size.y * 0.5f);
+    popup_box.setSize(sf::Vector2f(box_width, box_height));
+    popup_box.setOrigin(popup_box.getSize() / 2.f);
+    popup_box.setPosition(center);
+    popup_text.setPosition(center - sf::Vector2f(popup_text.getLocalBounds().size.x / 2.f, popup_box.getSize().y / 2.f - padding + 1.f));
+
+    // Draw popup
+    window.draw(popup_box);
+    window.draw(popup_text);
+}
+
 
 void ChessGUI::_on_window_resize() {
     sf::Vector2u size = m_window.getSize();

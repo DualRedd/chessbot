@@ -1,6 +1,6 @@
 #pragma once
 
-#include "engine/registry.hpp"
+#include "core/registry.hpp"
 
 /**
  * Represents a human player or a AI player with a configuration.

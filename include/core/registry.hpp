@@ -7,12 +7,12 @@
 #include <variant>
 #include <stdexcept>
 
-enum class FieldType { Bool, Int, Double };
+enum class FieldType { Bool, Int, Double, String };
 struct ConfigField {
     std::string id;
     std::string description;
     FieldType type;
-    std::variant<bool, int, double> value;
+    std::variant<bool, int, double, std::string> value;
 };
 
 template <typename T>

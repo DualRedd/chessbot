@@ -2,10 +2,10 @@
 
 #include <chrono>
 
-#include "registry.hpp"
+#include "../core/move_generation.hpp"
+#include "../core/registry.hpp"
 #include "search_position.hpp"
 #include "transposition_table.hpp"
-#include "../core/move_generation.hpp"
 
 void registerMinimaxAI();
 
