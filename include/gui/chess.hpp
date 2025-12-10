@@ -1,7 +1,7 @@
 #pragma once
 
 #include <unordered_map>
-#include "position.hpp"
+#include "../core/position.hpp"
 
 const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 

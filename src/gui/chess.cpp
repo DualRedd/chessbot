@@ -1,4 +1,4 @@
-#include "core/chess.hpp"
+#include "gui/chess.hpp"
 
 #include "core/move_generation.hpp"
 #include <stdexcept>

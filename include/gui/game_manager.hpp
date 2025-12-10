@@ -4,7 +4,7 @@
 #include <functional>
 #include <chrono>
 
-#include "../core/chess.hpp"
+#include "chess.hpp"
 #include "../core/ai_player.hpp"
 #include "player_configuration.hpp"
 

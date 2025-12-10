@@ -1,17 +1,13 @@
-add_executable(run_benchmarks
-    bm_perft.cpp
-    bm_minimax_ai.cpp
-)
+function(add_benchmark_executable name)
+    cmake_parse_arguments(ARG "" "" "SRCS" ${ARGN})
+    add_executable(${name} ${ARG_SRCS})
+    target_compile_options(${name} PRIVATE ${ENG_FLAGS})
+    target_compile_definitions(${name} PRIVATE ${ENG_DEFINES})
+    target_link_libraries(${name} PRIVATE chess_core benchmark::benchmark_main)
+    if(NOT MSVC)
+        target_link_libraries(${name} PRIVATE -pthread)
+    endif()
+endfunction()
 
-target_link_libraries(run_benchmarks PRIVATE
-    benchmark::benchmark_main
-    chess_core
-    chess_bots
-)
-
-if(NOT MSVC)
-    target_link_libraries(run_benchmarks PRIVATE -pthread)
-endif()
-
-target_compile_options(run_benchmarks PRIVATE ${ENG_FLAGS})
-target_link_options(run_benchmarks PRIVATE ${LINK_FLAGS})
+add_benchmark_executable(perft SRCS bm_perft.cpp)
+add_benchmark_executable(pruning SRCS bm_pruning.cpp)
