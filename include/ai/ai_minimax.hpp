@@ -17,7 +17,12 @@ public:
               const size_t tt_size_megabytes,
               const bool aspiration_window_enabled,
               const int32_t aspiration_window,
-              const bool enable_debug_output = true);
+              const bool enable_info_output = true);
+
+    void set_time_limit_seconds(double secs);
+    void set_max_depth(int depth);
+    void set_max_nodes(int64_t nodes);
+    void clear_transposition_table();
 
     struct Stats {
         uint32_t depth = 0;
@@ -42,17 +47,25 @@ private:
     void _undo_move() override;
     UCI _compute_move() override;
 
-    std::pair<int32_t, Move> _root_search(int32_t alpha, int32_t beta, int32_t search_depth, Move previous_best);
+    std::pair<int32_t, Move> _root_search(int32_t alpha, int32_t beta, int32_t search_depth, Move previous_best, bool info_output);
     int32_t _alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32_t ply);
     inline int32_t _quiescence(int32_t alpha, int32_t beta, int32_t ply);
     inline void _order_moves(MoveList& move_list, const Move tt_move) const;
-    inline bool _timer_check();
+    inline bool _stop_check();
+
+    /**
+     * @param move the move to evaluate
+     * @return Static Exchange Evaluation (SEE) value for the given move.
+     */
+    inline bool static_exchange_evaluation(Move move, int32_t min_eval) const;
 
 private:
     // Search parameters
-    const int32_t m_max_depth = 99;
-    const double m_time_limit_seconds = 5.0;
-    const size_t m_tt_size_megabytes = 1000ULL;
+    int32_t m_max_depth = 99;
+    double m_time_limit_seconds = 5.0;
+    int64_t m_max_nodes = std::numeric_limits<int64_t>::max();
+
+    const size_t m_tt_size_megabytes = 256ULL;
     const bool m_aspiration_window_enabled = true;
     const int32_t m_aspiration_window = 50;
 
@@ -60,12 +73,12 @@ private:
     SearchPosition m_search_position;
     TranspositionTable m_tt;
 
-    // Timed cutoff
+    // Timed/node cutoff
     std::chrono::steady_clock::time_point m_deadline;
-    uint32_t m_nodes_visited = 0;
+    int64_t m_nodes_visited = 0;
     bool m_stop_search = false;
 
     // Statistics
-    const bool m_enable_debug_output = true;
+    const bool m_enable_info_output = true;
     Stats m_stats;
 };

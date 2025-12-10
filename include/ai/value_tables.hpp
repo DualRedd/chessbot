@@ -1,6 +1,13 @@
 #pragma once
 
-static constexpr int PST_PAWN[64] = {
+#include <cstdint>
+
+// Knight = 0, Bishop = 1, Rook = 2, Queen = 3, King = 4, Pawn = 5, None = 6
+static constexpr int32_t PIECE_VALUES[7] = {
+    320, 330, 500, 900, 0, 100, 0
+};
+
+static constexpr int32_t PST_PAWN[64] = {
     0, 0, 0, 0, 0, 0, 0, 0,
     50, 50, 50, 50, 50, 50, 50, 50,
     10, 10, 20, 30, 30, 20, 10, 10,
@@ -11,7 +18,7 @@ static constexpr int PST_PAWN[64] = {
     0, 0, 0, 0, 0, 0, 0, 0
 };
 
-static constexpr int PST_KNIGHT[64] = {
+static constexpr int32_t PST_KNIGHT[64] = {
     -50,-40,-30,-30,-30,-30,-40,-50,
     -40,-20, 0, 5, 5, 0,-20,-40,
     -30, 5, 10, 15, 15, 10, 5,-30,
@@ -22,7 +29,7 @@ static constexpr int PST_KNIGHT[64] = {
     -50,-40,-30,-30,-30,-30,-40,-50
 };
 
-static constexpr int PST_BISHOP[64] = {
+static constexpr int32_t PST_BISHOP[64] = {
     -20,-10,-10,-10,-10,-10,-10,-20,
     -10, 5, 0, 0, 0, 0, 5,-10,
     -10, 10, 10, 10, 10, 10, 10,-10,
@@ -33,7 +40,7 @@ static constexpr int PST_BISHOP[64] = {
     -20,-10,-10,-10,-10,-10,-10,-20
 };
 
-static constexpr int PST_ROOK[64] = {
+static constexpr int32_t PST_ROOK[64] = {
     0, 0, 0, 5, 5, 0, 0, 0,
     -5, 0, 0, 0, 0, 0, 0, -5,
     -5, 0, 0, 0, 0, 0, 0, -5,
@@ -44,7 +51,7 @@ static constexpr int PST_ROOK[64] = {
     0, 0, 0, 0, 0, 0, 0, 0
 };
 
-static constexpr int PST_QUEEN[64] = {
+static constexpr int32_t PST_QUEEN[64] = {
     -20,-10,-10, -5, -5,-10,-10,-20,
     -10, 0, 5, 0, 0, 0, 0,-10,
     -10, 5, 5, 5, 5, 5, 0,-10,
@@ -55,8 +62,8 @@ static constexpr int PST_QUEEN[64] = {
     -20,-10,-10, -5, -5,-10,-10,-20
 };
 
-static constexpr int PST_KING[64] = {
-    -30,-40,-40,-50,-50,-40,-40,-30,
+static constexpr int32_t PST_KING[64] = {
+    -35,-40,-40,-50,-50,-40,-40,-35,
     -30,-40,-40,-50,-50,-40,-40,-30,
     -30,-40,-40,-50,-50,-40,-40,-30,
     -30,-40,-40,-50,-50,-40,-40,-30,

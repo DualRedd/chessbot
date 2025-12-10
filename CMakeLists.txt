@@ -64,6 +64,19 @@ if(ENABLE_COVERAGE)
     endif()
 endif()
 
+# PEXT support for move generation
+if(ENABLE_BMI2)
+    include(CheckCXXCompilerFlag)
+    check_cxx_compiler_flag("-mbmi2" COMPILER_HAS_MBMI2)
+    if(COMPILER_HAS_MBMI2)
+        message(STATUS "Enabling PEXT support for movegen. Disable ENABLE_BMI2 to turn this off.")
+        add_compile_options(-mbmi2)
+        add_compile_definitions(PEXT_ENABLED)
+    else()
+        message(STATUS "No BMI2 compiler support detected; building without it")
+    endif()
+endif()
+
 # --- optimized Release flags for engine targets ---
 set(ENG_FLAGS )
 set(LINK_FLAGS )
@@ -149,20 +162,6 @@ add_library(chess_core SHARED
 target_compile_options(chess_core PRIVATE ${ENG_FLAGS})
 target_link_options(chess_core PRIVATE ${LINK_FLAGS})
 
-# PEXT support for move generation
-if(ENABLE_BMI2)
-    include(CheckCXXCompilerFlag)
-    check_cxx_compiler_flag("-mbmi2" COMPILER_HAS_MBMI2)
-    if(COMPILER_HAS_MBMI2)
-        message(STATUS "Enabling PEXT support for engine. Disable ENABLE_BMI2 to turn this off.")
-        target_compile_options(chess_core PRIVATE -mbmi2)
-        target_compile_definitions(chess_core PRIVATE PEXT_ENABLED)
-    else()
-        message(STATUS "No BMI2 compiler support detected; building without it")
-    endif()
-endif()
-
-
 # --- AIs ---
 add_library(chess_bots SHARED
     src/ai/registry.cpp
@@ -177,6 +176,14 @@ target_link_libraries(chess_bots PRIVATE
 target_compile_options(chess_bots PRIVATE ${ENG_FLAGS})
 target_link_options(chess_bots PRIVATE ${LINK_FLAGS})
 
+# --- Minimax engine executable ---
+add_executable(minimax_cli
+    src/cli/minimax_cli.cpp
+)
+target_link_libraries(minimax_cli PRIVATE
+    chess_core
+    chess_bots
+)
 
 # --- GUI executable ---
 add_executable(chess_gui

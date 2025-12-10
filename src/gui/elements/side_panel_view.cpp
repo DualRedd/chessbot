@@ -72,7 +72,7 @@ SidePanelView::SidePanelView(tgui::Gui& gui)
     // Scrollbar visibility changes due to GrowVerticalLayout size changes cause
     // GrowVerticalLayout to reenter its updateWidgets() from within ScrollablePanel's
     // updateWidget() which then trashes its m_widgetLayouts vector while it's still being iterated.
-    m_middle_grow_panel->setSize("parent.width - 16", "100%");
+    m_middle_grow_panel->setSize("parent.width - 20", "100%");
     m_middle_scroll_panel->add(m_middle_grow_panel);
 }
 

@@ -1,6 +1,6 @@
 #include "ai/search_position.hpp"
 
-#include "ai/pst.hpp"
+#include "ai/value_tables.hpp"
 #include <algorithm>
 
 SearchPosition::SearchPosition() : m_position() {
@@ -47,7 +47,7 @@ void SearchPosition::make_move(Move move) {
     // Move piece and handle promo
     if(move_type == MoveType::Promotion) {
         PieceType promo = MoveEncoding::promo(move);
-        delta += material_value(promo) - material_value(piece_type);
+        delta += _material_value(promo) - _material_value(piece_type);
         delta += _pst_value(promo, side, to) + _pst_value(piece_type, side, from);
     }
     else {
@@ -61,7 +61,7 @@ void SearchPosition::make_move(Move move) {
     }
     PieceType captured = to_type(m_position.get_piece_at(capture_square));
     if (captured != PieceType::None) {
-        delta += material_value(captured);
+        delta += _material_value(captured);
         delta += _pst_value(captured, opponent(side), capture_square);
     }
 
@@ -103,15 +103,8 @@ const Position& SearchPosition::get_position() const {
     return m_position;
 }
 
-int32_t SearchPosition::material_value(PieceType type) const {
-    switch(type) {
-        case PieceType::Pawn:   return 100;
-        case PieceType::Knight: return 320;
-        case PieceType::Bishop: return 330;
-        case PieceType::Rook:   return 500;
-        case PieceType::Queen:  return 900;
-        default: return 0;
-    }
+int32_t SearchPosition::_material_value(PieceType type) const {
+    return PIECE_VALUES[+type];
 }
 
 int32_t SearchPosition::_pst_value(PieceType type, Color color, Square square) const {
@@ -138,7 +131,7 @@ int32_t SearchPosition::_compute_full_eval() {
 
         PieceType type = to_type(piece);
         Color color = to_color(piece);
-        int32_t val = material_value(type) + _pst_value(type, color, square);
+        int32_t val = _material_value(type) + _pst_value(type, color, square);
         eval += (color == Color::White ? val : -val);
     }
 
