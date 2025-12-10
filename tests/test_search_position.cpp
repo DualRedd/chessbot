@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "ai/search_position.hpp"
+#include "engine/search_position.hpp"
 #include "core/move_generation.hpp"
 
 const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";

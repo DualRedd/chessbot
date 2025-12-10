@@ -1,5 +1,5 @@
 #include "gui/game_manager.hpp"
-#include "ai/registry.hpp"
+#include "engine/registry.hpp"
 
 // Helper: check if state is terminal
 static inline bool _is_terminal_state(Chess::GameState s) {

@@ -4,7 +4,7 @@
 #include <thread>
 #include <atomic>
 
-#include "ai/ai_minimax.hpp"
+#include "engine/minimax_engine.hpp"
 
 const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 

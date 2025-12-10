@@ -1,4 +1,4 @@
-#include "ai/ai_random.hpp"
+#include "engine/uci_engine.hpp"
 
 void registerRandomAI() {
     auto createRandomAI = [](const std::vector<ConfigField>& cfg) {

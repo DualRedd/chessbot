@@ -1,5 +1,5 @@
 #include "gui/chess_gui.hpp"
-#include "ai/registry.hpp"
+#include "engine/registry.hpp"
 
 ChessGUI::ChessGUI(int window_width, int window_height)
     : m_game_manager(),

@@ -1,6 +1,6 @@
-#include "ai/search_position.hpp"
+#include "engine/search_position.hpp"
 
-#include "ai/value_tables.hpp"
+#include "engine/value_tables.hpp"
 #include <algorithm>
 
 SearchPosition::SearchPosition() : m_position() {

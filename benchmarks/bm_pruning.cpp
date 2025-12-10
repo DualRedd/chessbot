@@ -1,5 +1,5 @@
 #include "benchmark/benchmark.h"
-#include "ai/ai_minimax.hpp"
+#include "engine/minimax_engine.hpp"
 
 static void run_minimax_fixed_depth(benchmark::State& state,
                                     const std::vector<FEN>& positions,

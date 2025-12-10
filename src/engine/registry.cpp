@@ -1,7 +1,7 @@
-#include "ai/registry.hpp"
+#include "engine/registry.hpp"
 
-#include "ai/ai_random.hpp"
-#include "ai/ai_minimax.hpp"
+#include "engine/uci_engine.hpp"
+#include "engine/minimax_engine.hpp"
 
 void AIRegistry::registerAIs() {
     registerRandomAI();

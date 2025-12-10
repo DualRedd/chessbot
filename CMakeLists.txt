@@ -158,11 +158,11 @@ add_library(chess_core STATIC
     src/core/move_generation.cpp
     src/core/ai_player.cpp
     # -- AI ---
-    src/ai/registry.cpp
-    src/ai/search_position.cpp
-    src/ai/transposition_table.cpp
-    src/ai/ai_random.cpp
-    src/ai/ai_minimax.cpp
+    src/engine/registry.cpp
+    src/engine/search_position.cpp
+    src/engine/transposition_table.cpp
+    src/engine/uci_engine.cpp
+    src/engine/minimax_engine.cpp
 )
 target_compile_options(chess_core PRIVATE ${ENG_FLAGS})
 target_link_options(chess_core PRIVATE ${LINK_FLAGS})
