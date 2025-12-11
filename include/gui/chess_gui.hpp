@@ -37,6 +37,11 @@ private:
     void _draw();
 
     /**
+     * Draw error popup over the window.
+     */
+    void _draw_error_popup(sf::RenderWindow& window);
+
+    /**
      * Update window elements to match new window size.
      */
     void _on_window_resize();
@@ -53,6 +58,11 @@ private:
     // Window and TGUI
     sf::RenderWindow m_window;
     tgui::Gui m_tgui;
+
+    // Error popup
+    bool m_error_popup_active = false;
+    std::string m_error_message;
+    sf::Font m_font;
 
     // Views
     SidePanelView m_side_panel;

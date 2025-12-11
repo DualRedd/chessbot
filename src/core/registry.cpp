@@ -1,10 +1,10 @@
-#include "ai/registry.hpp"
+#include "core/registry.hpp"
 
-#include "ai/ai_random.hpp"
-#include "ai/ai_minimax.hpp"
+#include "core/uci_player.hpp"
+#include "engine/minimax_engine.hpp"
 
 void AIRegistry::registerAIs() {
-    registerRandomAI();
+    registerUciPlayer();
     registerMinimaxAI();
 }
 

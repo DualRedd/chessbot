@@ -88,3 +88,15 @@ private:
     tgui::EditBox::Ptr m_edit;
 };
 
+class StringFieldView : public ConfigFieldView {
+public:
+    explicit StringFieldView(const ConfigField& field);
+    ConfigField get_state() const override;
+    void apply_default() override;
+
+private:
+    tgui::EditBox::Ptr m_edit;
+};
+
+
+

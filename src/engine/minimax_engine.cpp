@@ -1,6 +1,6 @@
-#include "ai/ai_minimax.hpp"
+#include "engine/minimax_engine.hpp"
 
-#include "ai/value_tables.hpp"
+#include "engine/value_tables.hpp"
 #include <algorithm>
 #include <iostream>
 

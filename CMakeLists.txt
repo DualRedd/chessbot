@@ -5,7 +5,7 @@ project(ChessBot LANGUAGES CXX VERSION 0.0.1)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # --- Options ---
 option(BUILD_TESTS "Build unit tests" ON)
@@ -151,44 +151,35 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 
 
 # --- Core library ---
-add_library(chess_core SHARED
+add_library(chess_core STATIC
     src/core/types.cpp
     src/core/bitboard.cpp
     src/core/position.cpp
     src/core/move_generation.cpp
-    src/core/chess.cpp
+    src/core/registry.cpp
     src/core/ai_player.cpp
+    src/core/uci_player.cpp
+    # -- Custom Minimax Engine ---
+    src/engine/minimax_engine.cpp
+    src/engine/search_position.cpp
+    src/engine/transposition_table.cpp
 )
 target_compile_options(chess_core PRIVATE ${ENG_FLAGS})
 target_link_options(chess_core PRIVATE ${LINK_FLAGS})
 
-# --- AIs ---
-add_library(chess_bots SHARED
-    src/ai/registry.cpp
-    src/ai/search_position.cpp
-    src/ai/transposition_table.cpp
-    src/ai/ai_random.cpp
-    src/ai/ai_minimax.cpp
-)
-target_link_libraries(chess_bots PRIVATE
-    chess_core
-)
-target_compile_options(chess_bots PRIVATE ${ENG_FLAGS})
-target_link_options(chess_bots PRIVATE ${LINK_FLAGS})
-
-# --- Minimax engine executable ---
+# --- Minimax engine cli ---
 add_executable(minimax_cli
     src/cli/minimax_cli.cpp
 )
 target_link_libraries(minimax_cli PRIVATE
     chess_core
-    chess_bots
 )
 
 # --- GUI executable ---
 add_executable(chess_gui
     src/gui/gui_main.cpp
     src/gui/chess_gui.cpp
+    src/gui/chess.cpp
     src/gui/game_manager.cpp
     src/gui/assets.cpp
     src/gui/elements/chess_view.cpp
@@ -198,7 +189,6 @@ add_executable(chess_gui
 )
 target_link_libraries(chess_gui PRIVATE
     chess_core
-    chess_bots
     SFML::Graphics
     TGUI::TGUI
 )

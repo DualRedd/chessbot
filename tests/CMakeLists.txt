@@ -9,7 +9,6 @@ add_executable(unit_tests
 target_link_libraries(unit_tests PRIVATE
     gtest_main
     chess_core
-    chess_bots
 )
 
 # Register to CTest

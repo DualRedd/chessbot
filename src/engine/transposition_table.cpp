@@ -1,4 +1,4 @@
-#include "ai/transposition_table.hpp"
+#include "engine/transposition_table.hpp"
 #include <limits>
 
 TranspositionTable::TranspositionTable(size_t megabytes) {
