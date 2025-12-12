@@ -1,8 +1,11 @@
 #include "engine/minimax_engine.hpp"
 
-#include "engine/value_tables.hpp"
 #include <algorithm>
 #include <iostream>
+
+#include "engine/move_picker.hpp"
+#include "engine/value_tables.hpp"
+#include "engine/see.hpp"
 
 static constexpr int32_t NULL_SCORE = 111'111'111;
 static constexpr int32_t INF_SCORE = 100'000'000;
@@ -210,18 +213,14 @@ UCI MinimaxAI::_compute_move() {
 std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, int32_t search_depth, Move previous_best, bool info_output) {
     ++m_stats.alpha_beta_nodes;
 
-    Color side = m_search_position.get_position().get_side_to_move();
     Move best_move = 0;
+    int move_number = 0;
+    MovePicker move_picker(m_search_position.get_position(), previous_best);
 
-    MoveList move_list;
-    move_list.generate<GenerateType::Legal>(m_search_position.get_position());
-    _order_moves(move_list, previous_best);
-
-
-    for (size_t i = 0; i < move_list.count(); ++i) {
-        const Move& move = move_list[i];
+    for (Move move = move_picker.next(); move != NULL_MOVE; move = move_picker.next()) {
         if (info_output) {
-            std::cout << "info depth " << search_depth << " currmove " << MoveEncoding::to_uci(move) << " currmovenumber " << i+1 << "\n" << std::flush;
+            std::cout << "info depth " << search_depth << " currmove " << MoveEncoding::to_uci(move)
+                        << " currmovenumber " << ++move_number << "\n" << std::flush;
         }
 
         m_search_position.make_move(move);
@@ -262,7 +261,6 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32
 
     ++m_stats.alpha_beta_nodes;
 
-    Color side = m_search_position.get_position().get_side_to_move();
     int32_t starting_alpha = alpha;
 
     uint64_t zobrist_key = m_search_position.get_position().get_zobrist_hash();
@@ -291,23 +289,12 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32
     int32_t best_score = -INF_SCORE;
     Move best_move = 0;
 
-    MoveList move_list;
-    move_list.generate<GenerateType::Legal>(m_search_position.get_position());
-    _order_moves(move_list, tt_entry ? tt_entry->best_move : 0);
+    MovePicker move_picker(m_search_position.get_position(), tt_entry ? tt_entry->best_move : NULL_MOVE);
+    int legal_move_count = 0;
 
-    if (move_list.count() == 0) {
-        if (m_search_position.get_position().in_check()) {
-            // Checkmate with ply bonus to prefer faster mates
-            int32_t store_score = -MATE_SCORE + ply;
-            m_tt.store(zobrist_key, normalize_score_for_tt(store_score, ply), depth, Bound::Exact, 0);
-            return store_score;
-        } else {
-            return DRAW_SCORE; // Stalemate
-        }
-    }
-
-    for (const Move& move : move_list) {
+    for (Move move = move_picker.next(); move != NULL_MOVE; move = move_picker.next()) {
         m_search_position.make_move(move);
+        ++legal_move_count;
 
         int32_t score = -_alpha_beta(-beta, -alpha, depth - 1, ply + 1);
         m_search_position.undo_move();
@@ -333,6 +320,17 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32
         }
     }
 
+    if (legal_move_count == 0) {
+        if (m_search_position.get_position().in_check()) {
+            // Checkmate with ply bonus to prefer faster mates
+            int32_t store_score = -MATE_SCORE + ply;
+            m_tt.store(zobrist_key, normalize_score_for_tt(store_score, ply), depth, Bound::Exact, 0);
+            return store_score;
+        } else {
+            return DRAW_SCORE; // Stalemate
+        }
+    }
+
     int32_t store_score = normalize_score_for_tt(best_score, ply);
     Bound bound = (best_score <= starting_alpha) ? Bound::Upper
                           : (best_score >= beta) ? Bound::Lower
@@ -347,39 +345,26 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int32_t ply) 
     if (_stop_check())
         return NULL_SCORE;
 
-    MoveList move_list;
     int32_t best_score;
-
     const bool in_check = m_search_position.get_position().in_check();
+
     if (!in_check) {
         // Stand pat evaluation
         best_score = m_search_position.get_eval();
         if (best_score >= beta) return best_score;
         if (best_score > alpha) alpha = best_score;
-
-        move_list.generate<GenerateType::Captures>(m_search_position.get_position());
     } 
     else {
-        best_score = -INF_SCORE;
-        move_list.generate<GenerateType::Evasions>(m_search_position.get_position());
-        if (move_list.count() == 0) {
-            // Checkmate with ply bonus to prefer faster mates
-            return -MATE_SCORE + ply;
-        }
+        best_score = -INF_SCORE; 
     }
 
     // not probing TT in quiescence search, tested to be faster
-    _order_moves(move_list, 0);
+    MovePicker move_picker(m_search_position.get_position(), NULL_MOVE, true);
+    int move_count = 0;
 
-    for (const Move& move : move_list) {
-        if (!in_check) {
-            // SEE pruning for non-check captures
-            if (!static_exchange_evaluation(move, alpha)) {
-                continue;
-            }
-        }
-
+    for (Move move = move_picker.next(); move != NULL_MOVE; move = move_picker.next()) {
         m_search_position.make_move(move);
+        ++move_count;
 
         int32_t score = -_quiescence(-beta, -alpha, ply + 1);
         m_search_position.undo_move();
@@ -399,76 +384,12 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int32_t ply) 
         }
     }
 
+    if (in_check && move_count == 0) {
+        // Checkmate with ply bonus to prefer faster mates
+        return -MATE_SCORE + ply;
+    }
+
     return best_score;
-}
-
-inline void MinimaxAI::_order_moves(MoveList& move_list, const Move tt_move) const {
-    struct Scored {
-        Move move;
-        int32_t score;
-    };
-    thread_local static std::array<Scored, MAX_MOVE_LIST_SIZE> scored;
-
-    size_t n = move_list.count();
-    for (size_t i = 0; i < n; i++) {
-        scored[i].score = 0;
-        scored[i].move = move_list[i];
-
-        // TT best move top priority
-        if (scored[i].move == tt_move) {
-            scored[i].score += 10'000'000;
-            continue;
-        }
-
-        // Captures, least valuable attacker capturing most valuable victim
-        PieceType captured = m_search_position.get_position().to_capture(scored[i].move);
-        if (captured != PieceType::None) {
-            PieceType attacker = m_search_position.get_position().to_moved(scored[i].move);
-            scored[i].score += 1'000'000 + PIECE_VALUES[+captured] * 100 - PIECE_VALUES[+attacker];
-            continue;
-        }
-
-        // Promotions
-        if (MoveEncoding::move_type(scored[i].move) == MoveType::Promotion) {
-            PieceType promo = MoveEncoding::promo(scored[i].move);
-            scored[i].score += 800'000 + PIECE_VALUES[+promo] * 100;
-            continue;
-        }
-
-        // Quiet moves left
-
-        // Prefer non-pawn non-king moves
-        PieceType mover = m_search_position.get_position().to_moved(scored[i].move);
-        scored[i].score += (mover < PieceType::Pawn) ? 1'000 : 0;
-
-        // Prefer moves that move towards center
-        Square to = MoveEncoding::to_sq(scored[i].move);
-        int center_dist = std::abs(3 - file_of(to)) + std::abs(3 - rank_of(to));
-        scored[i].score += (10 - center_dist);
-    }
-
-    if (n <= 32) {
-        // insertion sort (descending)
-        for (size_t i = 1; i < n; ++i) {
-            Scored item = scored[i];
-            int32_t j = (int32_t)i - 1;
-            while (j >= 0 && scored[j].score < item.score) {
-                move_list[j + 1] = move_list[j];
-                scored[j + 1] = scored[j];
-                --j;
-            }
-            move_list[j + 1] = item.move;
-            scored[j + 1] = item;
-        }
-    }
-    else {
-        // normal sort (descending)
-        std::stable_sort(scored.begin(), scored.begin() + n, [&](Scored a, Scored b) {
-            return a.score > b.score;
-        });
-        for (size_t i = 0; i < n; ++i)
-            move_list[i] = scored[i].move;
-    }
 }
 
 inline bool MinimaxAI::_stop_check() {
@@ -481,119 +402,4 @@ inline bool MinimaxAI::_stop_check() {
         }
     }
     return m_stop_search;
-}
-
-inline bool MinimaxAI::static_exchange_evaluation(Move move, int32_t min_eval) const {
-    // https://www.chessprogramming.net/static-exchange-evaluation-in-chess/
-
-    if (MoveEncoding::move_type(move) != MoveType::Normal) {
-        return 0 >= min_eval;
-    }
-
-    const Position& pos = m_search_position.get_position();
-    const Square from = MoveEncoding::from_sq(move);
-    const Square to = MoveEncoding::to_sq(move);
-
-    assert(pos.get_piece_at(from) != Piece::None);
-    assert(to_type(pos.get_piece_at(to)) != PieceType::King);
-
-    int32_t see = PIECE_VALUES[+to_type(pos.get_piece_at(to))] - min_eval;
-    if (see < 0) // side to move losing already
-        return false;
-    see = PIECE_VALUES[+to_type(pos.get_piece_at(from))] - see;
-    if (see < 0) // opponent losing after recapture
-        return true;
-
-    Color side = pos.get_side_to_move();
-    Bitboard occupied = pos.get_pieces() ^ MASK_SQUARE[+from];
-    Bitboard all_attackers = pos.attackers(to, occupied);
-    Bitboard pc;
-    bool stm_winning = true;
-
-    while (true) {
-        side = opponent(side);
-        all_attackers &= occupied;
-        Bitboard side_attackers = all_attackers & pos.get_pieces(side);
-
-        // Remove pinned pieces from attackers if pinners still exist
-        if ((pos.get_pinners(opponent(side)) & occupied) != 0ULL) {
-            side_attackers &= ~pos.get_king_blockers(side);
-        }
-
-        if (side_attackers == 0ULL)
-            return stm_winning; // No more attackers
-        stm_winning = !stm_winning;
-
-        // Find least valuable attacker
-        pc = pos.get_pieces(side, PieceType::Pawn) & side_attackers;
-        if (pc != 0ULL) {
-            see = PIECE_VALUES[+PieceType::Pawn] - see;
-            if (see < 0)
-                return stm_winning;
-
-            occupied ^= MASK_SQUARE[+lsb(pc)];
-            // add possible discovered attacks
-            all_attackers |= attacks_from<PieceType::Bishop>(to, occupied)
-                            & (pos.get_pieces(PieceType::Bishop) | pos.get_pieces(PieceType::Queen));
-            continue;
-        }
-
-        pc = pos.get_pieces(side, PieceType::Knight) & side_attackers;
-        if (pc != 0ULL) {
-            see = PIECE_VALUES[+PieceType::Knight] - see;
-            if (see < 0)
-                return stm_winning;
-
-            occupied ^= MASK_SQUARE[+lsb(pc)];
-            // no possible discovered attacks
-            continue;
-        }
-
-        pc = pos.get_pieces(side, PieceType::Bishop) & side_attackers;
-        if (pc != 0ULL) {
-            see = PIECE_VALUES[+PieceType::Bishop] - see;
-            if (see < 0)
-                return stm_winning;
-
-            occupied ^= MASK_SQUARE[+lsb(pc)];
-            // add possible discovered attacks
-            all_attackers |= attacks_from<PieceType::Bishop>(to, occupied)
-                            & (pos.get_pieces(PieceType::Bishop) | pos.get_pieces(PieceType::Queen));
-            continue;
-        }
-
-        pc = pos.get_pieces(side, PieceType::Rook) & side_attackers;
-        if (pc != 0ULL) {
-            see = PIECE_VALUES[+PieceType::Rook] - see;
-            if (see < 0)
-                return stm_winning;
-
-            occupied ^= MASK_SQUARE[+lsb(pc)];
-            // add possible discovered attacks
-            all_attackers |= attacks_from<PieceType::Rook>(to, occupied)
-                            & (pos.get_pieces(PieceType::Rook) | pos.get_pieces(PieceType::Queen));
-            continue;
-        }
-
-        pc = pos.get_pieces(side, PieceType::Queen) & side_attackers;
-        if (pc != 0ULL) {
-            see = PIECE_VALUES[+PieceType::Queen] - see;
-            if (see < 0)
-                return stm_winning;
-
-            occupied ^= MASK_SQUARE[+lsb(pc)];
-            // add possible discovered attacks
-            all_attackers |= (attacks_from<PieceType::Bishop>(to, occupied)
-                            | attacks_from<PieceType::Rook>(to, occupied))
-                            & (pos.get_pieces(PieceType::Bishop) | pos.get_pieces(PieceType::Rook) | pos.get_pieces(PieceType::Queen));
-            continue;
-        }
-
-        // Only king left
-        // no possible discovered attacks
-        // if attackers left for opponent, opponent wins
-        if (all_attackers & ~pos.get_pieces(side))
-            return !stm_winning;
-        return stm_winning;
-    }
 }

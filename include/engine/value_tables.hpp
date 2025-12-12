@@ -2,9 +2,9 @@
 
 #include <cstdint>
 
-// Knight = 0, Bishop = 1, Rook = 2, Queen = 3, King = 4, Pawn = 5, None = 6
-static constexpr int32_t PIECE_VALUES[7] = {
-    320, 330, 500, 900, 0, 100, 0
+// Knight = 0, Bishop = 1, Rook = 2, Queen = 3, King = 4, Pawn = 5, All = 6, None = 7
+static constexpr int32_t PIECE_VALUES[8] = {
+    320, 330, 500, 900, 0, 100, 0, 0
 };
 
 static constexpr int32_t PST_PAWN[64] = {

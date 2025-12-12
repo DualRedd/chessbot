@@ -50,14 +50,7 @@ private:
     std::pair<int32_t, Move> _root_search(int32_t alpha, int32_t beta, int32_t search_depth, Move previous_best, bool info_output);
     int32_t _alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32_t ply);
     inline int32_t _quiescence(int32_t alpha, int32_t beta, int32_t ply);
-    inline void _order_moves(MoveList& move_list, const Move tt_move) const;
     inline bool _stop_check();
-
-    /**
-     * @param move the move to evaluate
-     * @return Static Exchange Evaluation (SEE) value for the given move.
-     */
-    inline bool static_exchange_evaluation(Move move, int32_t min_eval) const;
 
 private:
     // Search parameters

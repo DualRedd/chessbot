@@ -1,5 +1,7 @@
 #include "core/move_generation.hpp"
 
+#include <algorithm>
+
 namespace {
 
 template<Shift shift>
@@ -208,10 +210,10 @@ inline bool is_legal_move(const Position& pos, Move move) {
 
     // King move is legal if the destination square is not attacked
     // Handles castling also (other squares are checked during move generation)
-    if (to_type(pos.get_piece_at(from)) == PieceType::King) {
+    if (to_type(pos.get_piece_at(from)) == PieceType::King)
         return !pos.attackers_exist(opp, to, pos.get_pieces() ^ MASK_SQUARE[+from]);
-    }
 
+    assert(move_type != MoveType::Castle);
     Square king_sq = lsb(pos.get_pieces(side, PieceType::King));
 
     // en passant special case: simulate occupancy after capture
@@ -233,6 +235,96 @@ inline bool is_legal_move(const Position& pos, Move move) {
     const bool is_pinned = (pos.get_king_blockers(side) & MASK_SQUARE[+from]) != 0ULL;
     const bool moves_on_line = (MASK_LINE[+from][+to] & MASK_SQUARE[+king_sq]) != 0ULL;
     return (!is_pinned || moves_on_line);
+}
+
+/**
+ * Checks if the given move is pseudo-legal in the given position.
+ * Checks the conditions is_legal_move() expects based on move generation.
+ */
+template<Color side>
+bool is_pseudo_legal_move(const Position& pos, Move move) {
+    const MoveType move_type = MoveEncoding::move_type(move);
+
+    if (move_type != MoveType::Normal) {
+        MoveList moves;
+        if (pos.in_check()) {
+            moves.generate<GenerateType::Evasions>(pos);
+        } else {
+            moves.generate<GenerateType::PseudoLegal>(pos);
+        }
+        return std::find(moves.begin(), moves.end(), move) != moves.end();
+    }
+
+    constexpr Color opp = opponent(side);
+    const Square from = MoveEncoding::from_sq(move);
+    const Square to = MoveEncoding::to_sq(move);
+    const Piece piece = pos.get_piece_at(from);
+
+    // If from square has no stm piece, move is not pseudo-legal
+    if (piece == Piece::None || to_color(piece) != side)
+        return false;
+    
+    // If to square has stm piece, move is not pseudo-legal
+    if (pos.get_pieces(side) & MASK_SQUARE[+to])
+        return false;
+
+    // King checkers
+    assert(pos.get_pieces(side, PieceType::King) != 0ULL);
+    Square king_sq = lsb(pos.get_pieces(side, PieceType::King));
+    Bitboard att = pos.attackers(opp, king_sq, pos.get_pieces());
+    if (att) {
+        // This must be an evasion move
+        // Ensure conditions match evasion generation
+        if (to_type(piece) != PieceType::King) {
+            if (more_than_1bit(att)) 
+                return false; // only king moves possible
+            
+            Square attacker_sq = lsb(att);
+            Bitboard targets = MASK_SQUARE[+attacker_sq] | MASK_BETWEEN[+king_sq][+attacker_sq];
+            if ((MASK_SQUARE[+to] & targets) == 0ULL)
+                return false; // move must capture checker or block check
+        }
+    }
+
+    // Check piece movement pattern
+    if (to_type(piece) == PieceType::Pawn) {
+        constexpr int rank_2 = (side == Color::White) ? 1 : 6;
+        constexpr Shift double_forward = (side == Color::White) ? Shift::DoubleUp : Shift::DoubleDown;
+
+        if (PROMOTION_RANKS & MASK_SQUARE[+to])
+            return false; // Promotion moves were handled earlier
+        
+        Bitboard attacks = MASK_PAWN_ATTACKS[+side][+from];
+        bool forward_empty = (pos.get_pieces() & MASK_SQUARE[+(from + pawn_dir(side))]) == 0ULL;
+
+        bool is_valid_capture = (attacks & pos.get_pieces(opp) & MASK_SQUARE[+to]) != 0ULL;
+        bool is_valid_push = (to == from + pawn_dir(side)) && forward_empty;
+        bool is_valid_double_push = (rank_of(from) == rank_2) && (to == from + double_forward)
+                                && forward_empty && (pos.get_pieces() & MASK_SQUARE[+to]) == 0ULL;
+
+        if (!is_valid_capture && !is_valid_push && !is_valid_double_push)
+            return false;
+    }
+    else {
+        Bitboard attacks;
+        switch (to_type(piece)) {
+            case PieceType::Knight:
+                attacks = MASK_KNIGHT_ATTACKS[+from]; break;
+            case PieceType::Bishop:
+                attacks = attacks_from<PieceType::Bishop>(from, pos.get_pieces()); break;
+            case PieceType::Rook:
+                attacks = attacks_from<PieceType::Rook>(from, pos.get_pieces()); break;
+            case PieceType::Queen:
+                attacks = attacks_from<PieceType::Queen>(from, pos.get_pieces()); break;
+            case PieceType::King:
+                attacks = MASK_KING_ATTACKS[+from]; break;
+        }
+
+        if ((MASK_SQUARE[+to] & attacks) == 0ULL)
+            return false;
+    }
+
+    return true;
 }
 
 // Generates legal moves for the given side and generation type
@@ -293,6 +385,15 @@ Move* generate_moves(const Position& pos, Move* move_list) {
         }
     }
     return move_list;
+}
+
+bool test_legality(const Position& pos, Move move) {
+    if (pos.get_side_to_move() == Color::White) {
+        return is_pseudo_legal_move<Color::White>(pos, move) && is_legal_move<Color::White>(pos, move);
+    }
+    else {
+        return is_pseudo_legal_move<Color::Black>(pos, move) && is_legal_move<Color::Black>(pos, move);
+    }
 }
 
 // Explicit template instantiations

@@ -90,6 +90,7 @@ constexpr Shift pawn_dir(Color side)                        noexcept { return si
 // Bits 12-13: promoted piece type
 // Bits 14-15: MoveType
 using Move = uint16_t;
+constexpr Move NULL_MOVE = 0;
 
 enum class MoveType : int8_t {
     Normal = 0,

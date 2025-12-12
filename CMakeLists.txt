@@ -162,6 +162,7 @@ add_library(chess_core STATIC
     # -- Custom Minimax Engine ---
     src/engine/minimax_engine.cpp
     src/engine/search_position.cpp
+    src/engine/move_picker.cpp
     src/engine/transposition_table.cpp
 )
 target_compile_options(chess_core PRIVATE ${ENG_FLAGS})

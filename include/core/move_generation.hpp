@@ -25,6 +25,15 @@ template<GenerateType gen_type>
 Move* generate_moves(const Position& pos, Move* move_list);
 
 /**
+ * Test if the given move is legal in the given position.
+ * The move must still be validly encoded (using MoveEncoding::encode()).
+ * @param pos Position to test the move in.
+ * @param move the move to evaluate
+ * @return True if the move is legal, else false.
+ */
+bool test_legality(const Position& pos, Move move);
+
+/**
  * Simple wrapper class to store and generate moves easily.
  */
 class MoveList {
@@ -51,6 +60,8 @@ public:
     size_t count() const { return m_count; }
     Move* begin() { return m_moves.data(); }
     Move* end() { return m_moves.data() + m_count; }
+    const Move* begin() const { return m_moves.data(); }
+    const Move* end() const { return m_moves.data() + m_count; }
 
 private:
     std::array<Move, MAX_MOVE_LIST_SIZE> m_moves;
