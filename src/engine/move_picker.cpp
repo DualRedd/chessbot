@@ -19,16 +19,16 @@ MovePicker::MovePicker(const Position& position, const Move tt_move, bool quiesc
         m_stage = MovePickStage::TTMoveNormal;
     else {
         m_stage = MovePickStage::TTMoveQuiescence;
-        if (m_tt_move != NULL_MOVE && (m_position.to_capture(m_tt_move) == PieceType::None
+        if (m_tt_move != NO_MOVE && (m_position.to_capture(m_tt_move) == PieceType::None
             || (MoveEncoding::move_type(m_tt_move) == MoveType::Promotion && MoveEncoding::promo(m_tt_move) != PieceType::Queen))) {
             // TT move is not a capture or queen promot (not included in quiescence search)
-            m_tt_move = NULL_MOVE;
+            m_tt_move = NO_MOVE;
         }
     }
 
     // Skip TT move stage if no valid TT move
     // zobrist hash collision for example can result in a illegal move retrieved from the transposition table (quite rare)
-    if (m_tt_move == NULL_MOVE || !test_legality(m_position, m_tt_move))
+    if (m_tt_move == NO_MOVE || !test_legality(m_position, m_tt_move))
         ++m_stage;
 }
 
@@ -68,7 +68,7 @@ Move MovePicker::next() {
                 }
             }
             if (m_stage == MovePickStage::GoodQuiescenceCaptures)
-                return NULL_MOVE;
+                return NO_MOVE;
 
             ++m_stage;
             m_bad_captures_begin = m_cur_end;
@@ -107,7 +107,7 @@ Move MovePicker::next() {
                 }
                 return (m_bad_captures_begin++)->move;
             }
-            return NULL_MOVE;
+            return NO_MOVE;
         }
         
         case MovePickStage::ScoreEvasions: {
@@ -129,12 +129,12 @@ Move MovePicker::next() {
                 }
                 return (m_cur_begin++)->move;
             }
-            return NULL_MOVE;
+            return NO_MOVE;
         }
 
         assert(false); // should not reach here
     }
-    return NULL_MOVE; // suppress compiler warning
+    return NO_MOVE; // suppress compiler warning
 };
 
 template<GenerateType gen_type>

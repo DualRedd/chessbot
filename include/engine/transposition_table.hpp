@@ -4,7 +4,7 @@
 #include <optional>
 #include "core/types.hpp"
 
-enum class Bound : uint8_t { Exact=0, Lower=1, Upper=2 };
+enum class Bound : uint8_t { Exact=0, Lower=1, Upper=2, None=3 };
 
 struct TTEntry { // 24 bytes aligned
     uint64_t key;

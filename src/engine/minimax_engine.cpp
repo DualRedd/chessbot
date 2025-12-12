@@ -7,7 +7,6 @@
 #include "engine/value_tables.hpp"
 #include "engine/see.hpp"
 
-static constexpr int32_t NULL_SCORE = 111'111'111;
 static constexpr int32_t INF_SCORE = 100'000'000;
 static constexpr int32_t MATE_SCORE = 100'000;
 static constexpr int32_t DRAW_SCORE = 0;
@@ -27,6 +26,17 @@ static inline int32_t adjust_score_from_tt(int32_t stored_score, int ply) {
         return stored_score + ply;
     return stored_score;
 }
+
+// Losing score with ply bonus for opponent side to prefer faster mates
+static inline int32_t mated_in(int32_t ply) {
+    return -MATE_SCORE + ply;
+}
+
+static inline int32_t now_milliseconds() {
+    using namespace std::chrono;
+    return static_cast<int32_t>(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+}
+
 
 void registerMinimaxAI() {
     auto createMinimaxAI = [](const std::vector<ConfigField>& cfg) {
@@ -146,32 +156,28 @@ UCI MinimaxAI::_compute_move() {
     m_stats.reset();
     m_tt.new_search_iteration();
 
-    auto start_time = std::chrono::steady_clock::now();
-    m_deadline = start_time + std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(m_time_limit_seconds));
+    m_start_time = now_milliseconds();
+    m_deadline = m_start_time + static_cast<int32_t>(m_time_limit_seconds * 1000.0);
     m_stop_search = false;
     m_nodes_visited = 0;
 
-    Move best_move = 0;
-    int32_t prev_score = 0;
+    Move best_move = NO_MOVE;
+    int32_t prev_score = -INF_SCORE;
     
     int target_depth = 1;
     for (; target_depth <= m_max_depth; ++target_depth) {
-        bool enable_root_info_output = false;
-        if (m_enable_info_output) {
+        if (m_enable_info_output)
             std::cout << "info depth " << target_depth << "\n" << std::flush;
-            auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time);
-            if (time_elapsed.count() > 1200) enable_root_info_output = true;
-        }
 
-        int32_t score;
-        Move move;
+        int32_t score = -INF_SCORE;
+        Move move = NO_MOVE;
 
-        if (m_aspiration_window_enabled) {
+        if (m_aspiration_window_enabled && target_depth > 4) {
             // Aspiration window search
             uint32_t nodes_before = m_stats.alpha_beta_nodes;
             int32_t alpha = std::max(-INF_SCORE, prev_score - m_aspiration_window);
             int32_t beta  = std::min(INF_SCORE,  prev_score + m_aspiration_window);
-            std::tie(score, move) = _root_search(alpha, beta, target_depth, best_move, enable_root_info_output);
+            std::tie(score, move) = _root_search(alpha, beta, target_depth);
 
             if (m_stop_search)
                 break;
@@ -180,45 +186,68 @@ UCI MinimaxAI::_compute_move() {
             if (score <= alpha || score >= beta) {
                 ++m_stats.aspiration_misses;
                 m_stats.aspiration_miss_nodes += m_stats.alpha_beta_nodes - nodes_before;
-                std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth, best_move, enable_root_info_output);
+                std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth);
             }
         }
         else {
             // Normal search
-            std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth, best_move, enable_root_info_output);
+            std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth);
         }
 
         if (m_stop_search)
-            break;
+            break; // timed out
 
-        prev_score = score;
         best_move = move;
+        prev_score = score;
 
         if (m_enable_info_output) {
-            auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time);
+            int32_t time_elapsed = now_milliseconds() - m_start_time;
             std::cout << "info depth " << target_depth << " score cp " << score << " nodes " << m_stats.alpha_beta_nodes
-                    << " nps " << (double)m_stats.alpha_beta_nodes / time_elapsed.count() * 1000.0
-                    << " time " << time_elapsed.count()
-                    << " move " << MoveEncoding::to_uci(best_move) << "\n" << std::flush;
+                    << " nps " << static_cast<int>(static_cast<double>(m_stats.alpha_beta_nodes + m_stats.quiescence_nodes) / time_elapsed * 1000.0)
+                    << " time " << time_elapsed << " pv ";
+
+            int pv_length = 0;
+            for (size_t i = 0; i < target_depth; ++i) {
+                const TTEntry* tt_entry = m_tt.find(m_search_position.get_position().get_zobrist_hash());
+                if (!tt_entry || tt_entry->best_move == NO_MOVE)
+                    break;
+                std::cout << MoveEncoding::to_uci(tt_entry->best_move) << " ";
+                m_search_position.make_move(tt_entry->best_move);
+                ++pv_length;
+            }
+            std::cout << "\n" << std::flush;
+            for (size_t i = 0; i < pv_length; ++i)
+                m_search_position.undo_move();
         }
+    }
+
+    if (best_move == NO_MOVE) {
+        // no best move found (timeout on first iteration), choose one legal move
+        if (m_enable_info_output)
+            std::cout << "info warning - null result\n" << std::flush;
+        best_move = move_list[0];
     }
 
     m_stats.depth = target_depth - 1;
     m_stats.eval = prev_score;
-    m_stats.time_seconds = m_time_limit_seconds + std::chrono::duration<double>(m_deadline - std::chrono::steady_clock::now()).count();
+    m_stats.time_seconds = static_cast<double>(now_milliseconds() - m_start_time) / 1000.0;
 
     return MoveEncoding::to_uci(best_move);
 }
 
-std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, int32_t search_depth, Move previous_best, bool info_output) {
+std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, int32_t search_depth) {
     ++m_stats.alpha_beta_nodes;
 
-    Move best_move = 0;
-    int move_number = 0;
-    MovePicker move_picker(m_search_position.get_position(), previous_best);
+    // Probe TT
+    uint64_t zobrist_key = m_search_position.get_position().get_zobrist_hash();
+    const TTEntry* tt_entry = m_tt.find(zobrist_key);
+    MovePicker move_picker(m_search_position.get_position(), tt_entry ? tt_entry->best_move : NO_MOVE);
 
-    for (Move move = move_picker.next(); move != NULL_MOVE; move = move_picker.next()) {
-        if (info_output) {
+    Move best_move = NO_MOVE;
+    int move_number = 0;
+
+    for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
+        if (m_enable_info_output && now_milliseconds() - m_start_time >= 2000) {
             std::cout << "info depth " << search_depth << " currmove " << MoveEncoding::to_uci(move)
                         << " currmovenumber " << ++move_number << "\n" << std::flush;
         }
@@ -227,26 +256,29 @@ std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, in
         int32_t score = -_alpha_beta(-beta, -alpha, search_depth - 1, 1);
         m_search_position.undo_move();
 
-        if (m_stop_search) {
-            return {NULL_SCORE, 0}; // timed out
-        }
+        if (m_stop_search)
+            return {-INF_SCORE, NO_MOVE}; // timed out
 
         if (score > alpha) {
             alpha = score;
             best_move = move;
-        }
-        if (alpha >= beta) {
-            // refutation move found, fail-high node
-            return {alpha, best_move};
+
+            if (alpha >= beta) {
+                // score outside window
+                break;
+            }
         }
     }
+
+    // Store in TT
+    m_tt.store(zobrist_key, normalize_score_for_tt(alpha, 0), search_depth, Bound::Lower, best_move);
 
     return {alpha, best_move};
 }
 
 int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32_t ply) {
     if (_stop_check())
-        return NULL_SCORE;
+        return -INF_SCORE;
 
     if (m_search_position.get_position().get_halfmove_clock() >= 100)
         return DRAW_SCORE; // fifty-move rule
@@ -262,46 +294,42 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32
     ++m_stats.alpha_beta_nodes;
 
     int32_t starting_alpha = alpha;
-
     uint64_t zobrist_key = m_search_position.get_position().get_zobrist_hash();
     const TTEntry* tt_entry = m_tt.find(zobrist_key);
+
     if (tt_entry != nullptr) ++m_stats.tt_raw_hits;
     if (tt_entry != nullptr && tt_entry->depth >= depth) {
         ++m_stats.tt_usable_hits;
         // use stored entry (adjusted mate-distance for current ply)
         int32_t stored = adjust_score_from_tt(tt_entry->score, ply);
-        if (tt_entry->bound == Bound::Exact) {
-            ++m_stats.tt_cutoffs;
-            return stored;
-        } 
-        else if (tt_entry->bound == Bound::Lower) {
+        
+        if (tt_entry->bound == Bound::Lower) {
             alpha = std::max(alpha, stored);
         }
         else if (tt_entry->bound == Bound::Upper) {
             beta = std::min(beta, stored);
         }
-        if (alpha >= beta) {
+        if (tt_entry->bound == Bound::Exact || alpha >= beta) {
             ++m_stats.tt_cutoffs;
             return stored;
         }
     }
 
+    Move best_move = NO_MOVE;
     int32_t best_score = -INF_SCORE;
-    Move best_move = 0;
 
-    MovePicker move_picker(m_search_position.get_position(), tt_entry ? tt_entry->best_move : NULL_MOVE);
-    int legal_move_count = 0;
+    MovePicker move_picker(m_search_position.get_position(), tt_entry ? tt_entry->best_move : NO_MOVE);
+    int move_count = 0;
 
-    for (Move move = move_picker.next(); move != NULL_MOVE; move = move_picker.next()) {
+    for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
         m_search_position.make_move(move);
-        ++legal_move_count;
+        ++move_count;
 
         int32_t score = -_alpha_beta(-beta, -alpha, depth - 1, ply + 1);
         m_search_position.undo_move();
 
-        if (m_stop_search) {
-            return NULL_SCORE; // timed out
-        }
+        if (m_stop_search)
+            return -INF_SCORE; // timed out
 
         if (score > best_score) {
             best_score = score;
@@ -320,15 +348,9 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32
         }
     }
 
-    if (legal_move_count == 0) {
-        if (m_search_position.get_position().in_check()) {
-            // Checkmate with ply bonus to prefer faster mates
-            int32_t store_score = -MATE_SCORE + ply;
-            m_tt.store(zobrist_key, normalize_score_for_tt(store_score, ply), depth, Bound::Exact, 0);
-            return store_score;
-        } else {
-            return DRAW_SCORE; // Stalemate
-        }
+    if (move_count == 0) {
+        // Checkmate or stalemate
+        best_score = m_search_position.get_position().in_check() ? mated_in(ply) : DRAW_SCORE;
     }
 
     int32_t store_score = normalize_score_for_tt(best_score, ply);
@@ -343,34 +365,35 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32
 inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int32_t ply) {
     ++m_stats.quiescence_nodes;
     if (_stop_check())
-        return NULL_SCORE;
+        return -INF_SCORE;
 
-    int32_t best_score;
+    int32_t best_score = -INF_SCORE;
+    Move best_move = NO_MOVE;
+
     const bool in_check = m_search_position.get_position().in_check();
-
     if (!in_check) {
         // Stand pat evaluation
         best_score = m_search_position.get_eval();
         if (best_score >= beta) return best_score;
         if (best_score > alpha) alpha = best_score;
     } 
-    else {
-        best_score = -INF_SCORE; 
-    }
 
-    // not probing TT in quiescence search, tested to be faster
-    MovePicker move_picker(m_search_position.get_position(), NULL_MOVE, true);
+    MovePicker move_picker(m_search_position.get_position(), NO_MOVE, true);
     int move_count = 0;
 
-    for (Move move = move_picker.next(); move != NULL_MOVE; move = move_picker.next()) {
+    for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
         m_search_position.make_move(move);
         ++move_count;
 
         int32_t score = -_quiescence(-beta, -alpha, ply + 1);
         m_search_position.undo_move();
 
+        if (m_stop_search)
+            return -INF_SCORE; // timed out
+
         if (score > best_score) {
             best_score = score;
+            best_move = move;
 
             if (score > alpha) {
                 if (score < beta) {
@@ -384,9 +407,10 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int32_t ply) 
         }
     }
 
+    // Stalemates cannot be detected, as not all moves are generated
+    // Checkmates can, because all evasions are generated
     if (in_check && move_count == 0) {
-        // Checkmate with ply bonus to prefer faster mates
-        return -MATE_SCORE + ply;
+        best_score = mated_in(ply);
     }
 
     return best_score;
@@ -395,7 +419,7 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int32_t ply) 
 inline bool MinimaxAI::_stop_check() {
     constexpr int64_t mask = (1<<10) - 1; // every 1024 nodes
     if ((++m_nodes_visited & mask) == 0) {
-        if (std::chrono::steady_clock::now() >= m_deadline
+        if (now_milliseconds() >= m_deadline
             || (m_max_nodes >= 0 && m_nodes_visited >= m_max_nodes)
             || _stop_requested()) {
             m_stop_search = true;

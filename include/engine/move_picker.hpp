@@ -52,13 +52,13 @@ class MovePicker {
 public:
     /**
      * @param position the position to pick moves from
-     * @param tt_move the transposition table best move to prioritize (can be NULL_MOVE)
+     * @param tt_move the transposition table best move to prioritize (can be NO_MOVE)
      * @param quiescence_search if true, quiescence search move ordering is used
      */
-    MovePicker(const Position& position, const Move tt_move = NULL_MOVE, bool quiescence_search = false);
+    MovePicker(const Position& position, const Move tt_move = NO_MOVE, bool quiescence_search = false);
 
     /**
-     * @return Next best move according to the move ordering heuristics. Returns NULL_MOVE if no moves are left.
+     * @return Next best move according to the move ordering heuristics. Returns NO_MOVE if no moves are left.
      */
     Move next();
 
