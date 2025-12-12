@@ -143,7 +143,7 @@ int main(int argc, char** argv) {
                 // ignore for now
             }
             else if (cmd == "quit") {
-                stop_compute_and_wait();
+                break;
             }
             else {
                 // unrecognized command: ignore
