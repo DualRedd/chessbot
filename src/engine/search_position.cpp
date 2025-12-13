@@ -48,7 +48,7 @@ void SearchPosition::make_move(Move move) {
     if(move_type == MoveType::Promotion) {
         PieceType promo = MoveEncoding::promo(move);
         delta += _material_value(promo) - _material_value(piece_type);
-        delta += _pst_value(promo, side, to) + _pst_value(piece_type, side, from);
+        delta += _pst_value(promo, side, to) - _pst_value(piece_type, side, from);
     }
     else {
         delta += _pst_value(piece_type, side, to) - _pst_value(piece_type, side, from);

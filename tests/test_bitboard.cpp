@@ -1,7 +1,8 @@
 #include "gtest/gtest.h"
 #include "core/bitboard.hpp"
 
-// Minimal tests to verify basic initialization correctness
+// Minimal tests to verify basic initialization correctness and edge cases
+// Perft tests cover this anyway indirectly
 
 TEST(BitboardTests, ShiftNoWrap) {
     EXPECT_EQ(shift_bb<Shift::Up>(MASK_SQUARE[+Square::A1]), MASK_SQUARE[+Square::A2]);
@@ -100,4 +101,3 @@ TEST(BitboardTests, BishopAttacks) {
     }
     EXPECT_EQ(MASK_BISHOP_ATTACKS[+Square::D4], expected);
 }
-

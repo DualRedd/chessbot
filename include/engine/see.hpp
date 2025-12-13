@@ -28,14 +28,18 @@ inline bool static_exchange_evaluation(const Position& pos, Move move, int32_t m
         return false;
 
     see = PIECE_VALUES[+to_type(pos.get_piece_at(from))] - see;
-    if (see < 0) // opponent losing after recapture
+    if (see <= 0) // opponent losing after recapture or equal exchange
         return true;
 
     Color side = pos.get_side_to_move();
     Bitboard occupied = pos.get_pieces() ^ MASK_SQUARE[+from];
     Bitboard all_attackers = pos.attackers(to, occupied);
     Bitboard pc;
-    bool stm_winning = true;
+
+    // when it is the original side to move's turn to play, when want to compare see <= 0
+    // when it is the opponent's turn to play, we want to compare see < 0
+    // so we can use this to just compare see < turn at each step
+    int32_t turn = 1;
 
     while (true) {
         side = opponent(side);
@@ -43,20 +47,20 @@ inline bool static_exchange_evaluation(const Position& pos, Move move, int32_t m
         Bitboard side_attackers = all_attackers & pos.get_pieces(side);
 
         // Remove pinned pieces from attackers if pinners still exist
-        if ((pos.get_pinners(opponent(side)) & occupied) != 0ULL) {
+        if ((pos.get_pinners(side) & occupied) != 0ULL) {
             side_attackers &= ~pos.get_king_blockers(side);
         }
 
         if (side_attackers == 0ULL)
-            return stm_winning; // No more attackers
-        stm_winning = !stm_winning;
+            return static_cast<bool>(turn); // No more attackers
+        turn = turn ^ 1;
 
         // Find least valuable attacker
         pc = pos.get_pieces(side, PieceType::Pawn) & side_attackers;
         if (pc != 0ULL) {
             see = PIECE_VALUES[+PieceType::Pawn] - see;
-            if (see < 0)
-                return stm_winning;
+            if (see < turn)
+                return turn;
 
             occupied ^= MASK_SQUARE[+lsb(pc)];
             // add possible discovered attacks
@@ -68,8 +72,8 @@ inline bool static_exchange_evaluation(const Position& pos, Move move, int32_t m
         pc = pos.get_pieces(side, PieceType::Knight) & side_attackers;
         if (pc != 0ULL) {
             see = PIECE_VALUES[+PieceType::Knight] - see;
-            if (see < 0)
-                return stm_winning;
+            if (see < turn)
+                return turn;
 
             occupied ^= MASK_SQUARE[+lsb(pc)];
             // no possible discovered attacks
@@ -79,8 +83,8 @@ inline bool static_exchange_evaluation(const Position& pos, Move move, int32_t m
         pc = pos.get_pieces(side, PieceType::Bishop) & side_attackers;
         if (pc != 0ULL) {
             see = PIECE_VALUES[+PieceType::Bishop] - see;
-            if (see < 0)
-                return stm_winning;
+            if (see < turn)
+                return turn;
 
             occupied ^= MASK_SQUARE[+lsb(pc)];
             // add possible discovered attacks
@@ -92,8 +96,8 @@ inline bool static_exchange_evaluation(const Position& pos, Move move, int32_t m
         pc = pos.get_pieces(side, PieceType::Rook) & side_attackers;
         if (pc != 0ULL) {
             see = PIECE_VALUES[+PieceType::Rook] - see;
-            if (see < 0)
-                return stm_winning;
+            if (see < turn)
+                return turn;
 
             occupied ^= MASK_SQUARE[+lsb(pc)];
             // add possible discovered attacks
@@ -105,8 +109,8 @@ inline bool static_exchange_evaluation(const Position& pos, Move move, int32_t m
         pc = pos.get_pieces(side, PieceType::Queen) & side_attackers;
         if (pc != 0ULL) {
             see = PIECE_VALUES[+PieceType::Queen] - see;
-            if (see < 0)
-                return stm_winning;
+            if (see < turn)
+                return turn;
 
             occupied ^= MASK_SQUARE[+lsb(pc)];
             // add possible discovered attacks
@@ -119,8 +123,6 @@ inline bool static_exchange_evaluation(const Position& pos, Move move, int32_t m
         // Only king left
         // no possible discovered attacks
         // if attackers left for opponent, opponent wins
-        if (all_attackers & ~pos.get_pieces(side))
-            return !stm_winning;
-        return stm_winning;
+        return static_cast<bool>(turn ^ (all_attackers & ~pos.get_pieces(side)));
     }
 }

@@ -141,13 +141,14 @@ public:
 
     /**
      * @param side the side to query
-     * @return Bitboard of check blockers for the given side (can be opponent pieces too).
+     * @return Bitboard of check blockers for the given side (any color piece).
      */
     Bitboard get_king_blockers(Color side) const;
 
     /**
      * @param side the side to query
      * @return Bitboard of pinners for the given side.
+     * So all opponent pieces that are pinning pieces of the given side.
      */
     Bitboard get_pinners(Color side) const;
 

@@ -4,6 +4,7 @@ add_executable(unit_tests
     test_zobrist.cpp
     test_move_generation.cpp
     test_search_position.cpp
+    test_see.cpp
 )
 
 target_link_libraries(unit_tests PRIVATE

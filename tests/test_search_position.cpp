@@ -1,37 +1,46 @@
+#include <random>
+
 #include "gtest/gtest.h"
 #include "engine/search_position.hpp"
 #include "core/move_generation.hpp"
+#include "positions.hpp"
 
-const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+static std::mt19937 rng;
 
 TEST(SearchPositionTests, InitialEval) {
-    SearchPosition position;
-    position.set_board(CHESS_START_POSITION);
-    EXPECT_EQ(position.get_eval(), 0) << "Initial position should have eval 0.";
+    SearchPosition ss;
+    ss.set_board(CHESS_START_POSITION);
+    EXPECT_EQ(ss.get_eval(), 0) << "Initial position should have eval 0.";
 }
 
-
-// Test make undo constistency
 TEST(SearchPositionTests, MakeUndoConsistency) {
-    const int move_count = 100;
+    rng.seed(42);
 
-    SearchPosition position;
-    position.set_board(CHESS_START_POSITION);
-
+    SearchPosition ss, rebuilt;
     MoveList move_list;
-    std::vector<int32_t> eval_history;
-    eval_history.push_back(position.get_eval());
 
-    for (int i = 0; i < move_count; ++i) {
-        move_list.generate<GenerateType::Legal>(position.get_position());
-        ASSERT_FALSE(move_list.count() == 0);
-        int r = std::rand() % static_cast<int>(move_list.count());
-        position.make_move(move_list[r]);
-        eval_history.push_back(position.get_eval());
-    }
-    for (int i = move_count - 1; i >= 0; --i) {
-        EXPECT_EQ(position.get_eval(), eval_history[i + 1]) << "Eval mismatch before undo at step " << (move_count - i);
-        ASSERT_TRUE(position.undo_move()) << "Undo failed at step " << (move_count - i);
-        EXPECT_EQ(position.get_eval(), eval_history[i]) << "Eval mismatch after undo at step " << (move_count - i);
+    for (const FEN& fen : TEST_POSITIONS) {
+        ss.set_board(fen);
+        int32_t orig_eval = ss.get_eval();
+
+        move_list.generate<GenerateType::Legal>(ss.get_position());
+        ASSERT_FALSE(move_list.count() == 0) << "No legal moves in position: " << fen;
+        
+        for (Move move : move_list) {
+            ss.make_move(move);
+
+            // check that rebuilding from FEN reproduces the same eval
+            int32_t eval1 = ss.get_eval();
+            rebuilt.set_board(ss.get_position().to_fen()); // drop move history
+            int32_t eval2 = rebuilt.get_eval();
+            ASSERT_EQ(eval1, eval2) << "Eval mismatch after move in position: "
+                << fen << ", move: " << MoveEncoding::to_uci(move);
+
+            // Check eval matches after undo
+            ss.undo_move();
+            int32_t eval3 = ss.get_eval();
+            ASSERT_EQ(orig_eval, eval3) << "Eval mismatch after undo move in position: "
+                << fen << ", move: " << MoveEncoding::to_uci(move);
+        }
     }
 }

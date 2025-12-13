@@ -1,28 +1,13 @@
-#include "gtest/gtest.h"
-#include "core/position.hpp"
-#include "core/move_generation.hpp"
-
 #include <functional>
 #include <random>
 #include <set>
 
+#include "gtest/gtest.h"
+#include "core/position.hpp"
+#include "core/move_generation.hpp"
+#include "positions.hpp"
+
 static std::mt19937 rng;
-
-const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
-const std::string TEST_POSITIONS[] = {
-    CHESS_START_POSITION,
-    "rnbqk2r/p3ppPp/5n2/Pp1p4/8/3P1Q2/1pP2PPP/R1B1K2R w KQkq b6 0 1", // ep, castling, promo
-    "3k4/8/8/8/8/5q2/8/3r2K1 w - - 0 1" // check
-    "3k4/8/8/8/1N1K1q2/8/2B1PN2/3r4 w - - 0 1" // double check
-    "rnbqkbnr/pppp1ppp/8/4Q3/3P4/8/PPP1PPPP/RNB1KBNR b KQkq - 0 2",
-    "2r4r/p5pp/8/2B1Q2k/1P1P4/2P3P1/P4P1P/4K2R b K - 0 2",
-    "2r4r/pB4pp/2b5/3Q4/1P6/2P2kP1/P4P1P/4K2R b K - 0 2",
-    "7r/1R1p1kpp/8/4P3/2B5/1P4P1/P6P/3QK3 b - - 0 2",
-    "7r/5kpp/8/3pP3/1R2K3/1P4P1/P4B1P/3Q4 w - d6 0 2",
-    "b7/8/4k3/3pP3/4K3/8/8/8 w - d6 0 2",
-};
-
 
 TEST(MoveGenerationTests, Perft) {
     Position position;
@@ -175,5 +160,3 @@ TEST(MoveGenerationTests, TestLegalityFunction) {
         position.make_move(moves[r]);
     }
 }
-
-

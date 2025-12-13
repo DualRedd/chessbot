@@ -1,9 +1,9 @@
+#include <functional>
+#include <random>
+
 #include "gtest/gtest.h"
 #include "core/position.hpp"
 #include "core/move_generation.hpp"
-
-#include <functional>
-#include <random>
 
 static std::mt19937 rng;
 
@@ -168,4 +168,12 @@ TEST(PositionTests, GetLastMove) {
         position.undo_move();
     }
     EXPECT_EQ(position.get_last_move(), std::nullopt) << "should return std::nullopt after undoing all moves.";
+}
+
+TEST(PositionTests, PinnersAndBlockersMatchBoardState) {
+    Position position("r4B1K/4n1r1/5b2/3N4/2P5/R2r3k/8/8 b - - 0 1");
+    ASSERT_EQ(position.get_pinners(Color::White), MASK_SQUARE[+Square::A8]);
+    ASSERT_EQ(position.get_pinners(Color::Black), MASK_SQUARE[+Square::A3]);
+    ASSERT_EQ(position.get_king_blockers(Color::White), MASK_SQUARE[+Square::F8] | MASK_SQUARE[+Square::G7]);
+    ASSERT_EQ(position.get_king_blockers(Color::Black), MASK_SQUARE[+Square::D3]);
 }
