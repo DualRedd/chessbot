@@ -153,8 +153,10 @@ UCI MinimaxAI::_compute_move() {
         throw std::invalid_argument("MinimaxAI::compute_move() - no legal moves!");
     }
 
+    // Prepare next search
     m_stats.reset();
     m_tt.new_search_iteration();
+    m_killer_history.reset();
 
     m_start_time = now_milliseconds();
     m_deadline = m_start_time + static_cast<int32_t>(m_time_limit_seconds * 1000.0);
@@ -266,7 +268,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
     const TTEntry* tt_entry = m_tt.find(zobrist_key);
 
     if (tt_entry) ++m_stats.tt_raw_hits;
-    if (!is_root && tt_entry && tt_entry->depth >= depth) {
+    if (!is_pv && tt_entry && tt_entry->depth >= depth) {
         ++m_stats.tt_usable_hits;
         // use stored entry (adjusted mate-distance for current ply)
         int32_t stored = adjust_score_from_tt(tt_entry->score, ply);
@@ -286,7 +288,8 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
     Move best_move = NO_MOVE;
     int32_t best_score = -INF_SCORE;
 
-    MovePicker move_picker(m_search_position.get_position(), tt_entry ? tt_entry->best_move : NO_MOVE);
+    MovePicker move_picker(m_search_position.get_position(), tt_entry ? tt_entry->best_move : NO_MOVE,
+                            &m_killer_history, ply);
     int move_count = 0;
 
     for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
@@ -333,6 +336,9 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
                 }
                 else {
                     // refutation move found, fail-high node
+                    if (m_search_position.get_position().to_capture(move) == PieceType::None) {
+                        m_killer_history.store(move, ply);
+                    }
                     break;
                 }
             }
@@ -370,7 +376,7 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t
         if (best_score > alpha) alpha = best_score;
     } 
 
-    MovePicker move_picker(m_search_position.get_position(), NO_MOVE, true);
+    MovePicker move_picker(m_search_position.get_position(), NO_MOVE);
     int move_count = 0;
 
     for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {

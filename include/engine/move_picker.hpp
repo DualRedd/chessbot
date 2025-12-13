@@ -2,6 +2,7 @@
 
 #include <array>
 #include "core/move_generation.hpp"
+#include "killer_history.hpp"
 
 /*
 Normal moves
@@ -23,6 +24,8 @@ enum class MovePickStage {
     TTMoveNormal,
     ScoreCaptures,
     GoodCaptures,
+    FirstKillerMove,
+    SecondKillerMove,
     ScoreQuiets,
     Quiets,
     BadCaptures,
@@ -51,11 +54,20 @@ struct ScoredMove {
 class MovePicker {
 public:
     /**
+     * Move picker for normal search.
      * @param position the position to pick moves from
      * @param tt_move the transposition table best move to prioritize (can be NO_MOVE)
-     * @param quiescence_search if true, quiescence search move ordering is used
+     * @param killer_history pointer to the killer history for the current search
+     * @param ply current search ply
      */
-    MovePicker(const Position& position, const Move tt_move = NO_MOVE, bool quiescence_search = false);
+    MovePicker(const Position& position, const Move tt_move, KillerHistory* killer_history, int ply);
+
+    /**
+     * Move picker for quiescence search.
+     * @param position the position to pick moves from
+     * @param tt_move the transposition table best move to prioritize (can be NO_MOVE)
+     */
+    MovePicker(const Position& position, const Move tt_move);
 
     /**
      * @return Next best move according to the move ordering heuristics. Returns NO_MOVE if no moves are left.
@@ -77,6 +89,8 @@ private:
     const Position& m_position;
     MovePickStage m_stage;
     Move m_tt_move;
+    KillerHistory* m_killer_history;
+    int m_ply;
 
     std::array<ScoredMove, MAX_MOVE_LIST_SIZE> m_scored_moves;
     ScoredMove *m_cur_begin, *m_cur_end;

@@ -13,30 +13,45 @@ static inline void insertion_sort(ScoredMove* begin, ScoredMove* end) {
     }
 }
 
-MovePicker::MovePicker(const Position& position, const Move tt_move, bool quiescence_search)
+MovePicker::MovePicker(const Position& position, const Move tt_move, KillerHistory* killer_history, int ply)
   : m_position(position),
     m_tt_move(tt_move),
+    m_killer_history(killer_history),
+    m_ply(ply),
     m_scored_moves{},
-    m_cur_begin(m_scored_moves.data()),
-    m_cur_end(nullptr),
-    m_bad_captures_begin(nullptr),
-    m_bad_captures_end(nullptr)
+    m_cur_begin(m_scored_moves.data())
 {
     if (m_position.in_check())
         m_stage = MovePickStage::TTMoveEvasion;
-    else if (!quiescence_search)
+    else
         m_stage = MovePickStage::TTMoveNormal;
+
+    // Skip TT move stage if TT move is illegal
+    // zobrist hash collision for example can result in a illegal move retrieved from a TT
+    if (m_tt_move == NO_MOVE || !test_legality(m_position, m_tt_move))
+        ++m_stage;
+}
+
+MovePicker::MovePicker(const Position& position, const Move tt_move) 
+  : m_position(position),
+    m_tt_move(tt_move),
+    m_scored_moves{},
+    m_cur_begin(m_scored_moves.data())
+{
+    // TT move not used in quiescence search
+    if (m_position.in_check())
+        m_stage = MovePickStage::TTMoveEvasion;
     else {
         m_stage = MovePickStage::TTMoveQuiescence;
+        // Check if TT move is a capture or queen promotion
+        // If not, it is not included in quiescence search
         if (m_tt_move != NO_MOVE && (m_position.to_capture(m_tt_move) == PieceType::None
             || (MoveEncoding::move_type(m_tt_move) == MoveType::Promotion && MoveEncoding::promo(m_tt_move) != PieceType::Queen))) {
-            // TT move is not a capture or queen promo (not included in quiescence search)
             m_tt_move = NO_MOVE;
         }
     }
 
-    // Skip TT move stage if no valid TT move
-    // zobrist hash collision for example can result in a illegal move retrieved from the transposition table (quite rare)
+    // Skip TT move stage if TT move is illegal
     if (m_tt_move == NO_MOVE || !test_legality(m_position, m_tt_move))
         ++m_stage;
 }
@@ -82,6 +97,20 @@ Move MovePicker::next() {
             [[fallthrough]];
         }
 
+        case MovePickStage::FirstKillerMove: {
+            Move killer = m_killer_history->first(m_ply);
+            if (++m_stage; killer != NO_MOVE && killer != m_tt_move && test_legality(m_position, killer))
+                return killer;
+            [[fallthrough]];
+        }
+
+        case MovePickStage::SecondKillerMove: {
+            Move killer = m_killer_history->second(m_ply);
+            if (++m_stage; killer != NO_MOVE && killer != m_tt_move && test_legality(m_position, killer))
+                return killer;
+            [[fallthrough]];
+        }
+
         case MovePickStage::ScoreQuiets: {
             MoveList quiets;
             quiets.generate<GenerateType::Quiets>(m_position);
@@ -93,7 +122,9 @@ Move MovePicker::next() {
 
         case MovePickStage::Quiets: {
             while (m_cur_begin < m_cur_end) {
-                if (m_cur_begin->move == m_tt_move) {
+                if (m_cur_begin->move == m_tt_move
+                    || m_cur_begin->move == m_killer_history->first(m_ply)
+                    || m_cur_begin->move == m_killer_history->second(m_ply)) {
                     ++m_cur_begin;
                     continue;
                 }
