@@ -1,8 +1,17 @@
 #include "engine/move_picker.hpp"
 
-#include <algorithm>
 #include "engine/see.hpp"
 
+static inline void insertion_sort(ScoredMove* begin, ScoredMove* end) {
+    for (ScoredMove* it = begin + 1; it < end; ++it) {
+        ScoredMove key = *it;
+        ScoredMove* j = it;
+        for (; j > begin && (j - 1)->score < key.score; --j) {
+            *j = *(j - 1);
+        }
+        *j = key;
+    }
+}
 
 MovePicker::MovePicker(const Position& position, const Move tt_move, bool quiescence_search)
   : m_position(position),
@@ -21,7 +30,7 @@ MovePicker::MovePicker(const Position& position, const Move tt_move, bool quiesc
         m_stage = MovePickStage::TTMoveQuiescence;
         if (m_tt_move != NO_MOVE && (m_position.to_capture(m_tt_move) == PieceType::None
             || (MoveEncoding::move_type(m_tt_move) == MoveType::Promotion && MoveEncoding::promo(m_tt_move) != PieceType::Queen))) {
-            // TT move is not a capture or queen promot (not included in quiescence search)
+            // TT move is not a capture or queen promo (not included in quiescence search)
             m_tt_move = NO_MOVE;
         }
     }
@@ -46,10 +55,8 @@ Move MovePicker::next() {
             MoveList captures;
             captures.generate<GenerateType::Captures>(m_position);
             m_cur_end = score_moves<GenerateType::Captures>(captures, m_cur_begin);
-            m_bad_captures_end = m_cur_end;
-            std::stable_sort(m_cur_begin, m_cur_end, [](const ScoredMove& a, const ScoredMove& b) {
-                return a.score > b.score;
-            });
+            m_bad_captures_begin = m_bad_captures_end = m_cur_begin;
+            insertion_sort(m_cur_begin, m_cur_end);
             ++m_stage;
             [[fallthrough]];
         }
@@ -64,15 +71,14 @@ Move MovePicker::next() {
                 if (static_exchange_evaluation(m_position, m_cur_begin->move, 0))
                     return (m_cur_begin++)->move;
                 else {
-                    std::swap(*m_cur_begin, *(--m_cur_end));
+                    // Move to front (preserver order for bad captures)
+                    std::swap(*(m_bad_captures_end++), *(m_cur_begin++));
                 }
             }
             if (m_stage == MovePickStage::GoodQuiescenceCaptures)
                 return NO_MOVE;
 
             ++m_stage;
-            m_bad_captures_begin = m_cur_end;
-            m_cur_begin = m_bad_captures_end;
             [[fallthrough]];
         }
 
@@ -80,9 +86,7 @@ Move MovePicker::next() {
             MoveList quiets;
             quiets.generate<GenerateType::Quiets>(m_position);
             m_cur_end = score_moves<GenerateType::Quiets>(quiets, m_cur_begin);
-            std::stable_sort(m_cur_begin, m_cur_end, [](const ScoredMove& a, const ScoredMove& b) {
-                return a.score > b.score;
-            });
+            insertion_sort(m_cur_begin, m_cur_end);
             ++m_stage;
             [[fallthrough]];
         }
@@ -114,9 +118,7 @@ Move MovePicker::next() {
             MoveList evasions;
             evasions.generate<GenerateType::Evasions>(m_position);
             m_cur_end = score_moves<GenerateType::Evasions>(evasions, m_cur_begin);
-            std::stable_sort(m_cur_begin, m_cur_end, [](const ScoredMove& a, const ScoredMove& b) {
-                return a.score > b.score;
-            });
+            insertion_sort(m_cur_begin, m_cur_end);
             ++m_stage;
             [[fallthrough]];
         }
@@ -176,8 +178,3 @@ ScoredMove* MovePicker::score_moves(const MoveList& move_list, ScoredMove* score
 
     return scored_list;
 }
-
-// Explicit template instantiations
-template ScoredMove* MovePicker::score_moves<GenerateType::Captures>(const MoveList& move_list, ScoredMove* scored_list) const;
-template ScoredMove* MovePicker::score_moves<GenerateType::Quiets>(const MoveList& move_list, ScoredMove* scored_list) const;
-template ScoredMove* MovePicker::score_moves<GenerateType::Evasions>(const MoveList& move_list, ScoredMove* scored_list) const;
