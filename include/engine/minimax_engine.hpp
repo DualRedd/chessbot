@@ -2,11 +2,10 @@
 
 #include <chrono>
 
-#include "../core/move_generation.hpp"
 #include "../core/registry.hpp"
 #include "search_position.hpp"
 #include "transposition_table.hpp"
-#include "killer_history.hpp"
+#include "history_tables.hpp"
 
 void registerMinimaxAI();
 
@@ -74,6 +73,7 @@ private:
     SearchPosition m_search_position;
     TranspositionTable m_tt;
     KillerHistory m_killer_history;
+    MoveHistory m_move_history;
     Move m_root_best_move;
 
     // Timed/node cutoff

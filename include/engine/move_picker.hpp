@@ -2,7 +2,7 @@
 
 #include <array>
 #include "core/move_generation.hpp"
-#include "killer_history.hpp"
+#include "history_tables.hpp"
 
 /*
 Normal moves
@@ -60,7 +60,7 @@ public:
      * @param killer_history pointer to the killer history for the current search
      * @param ply current search ply
      */
-    MovePicker(const Position& position, const Move tt_move, KillerHistory* killer_history, int ply);
+    MovePicker(const Position& position, int ply, const Move tt_move, KillerHistory* killer_history, MoveHistory* move_history);
 
     /**
      * Move picker for quiescence search.
@@ -87,10 +87,12 @@ private:
 
 private:
     const Position& m_position;
+    int m_ply;
+
     MovePickStage m_stage;
     Move m_tt_move;
     KillerHistory* m_killer_history;
-    int m_ply;
+    MoveHistory* m_move_history;
 
     std::array<ScoredMove, MAX_MOVE_LIST_SIZE> m_scored_moves;
     ScoredMove *m_cur_begin, *m_cur_end;

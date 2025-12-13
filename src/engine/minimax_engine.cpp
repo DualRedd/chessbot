@@ -288,8 +288,8 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
     Move best_move = NO_MOVE;
     int32_t best_score = -INF_SCORE;
 
-    MovePicker move_picker(m_search_position.get_position(), tt_entry ? tt_entry->best_move : NO_MOVE,
-                            &m_killer_history, ply);
+    MovePicker move_picker(m_search_position.get_position(), ply, tt_entry ? tt_entry->best_move : NO_MOVE,
+                            &m_killer_history, &m_move_history);
     int move_count = 0;
 
     for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
@@ -338,6 +338,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
                     // refutation move found, fail-high node
                     if (m_search_position.get_position().to_capture(move) == PieceType::None) {
                         m_killer_history.store(move, ply);
+                        m_move_history.update(m_search_position.get_position(), move, depth * depth);
                     }
                     break;
                 }

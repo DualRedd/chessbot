@@ -13,11 +13,12 @@ static inline void insertion_sort(ScoredMove* begin, ScoredMove* end) {
     }
 }
 
-MovePicker::MovePicker(const Position& position, const Move tt_move, KillerHistory* killer_history, int ply)
+MovePicker::MovePicker(const Position& position, int ply, const Move tt_move, KillerHistory* killer_history, MoveHistory* move_history)
   : m_position(position),
+    m_ply(ply),
     m_tt_move(tt_move),
     m_killer_history(killer_history),
-    m_ply(ply),
+    m_move_history(move_history),
     m_scored_moves{},
     m_cur_begin(m_scored_moves.data())
 {
@@ -193,17 +194,20 @@ ScoredMove* MovePicker::score_moves(const MoveList& move_list, ScoredMove* score
             // Prefer captures
             PieceType captured = m_position.to_capture(cur.move);
             if (captured != PieceType::None)
-                cur.score += 1'000;
+                cur.score += PIECE_VALUES[+captured];
         }
         else { // Quiets
+            // History heuristic
+            cur.score = m_move_history->get(m_position, cur.move);
+
             // Prefer non-pawn non-king moves
-            PieceType mover = m_position.to_moved(cur.move);
-            cur.score += (mover < PieceType::Pawn) ? 1'000 : 0;
+            //PieceType mover = m_position.to_moved(cur.move);
+            //cur.score += (mover < PieceType::Pawn) ? 1'000 : 0;
 
             // Prefer moves that move towards center
-            Square to = MoveEncoding::to_sq(cur.move);
-            int center_dist = std::abs(3 - file_of(to)) + std::abs(3 - rank_of(to));
-            cur.score += (10 - center_dist);
+            //Square to = MoveEncoding::to_sq(cur.move);
+            //int center_dist = std::abs(3 - file_of(to)) + std::abs(3 - rank_of(to));
+            //cur.score += 5 * (8 - center_dist);
         }
     }
 
