@@ -9,6 +9,8 @@
 
 void registerMinimaxAI();
 
+enum class NodeType { Root, PV, NonPV };
+
 class MinimaxAI : public AIPlayer {
 public:
     MinimaxAI(const std::vector<ConfigField>& cfg);
@@ -47,9 +49,14 @@ private:
     void _undo_move() override;
     UCI _compute_move() override;
 
-    std::pair<int32_t, Move> _root_search(int32_t alpha, int32_t beta, int32_t search_depth);
-    int32_t _alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32_t ply);
-    inline int32_t _quiescence(int32_t alpha, int32_t beta, int32_t ply);
+    // Alpha-beta search
+    template<NodeType node_type>
+    int32_t _alpha_beta(int32_t alpha, int32_t beta, const int32_t depth, const int32_t ply);
+
+    // Quiescence search
+    inline int32_t _quiescence(int32_t alpha, int32_t beta, const int32_t ply);
+
+    // True if search should stop (time/node limit reached or stop requested)
     inline bool _stop_check();
 
 private:
@@ -65,6 +72,7 @@ private:
     // Search state
     SearchPosition m_search_position;
     TranspositionTable m_tt;
+    Move m_root_best_move;
 
     // Timed/node cutoff
     int32_t m_start_time;

@@ -47,8 +47,8 @@ void registerMinimaxAI() {
         {"enable_info", "Enable search info output", FieldType::Bool, false},
         {"time_limit", "Thinking time (s)", FieldType::Double, 5.0},
         {"tt_size_megabytes", "Transposition table size (MB)", FieldType::Int, 256},
-        {"aspiration_window_enabled", "Enable aspiration window", FieldType::Bool, true},
-        {"aspiration_window", "Aspiration window (centipawns)", FieldType::Int, 50},
+        //{"aspiration_window_enabled", "Enable aspiration window", FieldType::Bool, true},
+        //{"aspiration_window", "Aspiration window (centipawns)", FieldType::Int, 50},
         {"max_depth", "Maximum search depth", FieldType::Int, 99},
     };
 
@@ -59,8 +59,8 @@ MinimaxAI::MinimaxAI(const std::vector<ConfigField>& cfg)
   : m_max_depth(get_config_field_value<int>(cfg, "max_depth")),
     m_time_limit_seconds(get_config_field_value<double>(cfg, "time_limit")),
     m_tt_size_megabytes(get_config_field_value<int>(cfg, "tt_size_megabytes")),
-    m_aspiration_window_enabled(get_config_field_value<bool>(cfg, "aspiration_window_enabled")),
-    m_aspiration_window(get_config_field_value<int>(cfg, "aspiration_window")),
+    //m_aspiration_window_enabled(get_config_field_value<bool>(cfg, "aspiration_window_enabled")),
+    //m_aspiration_window(get_config_field_value<int>(cfg, "aspiration_window")),
     m_search_position(),
     m_tt(m_tt_size_megabytes),
     m_enable_info_output(get_config_field_value<bool>(cfg, "enable_info"))
@@ -170,14 +170,13 @@ UCI MinimaxAI::_compute_move() {
             std::cout << "info depth " << target_depth << "\n" << std::flush;
 
         int32_t score = -INF_SCORE;
-        Move move = NO_MOVE;
 
-        if (m_aspiration_window_enabled && target_depth > 4) {
+        if (false && m_aspiration_window_enabled && target_depth > 4) { // disabled with PVS for now
             // Aspiration window search
             uint32_t nodes_before = m_stats.alpha_beta_nodes;
             int32_t alpha = std::max(-INF_SCORE, prev_score - m_aspiration_window);
             int32_t beta  = std::min(INF_SCORE,  prev_score + m_aspiration_window);
-            std::tie(score, move) = _root_search(alpha, beta, target_depth);
+            score = _alpha_beta<NodeType::Root>(alpha, beta, target_depth, 0);
 
             if (m_stop_search)
                 break;
@@ -186,24 +185,24 @@ UCI MinimaxAI::_compute_move() {
             if (score <= alpha || score >= beta) {
                 ++m_stats.aspiration_misses;
                 m_stats.aspiration_miss_nodes += m_stats.alpha_beta_nodes - nodes_before;
-                std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth);
+                score = _alpha_beta<NodeType::Root>(-INF_SCORE, INF_SCORE, target_depth, 0);
             }
         }
         else {
             // Normal search
-            std::tie(score, move) = _root_search(-INF_SCORE, INF_SCORE, target_depth);
+            score = _alpha_beta<NodeType::Root>(-INF_SCORE, INF_SCORE, target_depth, 0);
         }
 
         if (m_stop_search)
             break; // timed out
 
-        best_move = move;
+        best_move = m_root_best_move;
         prev_score = score;
 
         if (m_enable_info_output) {
             int32_t time_elapsed = now_milliseconds() - m_start_time;
             std::cout << "info depth " << target_depth << " score cp " << score << " nodes " << m_stats.alpha_beta_nodes
-                    << " nps " << static_cast<int>(static_cast<double>(m_stats.alpha_beta_nodes + m_stats.quiescence_nodes) / time_elapsed * 1000.0)
+                    << " nps " << (time_elapsed == 0 ? "inf" : std::to_string(static_cast<int>(static_cast<double>(m_stats.alpha_beta_nodes + m_stats.quiescence_nodes) / time_elapsed * 1000.0)))
                     << " time " << time_elapsed << " pv ";
 
             int pv_length = 0;
@@ -223,8 +222,10 @@ UCI MinimaxAI::_compute_move() {
 
     if (best_move == NO_MOVE) {
         // no best move found (timeout on first iteration), choose one legal move
+        if (target_depth != 1)
+            throw std::runtime_error("MinimaxAI::_compute_move() - no move result!");
         if (m_enable_info_output)
-            std::cout << "info warning - null result\n" << std::flush;
+            std::cout << "info search timeout during first iteration\n" << std::flush;
         best_move = move_list[0];
     }
 
@@ -235,48 +236,17 @@ UCI MinimaxAI::_compute_move() {
     return MoveEncoding::to_uci(best_move);
 }
 
-std::pair<int32_t, Move> MinimaxAI::_root_search(int32_t alpha, int32_t beta, int32_t search_depth) {
+
+template<NodeType node_type>
+int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth, const int32_t ply) {
+    constexpr bool is_root = (node_type == NodeType::Root);
+    constexpr bool is_pv = (node_type == NodeType::PV || is_root);
+
     ++m_stats.alpha_beta_nodes;
 
-    // Probe TT
-    uint64_t zobrist_key = m_search_position.get_position().get_zobrist_hash();
-    const TTEntry* tt_entry = m_tt.find(zobrist_key);
-    MovePicker move_picker(m_search_position.get_position(), tt_entry ? tt_entry->best_move : NO_MOVE);
+    if constexpr (is_root)
+        m_root_best_move = NO_MOVE;
 
-    Move best_move = NO_MOVE;
-    int move_number = 0;
-
-    for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
-        if (m_enable_info_output && now_milliseconds() - m_start_time >= 2000) {
-            std::cout << "info depth " << search_depth << " currmove " << MoveEncoding::to_uci(move)
-                        << " currmovenumber " << ++move_number << "\n" << std::flush;
-        }
-
-        m_search_position.make_move(move);
-        int32_t score = -_alpha_beta(-beta, -alpha, search_depth - 1, 1);
-        m_search_position.undo_move();
-
-        if (m_stop_search)
-            return {-INF_SCORE, NO_MOVE}; // timed out
-
-        if (score > alpha) {
-            alpha = score;
-            best_move = move;
-
-            if (alpha >= beta) {
-                // score outside window
-                break;
-            }
-        }
-    }
-
-    // Store in TT
-    m_tt.store(zobrist_key, normalize_score_for_tt(alpha, 0), search_depth, Bound::Lower, best_move);
-
-    return {alpha, best_move};
-}
-
-int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32_t ply) {
     if (_stop_check())
         return -INF_SCORE;
 
@@ -291,14 +261,12 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32
     if (depth <= 0)
         return _quiescence(alpha, beta, ply);
 
-    ++m_stats.alpha_beta_nodes;
-
     int32_t starting_alpha = alpha;
     uint64_t zobrist_key = m_search_position.get_position().get_zobrist_hash();
     const TTEntry* tt_entry = m_tt.find(zobrist_key);
 
-    if (tt_entry != nullptr) ++m_stats.tt_raw_hits;
-    if (tt_entry != nullptr && tt_entry->depth >= depth) {
+    if (tt_entry) ++m_stats.tt_raw_hits;
+    if (!is_root && tt_entry && tt_entry->depth >= depth) {
         ++m_stats.tt_usable_hits;
         // use stored entry (adjusted mate-distance for current ply)
         int32_t stored = adjust_score_from_tt(tt_entry->score, ply);
@@ -322,10 +290,30 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32
     int move_count = 0;
 
     for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
-        m_search_position.make_move(move);
         ++move_count;
+        if (is_root && m_enable_info_output && now_milliseconds() - m_start_time >= 2000) {
+            std::cout << "info depth " << depth << " currmove " << MoveEncoding::to_uci(move)
+                        << " currmovenumber " << move_count << "\n" << std::flush;
+        }
 
-        int32_t score = -_alpha_beta(-beta, -alpha, depth - 1, ply + 1);
+        m_search_position.make_move(move);
+
+        int32_t score;
+        if (is_pv && move_count == 1) {
+            // Search first move with full window
+            constexpr NodeType type = is_pv ? NodeType::PV : NodeType::NonPV;
+            score = -_alpha_beta<type>(-beta, -alpha, depth - 1, ply + 1);
+        }
+        else {
+            // Null window search
+            score = -_alpha_beta<NodeType::NonPV>(-alpha - 1, -alpha, depth - 1, ply + 1);
+
+            // Check if re-search is needed
+            if (score > alpha && score < beta) {
+                score = -_alpha_beta<NodeType::PV>(-beta, -alpha, depth - 1, ply + 1);
+            }
+        }
+        
         m_search_position.undo_move();
 
         if (m_stop_search)
@@ -334,6 +322,9 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32
         if (score > best_score) {
             best_score = score;
             best_move = move;
+
+            if constexpr (is_root) // store best move at root
+                m_root_best_move = best_move;
 
             if (score > alpha) {
                 if (score < beta) {
@@ -362,8 +353,9 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, int32_t depth, int32
     return best_score;
 }
 
-inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, int32_t ply) {
+inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t ply) {
     ++m_stats.quiescence_nodes;
+
     if (_stop_check())
         return -INF_SCORE;
 

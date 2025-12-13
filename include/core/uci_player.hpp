@@ -44,7 +44,7 @@ private:
 private:
     // parameters
     std::string m_cmd;
-    std::string m_args;
+    bool m_enable_info = false;
     int m_default_movetime_ms = 5000;
 
     // board state tracking

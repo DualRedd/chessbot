@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <chrono>
 #include <thread>
+#include <iostream>
 
 #ifdef _WIN32
 void registerUciPlayer() {
@@ -35,22 +36,18 @@ void registerUciPlayer() {
 
     std::vector<ConfigField> fields = {
         {"cmd", "Command", FieldType::String, std::string("")},
-        {"args", "Optional args", FieldType::String, std::string("")},
         {"time_limit", "Thinking time (s)", FieldType::Double, 5.0},
+        {"enable_info", "Enable info output", FieldType::Bool, false},
     };
 
     AIRegistry::registerAI("UCI engine", fields, factory);
 }
 
-UciEngine::UciEngine(const std::vector<ConfigField>& cfg) {
-    // read config fields
-    try { m_cmd = get_config_field_value<std::string>(cfg, "cmd"); }
-    catch(...) { throw std::invalid_argument("UciEngine: missing required config field 'cmd'"); }
-    try { m_args = get_config_field_value<std::string>(cfg, "args"); }
-    catch(...) { m_args = ""; }
-    try { m_default_movetime_ms = static_cast<int>(get_config_field_value<double>(cfg, "time_limit") * 1000); }
-    catch(...) { m_default_movetime_ms = 1000; }
-}
+UciEngine::UciEngine(const std::vector<ConfigField>& cfg) 
+    : m_cmd(get_config_field_value<std::string>(cfg, "cmd")),
+      m_enable_info(get_config_field_value<bool>(cfg, "enable_info")),
+      m_default_movetime_ms(static_cast<int>(get_config_field_value<double>(cfg, "time_limit") * 1000))
+{}
 
 UciEngine::~UciEngine() {
     _stop_process();
@@ -66,7 +63,7 @@ void UciEngine::_start_process() {
     // build argv
     std::vector<std::string> parts;
     {
-        std::istringstream iss(m_cmd + (m_args.empty() ? "" : " " + m_args));
+        std::istringstream iss(m_cmd);
         std::string tok;
         while (iss >> tok) parts.push_back(tok);
     }
@@ -287,7 +284,9 @@ UCI UciEngine::_compute_move() {
             throw std::runtime_error("UciEngine: engine closed while waiting bestmove");
         }
         if (line.rfind("info", 0) == 0) {
-            // ignore info lines
+            if (m_enable_info) {
+                std::cout << line << std::endl;
+            }
             continue;
         }
         else if (line.rfind("bestmove", 0) == 0) {
