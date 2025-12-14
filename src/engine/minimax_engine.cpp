@@ -8,7 +8,7 @@
 #include "engine/see.hpp"
 
 static constexpr int32_t INF_SCORE = 100'000'000;
-static constexpr int32_t MATE_SCORE = 100'000;
+static constexpr int32_t MATE_SCORE = 1'000'000;
 static constexpr int32_t DRAW_SCORE = 0;
 
 static inline int32_t normalize_score_for_tt(int32_t score, int ply) {
@@ -25,6 +25,19 @@ static inline int32_t adjust_score_from_tt(int32_t stored_score, int ply) {
     if (stored_score < -MATE_SCORE + 1000)
         return stored_score + ply;
     return stored_score;
+}
+
+static inline bool is_win(int32_t score) {
+    return score > MATE_SCORE - 1000;
+}
+static inline bool is_loss(int32_t score) {
+    return score < -MATE_SCORE + 1000;
+}
+static inline int32_t winning_in(int32_t score) {
+    return MATE_SCORE - score;
+}
+static inline int32_t losing_in(int32_t score) {
+    return MATE_SCORE + score;
 }
 
 // Losing score with ply bonus for opponent side to prefer faster mates
@@ -203,10 +216,16 @@ UCI MinimaxAI::_compute_move() {
 
         if (m_enable_info_output) {
             int32_t time_elapsed = now_milliseconds() - m_start_time;
-            std::cout << "info depth " << target_depth << " score cp " << score << " nodes " << m_stats.alpha_beta_nodes
+            std::cout << "info depth " << target_depth << " score ";
+            if (is_win(score))
+                std::cout << "mate in " << winning_in(score);
+            else if (is_loss(score))
+                std::cout << "mated in " << losing_in(score);
+            else
+                std::cout << "cp " << score;
+            std::cout << " nodes " << m_stats.alpha_beta_nodes
                     << " nps " << (time_elapsed == 0 ? "inf" : std::to_string(static_cast<int>(static_cast<double>(m_stats.alpha_beta_nodes + m_stats.quiescence_nodes) / time_elapsed * 1000.0)))
                     << " time " << time_elapsed << " pv ";
-
             int pv_length = 0;
             for (size_t i = 0; i < target_depth; ++i) {
                 const TTEntry* tt_entry = m_tt.find(m_search_position.get_position().get_key());
