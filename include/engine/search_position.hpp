@@ -1,6 +1,13 @@
 #pragma once
 
 #include "../core/position.hpp"
+#include "engine/value_tables.hpp"
+
+struct Eval {
+    int32_t mg_eval;  // middle game eval
+    int32_t eg_eval;  // end game eval
+    int32_t phase;    // material on board
+};
 
 /**
  * Incremental evaluation wrapper for Position.
@@ -60,9 +67,10 @@ private:
      * @param type piece type
      * @param color player color
      * @param square square index 0-63 (8 * rank + file)
+     * @param stage game stage (middlegame/endgame)
      * @return Evaluation value for the piece on the square.
      */
-    int32_t _pst_value(PieceType type, Color color, Square square) const;
+    int32_t _pst_value(PieceType type, Color color, Square square, GamePhase stage) const;
 
     /**
      * @param type piece type
@@ -70,17 +78,19 @@ private:
      */
     int32_t _material_value(PieceType type) const;
 
+    int32_t _material_phase() const;
+
     /**
      * Calculate the full evaluation from the current position.
-     * @return The evaluation of the board (from white's perspective).
+     * @return The evaluation from white's perspective.
      */
-    int32_t _compute_full_eval();
+    Eval _compute_full_eval();
 
 private:
     Position m_position;
 
-    int32_t m_eval; // Evaluation from white's perspective
-    std::vector<int32_t> m_eval_history;
+    // Evaluation from white's perspective
+    std::vector<Eval> m_evals;
 
     // Ply history
     std::vector<uint64_t> m_zobrist_history;

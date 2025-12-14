@@ -302,8 +302,8 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
         m_search_position.make_move(move);
 
         int32_t score;
-        if (is_pv && move_count == 1) {
-            // Search first move with full window
+        if ((is_pv && move_count == 1) || depth <= 1) {
+            // Search first move with full window (or all moves at low depth)
             constexpr NodeType type = is_pv ? NodeType::PV : NodeType::NonPV;
             score = -_alpha_beta<type>(-beta, -alpha, depth - 1, ply + 1);
         }
