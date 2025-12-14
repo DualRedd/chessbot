@@ -46,9 +46,14 @@ public:
     FEN to_fen() const;
 
     /**
-     * @return Current Zobrist hash of the board state.
+     * @return A hash key for the entire position including side to move (Zobrist hash).
      */
-    uint64_t get_zobrist_hash() const;
+    uint64_t get_key() const;
+
+    /**
+     * @return A hash key for the pawn structure only (Zobrist hash).
+     */
+    uint64_t get_pawn_key() const;
 
     /**
      * @return Which sides turn to move it is currently.
@@ -197,7 +202,8 @@ private:
      * Reversable state transition. 48 bytes, no padding.
      */
     struct StoredState {
-        uint64_t zobrist;
+        uint64_t key;
+        uint64_t pawn_key;
         Move move;
         Piece captured_piece;
         uint8_t castling_rights;
@@ -207,7 +213,7 @@ private:
         std::array<Bitboard, 2> king_blockers;
         std::array<Bitboard, 2> pinners;
         StoredState(Move move, Piece captured_piece, uint8_t castling_rights,
-            Square en_passant_square, uint8_t halfmoves, uint64_t zobrist,
+            Square en_passant_square, uint8_t halfmoves, uint64_t key, uint64_t pawn_key,
             std::array<Bitboard, 2> king_blockers, std::array<Bitboard, 2> pinners,
             std::array<bool, 2> pins_computed);
     };
@@ -229,9 +235,12 @@ private:
     Color m_side_to_move;
     uint8_t m_castling_rights;      // bitmask: WK=1, WQ=2, BK=4, BQ=8
     Square m_en_passant_square;     // 0–63 or -1 if none
+
     uint8_t m_halfmoves;
     uint32_t m_fullmoves;
-    uint64_t m_zobrist;
+
+    uint64_t m_key;
+    uint64_t m_pawn_key;
 };
 
 
@@ -272,8 +281,12 @@ inline Bitboard Position::get_pinners(Color side) const {
     return m_pinners[+side];
 }
 
-inline uint64_t Position::get_zobrist_hash() const {
-    return m_zobrist;
+inline uint64_t Position::get_key() const {
+    return m_key;
+}
+
+inline uint64_t Position::get_pawn_key() const {
+    return m_pawn_key;
 }
 
 inline Color Position::get_side_to_move() const {

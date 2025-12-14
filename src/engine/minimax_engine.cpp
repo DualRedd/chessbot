@@ -209,7 +209,7 @@ UCI MinimaxAI::_compute_move() {
 
             int pv_length = 0;
             for (size_t i = 0; i < target_depth; ++i) {
-                const TTEntry* tt_entry = m_tt.find(m_search_position.get_position().get_zobrist_hash());
+                const TTEntry* tt_entry = m_tt.find(m_search_position.get_position().get_key());
                 if (!tt_entry || tt_entry->best_move == NO_MOVE)
                     break;
                 std::cout << MoveEncoding::to_uci(tt_entry->best_move) << " ";
@@ -264,7 +264,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
         return _quiescence(alpha, beta, ply);
 
     int32_t starting_alpha = alpha;
-    uint64_t zobrist_key = m_search_position.get_position().get_zobrist_hash();
+    uint64_t zobrist_key = m_search_position.get_position().get_key();
     const TTEntry* tt_entry = m_tt.find(zobrist_key);
 
     if (tt_entry) ++m_stats.tt_raw_hits;

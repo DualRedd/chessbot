@@ -13,9 +13,8 @@ TranspositionTable::TranspositionTable(size_t megabytes) {
 }
 
 void TranspositionTable::clear() {
-    for (auto& entry : m_table) {
+    for (auto& entry : m_table)
         entry.key = 0;
-    }
 }
 
 const TTEntry* TranspositionTable::find(uint64_t key) const {

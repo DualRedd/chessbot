@@ -2,6 +2,7 @@
 
 #include "../core/position.hpp"
 #include "engine/value_tables.hpp"
+#include "engine/pawn_hash_table.hpp"
 
 struct Eval {
     int32_t mg_eval;  // middle game eval
@@ -78,6 +79,9 @@ private:
      */
     int32_t _material_value(PieceType type) const;
 
+    /**
+     * @return Current material phase value. Weighted sum of all pieces on the board.
+     */
     int32_t _material_phase() const;
 
     /**
@@ -86,11 +90,18 @@ private:
      */
     Eval _compute_full_eval();
 
+    /**
+     * Evaluate pawn structure.
+     * @return Pawn structure evaluation from white's perspective.
+     */
+    int32_t _eval_pawns() const;
+
 private:
     Position m_position;
 
     // Evaluation from white's perspective
     std::vector<Eval> m_evals;
+    mutable PawnHashTable m_pawn_hash_table;
 
     // Ply history
     std::vector<uint64_t> m_zobrist_history;

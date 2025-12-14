@@ -49,6 +49,16 @@ constexpr int32_t PHASE_MIN = 8;
 // Phase width
 constexpr int32_t PHASE_WIDTH = PHASE_MAX - PHASE_MIN;
 
+// --------------
+// Pawn Structure
+// --------------
+
+constexpr int32_t DEFENDED_PAWN_VALUE = 4;
+constexpr int32_t DOUBLED_PAWN_VALUE = -20;
+constexpr int32_t TRIPLED_PAWN_VALUE = -50;
+constexpr int32_t BACKWARD_PAWN_VALUE = -12;
+constexpr int32_t ISOLATED_PAWN_VALUES[] = {-14, -14, -16, -20, -20, -16, -14, -14}; // by file
+constexpr int32_t PASSED_PAWN_VALUES[] = {0, 0, 14, 24, 40, 60, 80, 0}; // by rank
 
 // -------------------
 // Piece-Square Tables

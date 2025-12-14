@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-#include <optional>
 #include "core/types.hpp"
 
 enum class Bound : uint8_t { Exact=0, Lower=1, Upper=2, None=3 };
@@ -23,7 +22,7 @@ public:
     /**
      * @param megabytes size of the table in megabytes
      */
-    TranspositionTable(size_t megabytes = 16);
+    TranspositionTable(size_t megabytes = 256);
 
     /**
      * Clear all entries in the table.

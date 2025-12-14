@@ -164,6 +164,7 @@ add_library(chess_core STATIC
     src/engine/search_position.cpp
     src/engine/move_picker.cpp
     src/engine/transposition_table.cpp
+    src/engine/pawn_hash_table.cpp
 )
 target_compile_options(chess_core PRIVATE ${ENG_FLAGS})
 target_link_options(chess_core PRIVATE ${LINK_FLAGS})

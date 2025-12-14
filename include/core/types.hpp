@@ -46,10 +46,13 @@ constexpr Square operator+(int i, Square sq) noexcept { return static_cast<Squar
 constexpr Square operator-(int i, Square sq) noexcept { return static_cast<Square>(i - (+sq)); }
 constexpr Square& operator++(Square& sq)     noexcept { sq = static_cast<Square>(+sq + 1); return sq; }
 
+// Shift arithmetic operators
+constexpr Shift operator+(Shift sh1, Shift sh2) noexcept { return static_cast<Shift>(+sh1 + +sh2); }
+constexpr Shift operator-(Shift sh1, Shift sh2) noexcept { return static_cast<Shift>(+sh1 - +sh2); }
+
 // Square shift operators
 constexpr Square operator+(Square sq, Shift sh) noexcept { return static_cast<Square>((+sq) + (+sh)); }
 constexpr Square operator-(Square sq, Shift sh) noexcept { return static_cast<Square>((+sq) - (+sh)); }
-
 
 // Piece features
 enum class PieceType : int8_t { Knight = 0, Bishop = 1, Rook = 2, Queen = 3, King = 4, Pawn = 5, All = 6, None = 7};

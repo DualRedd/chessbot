@@ -1,8 +1,8 @@
 #include "engine/search_position.hpp"
-#include<iostream>
 
-SearchPosition::SearchPosition() : m_position() {
-    m_zobrist_history.reserve(100);
+SearchPosition::SearchPosition() : m_position(), m_pawn_hash_table(32) {
+    m_evals.reserve(200);
+    m_zobrist_history.reserve(200);
     m_irreversible_move_plies.reserve(50);
 }
 
@@ -22,14 +22,26 @@ int32_t SearchPosition::get_eval() const {
     const int32_t phase = std::max(eval.phase - PHASE_MIN, 0);
     const int32_t mg_value = eval.mg_eval * phase;
     const int32_t eg_value = eval.eg_eval * (PHASE_WIDTH - phase);
-    const int32_t eval_value = (mg_value + eg_value) / PHASE_WIDTH;
+    int32_t eval_value = (mg_value + eg_value) / PHASE_WIDTH;
+
+    // Get pawn eval
+    uint64_t pawn_key = m_position.get_pawn_key();
+    const PawnTableEntry* entry = m_pawn_hash_table.find(pawn_key);
+    if (entry) {
+        eval_value += entry->eval;
+    }
+    else {
+        int32_t pawn_eval = _eval_pawns();
+        m_pawn_hash_table.store(pawn_key, pawn_eval);
+        eval_value += pawn_eval;
+    }
 
     return (m_position.get_side_to_move() == Color::White) ? eval_value : -eval_value;
 }
 
 int SearchPosition::repetition_count() const {
     int count = 1;
-    uint64_t current_hash = m_position.get_zobrist_hash();
+    uint64_t current_hash = m_position.get_key();
     for(size_t i = m_irreversible_move_plies.back(); i < m_zobrist_history.size(); i++) {
         count += m_zobrist_history[i] == current_hash;
     }
@@ -41,7 +53,7 @@ int SearchPosition::plies_since_irreversible_move() const {
 }
 
 void SearchPosition::make_move(Move move) {
-    m_zobrist_history.push_back(m_position.get_zobrist_hash());
+    m_zobrist_history.push_back(m_position.get_key());
 
     const Eval& prev_eval = m_evals.back();
     m_evals.push_back(prev_eval);
@@ -149,6 +161,101 @@ inline Eval SearchPosition::_compute_full_eval() {
         eval.mg_eval += sign * (_material_value(type) + _pst_value(type, color, square, GamePhase::Middlegame));
         eval.eg_eval += sign * (_material_value(type) + _pst_value(type, color, square, GamePhase::Endgame));
     }
+
+    return eval;
+}
+
+
+template<Color color>
+static inline int32_t eval_by_row(Bitboard pieces, const int32_t* value_table) {
+    int32_t eval = 0;
+    while (pieces) {
+        Square sq = lsb(pieces);
+        if constexpr (color == Color::White) {
+            eval += value_table[rank_of(sq)];
+        } else {
+            eval += value_table[7 - rank_of(sq)];
+        }
+        pop_lsb(pieces);
+    }
+    return eval;
+}
+
+template<Color color>
+static inline int32_t eval_by_file(Bitboard pieces, const int32_t* value_table) {
+    int32_t eval = 0;
+    while (pieces) {
+        Square sq = lsb(pieces);
+        if constexpr (color == Color::White) {
+            eval += value_table[file_of(sq)];
+        }
+        else {
+            eval += value_table[7 - file_of(sq)];
+        }
+        pop_lsb(pieces);
+    }
+    return eval;
+}
+
+inline int32_t SearchPosition::_eval_pawns() const {
+    int32_t eval = 0;
+
+    // doubled and tripled pawns
+    const Bitboard w_pawns = m_position.get_pieces(Color::White, PieceType::Pawn);
+    const Bitboard w_pawns_behind_own = w_pawns & front_spans<Color::Black>(w_pawns);
+    const Bitboard w_pawns_ahead_own = w_pawns & front_spans<Color::White>(w_pawns);
+    const Bitboard w_pawns_between_own = w_pawns_behind_own & w_pawns_ahead_own;
+    eval += popcount(w_pawns_behind_own) * DOUBLED_PAWN_VALUE;
+    eval += popcount(w_pawns_between_own) * TRIPLED_PAWN_VALUE;
+
+    const Bitboard b_pawns = m_position.get_pieces(Color::Black, PieceType::Pawn);
+    const Bitboard b_pawns_behind_own = b_pawns & front_spans<Color::White>(b_pawns);
+    const Bitboard b_pawns_ahead_own = b_pawns & front_spans<Color::Black>(b_pawns);
+    const Bitboard b_pawns_between_own = b_pawns_behind_own & b_pawns_ahead_own;
+    eval -= popcount(b_pawns_behind_own) * DOUBLED_PAWN_VALUE;
+    eval -= popcount(b_pawns_between_own) * TRIPLED_PAWN_VALUE;
+    
+    // isolated pawns
+    const Bitboard w_no_neighbors_right = w_pawns & ~left_attack_file_fills(w_pawns);
+    const Bitboard w_no_neighbors_left = w_pawns & ~right_attack_file_fills(w_pawns);
+    const Bitboard w_isolated_pawns = w_no_neighbors_right & w_no_neighbors_left;
+    eval += eval_by_file<Color::White>(w_isolated_pawns, ISOLATED_PAWN_VALUES);
+
+    const Bitboard b_no_neighbors_right = b_pawns & ~left_attack_file_fills(b_pawns);
+    const Bitboard b_no_neighbors_left = b_pawns & ~right_attack_file_fills(b_pawns);
+    const Bitboard b_isolated_pawns = b_no_neighbors_right & b_no_neighbors_left;
+    eval -= eval_by_file<Color::Black>(b_isolated_pawns, ISOLATED_PAWN_VALUES);
+
+    // passed pawns
+    const Bitboard b_all_front_spans = attack_front_spans<Color::Black>(b_pawns) | front_spans<Color::Black>(b_pawns);
+    const Bitboard w_passed_pawns = w_pawns & ~b_all_front_spans & ~w_pawns_behind_own;
+    eval += eval_by_row<Color::White>(w_passed_pawns, PASSED_PAWN_VALUES);
+
+    const Bitboard w_all_front_spans = attack_front_spans<Color::White>(w_pawns) | front_spans<Color::White>(w_pawns);
+    const Bitboard b_passed_pawns = b_pawns & ~w_all_front_spans & ~b_pawns_behind_own;
+    eval -= eval_by_row<Color::Black>(b_passed_pawns, PASSED_PAWN_VALUES);
+
+    // rammed pawns
+    //const Bitboard w_rammed = shift_bb<pawn_dir(Color::Black)>(b_pawns) & w_pawns;
+    //const Bitboard b_rammed = shift_bb<pawn_dir(Color::White)>(w_pawns) & b_pawns;
+
+    // backward pawns (single pass)
+    const Bitboard b_attacks = pawn_attacks<Color::Black>(b_pawns);
+    const Bitboard b_controlled_stop_squares = b_attacks & ~attack_front_spans<Color::White>(w_pawns);
+    const Bitboard w_backward_pawns = w_pawns & rear_spans<Color::White>(b_controlled_stop_squares);
+    eval += popcount(w_backward_pawns) * BACKWARD_PAWN_VALUE;
+
+    const Bitboard w_attacks = pawn_attacks<Color::White>(w_pawns);
+    const Bitboard w_controlled_stop_squares = w_attacks & ~attack_front_spans<Color::Black>(b_pawns);
+    const Bitboard b_backward_pawns = b_pawns & rear_spans<Color::Black>(w_controlled_stop_squares);
+    eval -= popcount(b_backward_pawns) * BACKWARD_PAWN_VALUE;
+
+    // defended pawns
+    const Bitboard w_defended_pawns = w_pawns & w_attacks;
+    eval += popcount(w_defended_pawns) * DEFENDED_PAWN_VALUE;
+
+    const Bitboard b_defended_pawns = b_pawns & b_attacks;
+    eval -= popcount(b_defended_pawns) * DEFENDED_PAWN_VALUE;
 
     return eval;
 }

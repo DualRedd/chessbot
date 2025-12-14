@@ -4,14 +4,15 @@
 #include <sstream>
 
 Position::StoredState::StoredState(Move move, Piece captured_piece, uint8_t castling_rights,
-            Square en_passant_square, uint8_t halfmoves, uint64_t zobrist,
+            Square en_passant_square, uint8_t halfmoves, uint64_t key, uint64_t pawn_key,
             std::array<Bitboard, 2> king_blockers, std::array<Bitboard, 2> pinners,
             std::array<bool, 2> pins_computed) 
   : move(move),
     captured_piece(captured_piece),
     castling_rights(castling_rights),
     en_passant_square(en_passant_square),
-    zobrist(zobrist),
+    key(key),
+    pawn_key(pawn_key),
     halfmoves(halfmoves),
     king_blockers(king_blockers),
     pinners(pinners),
@@ -55,7 +56,6 @@ void Position::from_fen(const FEN& fen) {
     m_side_to_move = Color::White;
     m_castling_rights = 0;
     m_en_passant_square = Square::None;
-    m_zobrist = 0ULL;
     m_pins_computed.fill(false);
 
     // Parse FEN
@@ -206,21 +206,25 @@ void Position::from_fen(const FEN& fen) {
     if (in_check(opponent(m_side_to_move))) {
         throw std::invalid_argument("Position::from_fen() - illegal FEN! King capture possible.");
     }
-    if (PROMOTION_RANKS & get_pieces(PieceType::Pawn)) {
+    if ((MASK_RANK[0] | MASK_RANK[7]) & get_pieces(PieceType::Pawn)) {
         throw std::invalid_argument("Position::from_fen() - illegal FEN! Unpromoted pawn on last rank.");
     }
 
-    // Compute Zobrist hash for current position
+    // Compute Zobrist hashes for current position
+    m_key = 0ULL;
+    m_pawn_key = ZOBRIST_SIDE; // ensures that the key is never zero, but side is not part of the hash
     for(int sq = 0; sq < 64; sq++) {
         Piece piece = get_piece_at(Square(sq));
         assert(piece != Piece::All);
         if (piece != Piece::None) {
-            m_zobrist ^= ZOBRIST_PIECE[+piece][sq];
+            m_key ^= ZOBRIST_PIECE[+piece][sq];
+            if (to_type(piece) == PieceType::Pawn)
+                m_pawn_key ^= ZOBRIST_PIECE[+piece][sq];
         }
     }
-    m_zobrist ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F];
-    if (m_en_passant_square != Square::None) m_zobrist ^= ZOBRIST_EP[+file_of(m_en_passant_square)];
-    if (m_side_to_move == Color::Black) m_zobrist ^= ZOBRIST_SIDE;
+    m_key ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F];
+    if (m_en_passant_square != Square::None) m_key ^= ZOBRIST_EP[+file_of(m_en_passant_square)];
+    if (m_side_to_move == Color::Black) m_key ^= ZOBRIST_SIDE;
 }
 
 FEN Position::to_fen() const {
@@ -312,39 +316,64 @@ void Position::make_move(Move move) {
 
     // Store state to history
     m_state_history.emplace_back(StoredState(move, captured, m_castling_rights, m_en_passant_square,
-                                    m_halfmoves, m_zobrist, m_king_blockers, m_pinners, m_pins_computed));
+                                    m_halfmoves, m_key, m_pawn_key, m_king_blockers, m_pinners, m_pins_computed));
 
     // Update move counters
     m_halfmoves++;
     m_fullmoves += +m_side_to_move; // Black = 1
+
+    // Remove en passant
+    m_key ^= (m_en_passant_square != Square::None) * ZOBRIST_EP[+file_of(m_en_passant_square)];
+    m_en_passant_square = Square::None;
 
     // Remove moved piece from the origin square
     m_pieces_by_type[+to_type(moved_piece)] &= ~MASK_SQUARE[+from];
     m_pieces_by_type[+PieceType::All] &= ~MASK_SQUARE[+from];
     m_pieces_by_color[+m_side_to_move] &= ~MASK_SQUARE[+from];
     m_piece_on_square[+from] = Piece::None;
-    m_zobrist ^= ZOBRIST_PIECE[+moved_piece][+from];
+    m_key ^= ZOBRIST_PIECE[+moved_piece][+from];
 
     // Remove captured piece
     if (captured != Piece::None) {
         assert(get_piece_at(capture_square) != Piece::None);
         assert(to_color(get_piece_at(capture_square)) == opp);
 
+        if (to_type(captured) == PieceType::Pawn)
+            m_pawn_key ^= ZOBRIST_PIECE[+captured][+capture_square];
+
         m_pieces_by_type[+to_type(captured)] &= ~MASK_SQUARE[+capture_square];
         m_pieces_by_type[+PieceType::All] &= ~MASK_SQUARE[+capture_square];
         m_pieces_by_color[+opp] &= ~MASK_SQUARE[+capture_square];
         m_piece_on_square[+capture_square] = Piece::None;
-        m_zobrist ^= ZOBRIST_PIECE[+captured][+capture_square];
+        m_key ^= ZOBRIST_PIECE[+captured][+capture_square];
         m_halfmoves = 0; // reset on capture
     }
 
     // Place moved piece / promotion on target square
-    const Piece to_add = (move_type == MoveType::Promotion) ? create_piece(m_side_to_move, promo) : moved_piece;
-    m_pieces_by_type[+to_type(to_add)] |= MASK_SQUARE[+to];
+    // On pawn move add possible en passant square and update pawn hash
     m_pieces_by_type[+PieceType::All] |= MASK_SQUARE[+to];
     m_pieces_by_color[+m_side_to_move] |= MASK_SQUARE[+to];
-    m_piece_on_square[+to] = to_add;
-    m_zobrist ^= ZOBRIST_PIECE[+to_add][+to];
+    if (move_type == MoveType::Promotion) {
+        const Piece promo_piece = create_piece(m_side_to_move, promo);
+        m_pieces_by_type[+to_type(promo_piece)] |= MASK_SQUARE[+to];
+        m_piece_on_square[+to] = promo_piece;
+        m_key ^= ZOBRIST_PIECE[+promo_piece][+to];
+        m_pawn_key ^= ZOBRIST_PIECE[+moved_piece][+from];
+    }
+    else {
+        m_pieces_by_type[+to_type(moved_piece)] |= MASK_SQUARE[+to];
+        m_piece_on_square[+to] = moved_piece;
+        m_key ^= ZOBRIST_PIECE[+moved_piece][+to];
+        
+        if (to_type(moved_piece) == PieceType::Pawn) {
+            if (std::abs(int(to) - int(from)) == 16) {
+                m_en_passant_square = from + pawn_dir(m_side_to_move);
+                m_key ^= ZOBRIST_EP[+file_of(m_en_passant_square)];
+            }
+            m_pawn_key ^= ZOBRIST_PIECE[+moved_piece][+from] ^ ZOBRIST_PIECE[+moved_piece][+to];
+            m_halfmoves = 0; // reset on pawn move
+        }
+    }
 
     // Handle castling
     if (move_type == MoveType::Castle) {
@@ -360,31 +389,20 @@ void Position::make_move(Move move) {
         m_pieces_by_color[+m_side_to_move] ^= MASK_SQUARE[+rook_from] | MASK_SQUARE[+rook_to];
         m_piece_on_square[+rook_to] = m_piece_on_square[+rook_from];
         m_piece_on_square[+rook_from] = Piece::None;
-        m_zobrist ^= ZOBRIST_PIECE[+m_piece_on_square[+rook_to]][+rook_from]
+        m_key ^= ZOBRIST_PIECE[+m_piece_on_square[+rook_to]][+rook_from]
                    ^ ZOBRIST_PIECE[+m_piece_on_square[+rook_to]][+rook_to];
     }
 
     // Update castling rights
     if(m_castling_rights & (MASK_CASTLE_FLAG[+from] | MASK_CASTLE_FLAG[+to])) {
-        m_zobrist ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F];
+        m_key ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F];
         m_castling_rights &= ~(MASK_CASTLE_FLAG[+from] | MASK_CASTLE_FLAG[+to]);
-        m_zobrist ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F];
-    }
-
-    // Update en passant square
-    m_zobrist ^= (m_en_passant_square != Square::None) * ZOBRIST_EP[+file_of(m_en_passant_square)];
-    m_en_passant_square = Square::None;
-    if (to_type(moved_piece) == PieceType::Pawn) {
-        if (std::abs(int(to) - int(from)) == 16) {
-            m_en_passant_square = from + pawn_dir(m_side_to_move);
-            m_zobrist ^= ZOBRIST_EP[+file_of(m_en_passant_square)];
-        }
-        m_halfmoves = 0; // reset on pawn move
+        m_key ^= ZOBRIST_CASTLING[m_castling_rights & 0x0F];
     }
 
     // Next turn
     m_side_to_move = opp;
-    m_zobrist ^= ZOBRIST_SIDE;
+    m_key ^= ZOBRIST_SIDE;
     m_pins_computed.fill(false);
 }
 
@@ -448,8 +466,9 @@ bool Position::undo_move() {
     m_fullmoves -= +m_side_to_move; // Black = 1 
     m_halfmoves = state.halfmoves;
 
-    // restore zobrist
-    m_zobrist = state.zobrist;
+    // restore hashes
+    m_key = state.key;
+    m_pawn_key = state.pawn_key;
 
     // restore pinners and blockers state
     std::memcpy(&m_king_blockers, &state.king_blockers, sizeof(m_king_blockers));

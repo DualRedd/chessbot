@@ -21,6 +21,10 @@
 #include <intrin.h>
 #endif
 
+// ----------------
+// Type definitions
+// ----------------
+
 // Bitboard type (64 bits)
 using Bitboard = uint64_t;
 
@@ -37,17 +41,31 @@ enum class CastlingFlag : int8_t {
 constexpr int8_t operator+(CastlingSide t) noexcept { return static_cast<int8_t>(t); }
 constexpr int8_t operator+(CastlingFlag t) noexcept { return static_cast<int8_t>(t); }
 
+// ------------------------------
 // Precalculated masks and values
-extern API Bitboard MASK_SQUARE[64];              // [square]
-extern API Bitboard MASK_BETWEEN[64][64];         // [from square][to square] non-inclusive on both ends
-extern API Bitboard MASK_LINE[64][64];            // [from square][to square] edge to edge
+// ------------------------------
 
+// Square and line masks
+extern API Bitboard MASK_SQUARE[64];              // [square]
+extern API Bitboard MASK_BETWEEN[64][64];         // [from][to] non-inclusive on both ends
+extern API Bitboard MASK_LINE[64][64];            // [from][to] edge to edge
+extern API Bitboard MASK_FILE[8];                 // [file]
+extern API Bitboard MASK_RANK[8];                 // [rank]
+
+// Non-blocking attack masks
 extern API Bitboard MASK_PAWN_ATTACKS[2][64];     // [color][square]
 extern API Bitboard MASK_KNIGHT_ATTACKS[64];      // [square]
 extern API Bitboard MASK_KING_ATTACKS[64];        // [square]
 extern API Bitboard MASK_ROOK_ATTACKS[64];        // [square] non-blocking
 extern API Bitboard MASK_BISHOP_ATTACKS[64];      // [square] non-blocking
 
+// Pawn structure masks
+extern API Bitboard REAR_SPAN[2][64];             // [color][square]
+extern API Bitboard FRONT_SPAN[2][64];            // [color][square]
+extern API Bitboard LEFT_ATTACK_FILE_FILL[64];    // [square]
+extern API Bitboard RIGHT_ATTACK_FILE_FILL[64];   // [square]
+
+// Magic values and bitboards for sliding pieces
 extern API uint64_t ROOK_MAGIC[64];               // [square]
 extern API uint64_t BISHOP_MAGIC[64];             // [square]
 extern API Bitboard MASK_ROOK_MAGIC[64];          // [square]
@@ -55,36 +73,22 @@ extern API Bitboard MASK_BISHOP_MAGIC[64];        // [square]
 extern API Bitboard ROOK_ATTACK_TABLE[64][4096];  // [square][index]
 extern API Bitboard BISHOP_ATTACK_TABLE[64][512]; // [square][index]
 
+// Castling masks and flags
 extern API Bitboard MASK_CASTLE_CLEAR[2][2];      // [color][side]
 extern API int8_t MASK_CASTLE_FLAG[64];           // [square]
 
+// Zobrist hashing keys
 extern API uint64_t ZOBRIST_PIECE[14][64];        // [piece][square]
-extern API uint64_t ZOBRIST_CASTLING[16];         // castling rights bitmask
-extern API uint64_t ZOBRIST_EP[8];                // file of en passant square
-extern API uint64_t ZOBRIST_SIDE;                 // side to move
+extern API uint64_t ZOBRIST_CASTLING[16];         // [castling rights bitmask]
+extern API uint64_t ZOBRIST_EP[8];                // [file]
+extern API uint64_t ZOBRIST_SIDE;                 // black to move
 
 // Precalculation function
 void init_bitboards();
 
-// Bitboard constants
-constexpr Bitboard RANK_1 = 0x00000000000000FFULL;
-constexpr Bitboard RANK_2 = 0x000000000000FF00ULL;
-constexpr Bitboard RANK_3 = 0x0000000000FF0000ULL;
-constexpr Bitboard RANK_4 = 0x00000000FF000000ULL;
-constexpr Bitboard RANK_5 = 0x000000FF00000000ULL;
-constexpr Bitboard RANK_6 = 0x0000FF0000000000ULL;
-constexpr Bitboard RANK_7 = 0x00FF000000000000ULL;
-constexpr Bitboard RANK_8 = 0xFF00000000000000ULL;
-constexpr Bitboard FILE_A = 0x0101010101010101ULL;
-constexpr Bitboard FILE_B = 0x0202020202020202ULL;
-constexpr Bitboard FILE_C = 0x0404040404040404ULL;
-constexpr Bitboard FILE_D = 0x0808080808080808ULL;
-constexpr Bitboard FILE_E = 0x1010101010101010ULL;
-constexpr Bitboard FILE_F = 0x2020202020202020ULL;
-constexpr Bitboard FILE_G = 0x4040404040404040ULL;
-constexpr Bitboard FILE_H = 0x8080808080808080ULL;
-constexpr Bitboard PROMOTION_RANKS = RANK_1 | RANK_8;
-constexpr Bitboard FULL_BOARD = 0xFFFFFFFFFFFFFFFFULL;
+// -------------------------
+// Bitboard helper functions
+// -------------------------
 
 // Helper functions for castling
 constexpr int8_t castling_flag(Color color, CastlingSide side) {
@@ -114,12 +118,12 @@ constexpr inline Bitboard shift_bb(Bitboard bb) {
     else if constexpr (shift == Shift::DoubleUp)   return bb << 16;
     else if constexpr (shift == Shift::Down)       return bb >> 8;
     else if constexpr (shift == Shift::DoubleDown) return bb >> 16;
-    else if constexpr (shift == Shift::Left)       return (bb & ~FILE_A) >> 1;
-    else if constexpr (shift == Shift::Right)      return (bb & ~FILE_H) << 1;
-    else if constexpr (shift == Shift::UpRight)    return (bb & ~FILE_H) << 9;
-    else if constexpr (shift == Shift::UpLeft)     return (bb & ~FILE_A) << 7;
-    else if constexpr (shift == Shift::DownRight)  return (bb & ~FILE_H) >> 7;
-    else if constexpr (shift == Shift::DownLeft)   return (bb & ~FILE_A) >> 9;
+    else if constexpr (shift == Shift::Left)       return (bb & ~MASK_FILE[0]) >> 1;
+    else if constexpr (shift == Shift::Right)      return (bb & ~MASK_FILE[7]) << 1;
+    else if constexpr (shift == Shift::UpRight)    return (bb & ~MASK_FILE[7]) << 9;
+    else if constexpr (shift == Shift::UpLeft)     return (bb & ~MASK_FILE[0]) << 7;
+    else if constexpr (shift == Shift::DownRight)  return (bb & ~MASK_FILE[7]) >> 7;
+    else if constexpr (shift == Shift::DownLeft)   return (bb & ~MASK_FILE[0]) >> 9;
 }
 
 /**
@@ -169,3 +173,102 @@ inline Bitboard attacks_from(Square square, Bitboard occupied) {
 }
 
 
+/**
+ * All squares in front of each pawn.
+ * @tparam side Color of the pawns
+ * @param pawns Bitboard of pawns
+ * @return Bitboard of front spans.
+ */
+template<Color side>
+inline Bitboard front_spans(Bitboard pawns) {
+    Bitboard spans = 0ULL;
+    while (pawns) {
+        Square sq = lsb(pawns);
+        spans |= FRONT_SPAN[+side][+sq];
+        pop_lsb(pawns);
+    }
+    return spans;
+}
+
+/**
+ * All squares behind each pawn and the pawn squares themselves.
+ * @tparam side Color of the pawns
+ * @param pawns Bitboard of pawns
+ * @return Bitboard of rear spans.
+ */
+template<Color side>
+inline Bitboard rear_spans(Bitboard pawns) {
+    Bitboard spans = 0ULL;
+    while (pawns) {
+        Square sq = lsb(pawns);
+        spans |= REAR_SPAN[+side][+sq];
+        pop_lsb(pawns);
+    }
+    return spans;
+}
+
+/**
+ * Squares under attack by pawns of the given color.
+ * @tparam side Color of the pawns
+ * @param pawns Bitboard of pawns
+ * @return Bitboard of attack squares.
+ */
+template<Color side>
+inline Bitboard pawn_attacks(Bitboard pawns) {
+    return shift_bb<pawn_dir(side)+Shift::Left>(pawns)
+         | shift_bb<pawn_dir(side)+Shift::Right>(pawns);
+}
+
+/**
+ * Attack spans in front of pawns of the given color. Front span shifted left and right.
+ * @tparam side Color of the pawns
+ * @param pawns Bitboard of pawns
+ * @return Bitboard of attack front spans.
+ */
+template<Color side>
+inline Bitboard attack_front_spans(Bitboard pawns) {
+    const Bitboard front_spans_bb = front_spans<side>(pawns);
+    return shift_bb<Shift::Left>(front_spans_bb) | shift_bb<Shift::Right>(front_spans_bb);
+}
+
+/**
+ * Attack spans behind pawns of the given color. Rear span shifted left and right.
+ * @tparam side Color of the pawns
+ * @param pawns Bitboard of pawns
+ * @return Bitboard of attack rear spans.
+ */
+template<Color side>
+inline Bitboard attack_rear_spans(Bitboard pawns) {
+    const Bitboard rear_spans_bb = rear_spans<side>(pawns);
+    return shift_bb<Shift::Left>(rear_spans_bb) | shift_bb<Shift::Right>(rear_spans_bb);
+}
+
+/**
+ * File fills to the left of pawns of the given color.
+ * @param pawns Bitboard of pawns
+ * @return Bitboard of left attack file fills.
+ */
+inline Bitboard left_attack_file_fills(Bitboard pawns) {
+    Bitboard fill = 0ULL;
+    while (pawns) {
+        Square sq = lsb(pawns);
+        fill |= LEFT_ATTACK_FILE_FILL[+sq];
+        pop_lsb(pawns);
+    }
+    return fill;
+}
+
+/**
+ * File fills to the right of pawns of the given color.
+ * @param pawns Bitboard of pawns
+ * @return Bitboard of right attack file fills.
+ */
+inline Bitboard right_attack_file_fills(Bitboard pawns) {
+    Bitboard fill = 0ULL;
+    while (pawns) {
+        Square sq = lsb(pawns);
+        fill |= RIGHT_ATTACK_FILE_FILL[+sq];
+        pop_lsb(pawns);
+    }
+    return fill;
+}

@@ -4,6 +4,12 @@
 
 namespace {
 
+constexpr Bitboard RANK_2 = 0x000000000000FF00ULL;
+constexpr Bitboard RANK_3 = 0x0000000000FF0000ULL;
+constexpr Bitboard RANK_6 = 0x0000FF0000000000ULL;
+constexpr Bitboard RANK_7 = 0x00FF000000000000ULL;
+constexpr Bitboard PROMOTION_RANKS = 0xFF000000000000FFULL;
+
 template<Shift shift>
 inline Move* add_pawn_moves(Bitboard to_bitboard, Move* move_list) {
     while (to_bitboard) {

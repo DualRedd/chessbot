@@ -91,8 +91,8 @@ void Chess::new_board(const FEN& position) {
     m_zobrist_history.clear();
     m_zobrist_counts.clear();
     m_fen_history.clear();
-    m_zobrist_history.push_back(m_position.get_zobrist_hash());
-    m_zobrist_counts[m_position.get_zobrist_hash()] = 1;
+    m_zobrist_history.push_back(m_position.get_key());
+    m_zobrist_counts[m_position.get_key()] = 1;
     m_fen_history.push_back(m_position.to_fen());
 }
 
@@ -122,7 +122,7 @@ bool Chess::play_move(const UCI& move) {
     m_position.make_move(m_position.move_from_uci(move));
     _update_legal_moves();
 
-    uint64_t key = m_position.get_zobrist_hash();
+    uint64_t key = m_position.get_key();
     m_zobrist_history.push_back(key);
     m_zobrist_counts[key] += 1;
     m_fen_history.push_back(m_position.to_fen());
@@ -238,7 +238,7 @@ bool Chess::_is_insufficient_material() const {
 }
 
 bool Chess::_is_threefold_repetition() const {
-    uint64_t key = m_position.get_zobrist_hash();
+    uint64_t key = m_position.get_key();
     auto it = m_zobrist_counts.find(key);
     if (it == m_zobrist_counts.end() || it->second < 3) {
         return false;

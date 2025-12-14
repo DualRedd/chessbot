@@ -10,12 +10,19 @@ static std::mt19937_64 rng(42);
 Bitboard MASK_SQUARE[64];
 Bitboard MASK_BETWEEN[64][64];
 Bitboard MASK_LINE[64][64];
+Bitboard MASK_FILE[8];
+Bitboard MASK_RANK[8];
 
 Bitboard MASK_PAWN_ATTACKS[2][64];
 Bitboard MASK_KNIGHT_ATTACKS[64];
 Bitboard MASK_KING_ATTACKS[64];
 Bitboard MASK_ROOK_ATTACKS[64];
 Bitboard MASK_BISHOP_ATTACKS[64];
+
+Bitboard REAR_SPAN[2][64];
+Bitboard FRONT_SPAN[2][64];
+Bitboard LEFT_ATTACK_FILE_FILL[64];
+Bitboard RIGHT_ATTACK_FILE_FILL[64];
 
 uint64_t ROOK_MAGIC[64];
 uint64_t BISHOP_MAGIC[64];
@@ -154,6 +161,7 @@ static void zero_tables() {
     std::memset(MASK_SQUARE, 0, sizeof(MASK_SQUARE));
     std::memset(MASK_BETWEEN, 0, sizeof(MASK_BETWEEN));
     std::memset(MASK_LINE, 0, sizeof(MASK_LINE));
+    std::memset(MASK_FILE, 0, sizeof(MASK_FILE));
 
     std::memset(MASK_PAWN_ATTACKS, 0, sizeof(MASK_PAWN_ATTACKS));
     std::memset(MASK_KNIGHT_ATTACKS, 0, sizeof(MASK_KNIGHT_ATTACKS));
@@ -175,6 +183,11 @@ static void zero_tables() {
     std::memset(ZOBRIST_CASTLING, 0, sizeof(ZOBRIST_CASTLING));
     std::memset(ZOBRIST_EP, 0, sizeof(ZOBRIST_EP));
     ZOBRIST_SIDE = 0;
+
+    std::memset(REAR_SPAN, 0, sizeof(REAR_SPAN));
+    std::memset(FRONT_SPAN, 0, sizeof(FRONT_SPAN));
+    std::memset(LEFT_ATTACK_FILE_FILL, 0, sizeof(LEFT_ATTACK_FILE_FILL));
+    std::memset(RIGHT_ATTACK_FILE_FILL, 0, sizeof(RIGHT_ATTACK_FILE_FILL));
 }
 
 void init_bitboards() {
@@ -183,6 +196,8 @@ void init_bitboards() {
     // Single square masks
     for (int square = 0; square < 64; square++) {
         MASK_SQUARE[square] = 1ULL << square;
+        MASK_FILE[square % 8] |= MASK_SQUARE[square];
+        MASK_RANK[square / 8] |= MASK_SQUARE[square];
     }
 
     // Castling masks and flags
@@ -203,8 +218,57 @@ void init_bitboards() {
     MASK_CASTLE_FLAG[+king_start_square(Color::White)] = +CastlingFlag::WhiteKingSide | +CastlingFlag::WhiteQueenSide;
     MASK_CASTLE_FLAG[+king_start_square(Color::Black)] = +CastlingFlag::BlackKingSide | +CastlingFlag::BlackQueenSide;
     
-    // Piece masks
+    const int directions[8][2] = {{1,0}, {-1,0}, {0,1}, {0,-1}, {1,1}, {1,-1}, {-1,1}, {-1,-1}};
     auto ok = [](int f, int r) { return f >= 0 && f < 8 && r >= 0 && r < 8; };
+
+    // Line and between masks
+    for (int from = 0; from < 64; from++) {
+        int from_file = from % 8;
+        int from_rank = from / 8;
+        for (int to = 0; to < 64; ++to) {
+            if (to == from) continue;
+
+            int to_file = to % 8;
+            int to_rank = to / 8;
+            int df = to_file - from_file;
+            int dr = to_rank - from_rank;
+
+            int x = (df > 0) - (df < 0);
+            int y = (dr > 0) - (dr < 0);
+
+            // aligned if same file, same rank or same diagonal
+            if (df == 0 || dr == 0 || (abs(df) == abs(dr))) {
+                // build BETWEEN (exclusive)
+                Bitboard between = 0ULL;
+                int cx = from_file + x;
+                int cy = from_rank + y;
+                while (cx != to_file || cy != to_rank) {
+                    between |= MASK_SQUARE[+create_square(cx, cy)];
+                    cx += x, cy += y;
+                }
+                
+                // build BETWEEN (edge to edge)
+                Bitboard line = 0ULL;
+                cx = from_file;
+                cy = from_rank;
+                while (ok(cx, cy)) {
+                    line |= MASK_SQUARE[+create_square(cx, cy)];
+                    cx += x; cy += y;
+                }
+                cx = from_file - x;
+                cy = from_rank - y;
+                while (ok(cx, cy)) {
+                    line |= MASK_SQUARE[+create_square(cx, cy)];
+                    cx -= x; cy -= y;
+                }
+
+                MASK_BETWEEN[from][to] = between;
+                MASK_LINE[from][to] = line;
+            }
+        }
+    }
+
+    // Piece masks
     for (int from = 0; from < 64; from++) {
         int from_file = from % 8;
         int from_rank = from / 8;
@@ -260,55 +324,24 @@ void init_bitboards() {
                 cur_rank += dr;
             }
         }
-    }
 
-    const int directions[8][2] = {{1,0}, {-1,0}, {0,1}, {0,-1}, {1,1}, {1,-1}, {-1,1}, {-1,-1}};
+        // Front span
+        for (int r = from_rank + 1; r < 8; r++)
+            FRONT_SPAN[+Color::White][from] |= MASK_SQUARE[+create_square(from_file, r)];
+        for (int r = from_rank - 1; r >= 0; r--)
+            FRONT_SPAN[+Color::Black][from] |= MASK_SQUARE[+create_square(from_file, r)];
 
-    // Line and between masks
-    for (int from = 0; from < 64; from++) {
-        int from_file = from % 8;
-        int from_rank = from / 8;
-        for (int to = 0; to < 64; ++to) {
-            if (to == from) continue;
+        // Rear span
+        REAR_SPAN[+Color::White][from] = MASK_FILE[from_file] & ~FRONT_SPAN[+Color::White][from];
+        REAR_SPAN[+Color::Black][from] = MASK_FILE[from_file] & ~FRONT_SPAN[+Color::Black][from];
 
-            int to_file = to % 8;
-            int to_rank = to / 8;
-            int df = to_file - from_file;
-            int dr = to_rank - from_rank;
+        // Left attack file fill
+        if (from_file > 0)
+            LEFT_ATTACK_FILE_FILL[from] |= MASK_FILE[from_file - 1];
 
-            int x = (df > 0) - (df < 0);
-            int y = (dr > 0) - (dr < 0);
-
-            // aligned if same file, same rank or same diagonal
-            if (df == 0 || dr == 0 || (abs(df) == abs(dr))) {
-                // build BETWEEN (exclusive)
-                Bitboard between = 0ULL;
-                int cx = from_file + x;
-                int cy = from_rank + y;
-                while (cx != to_file || cy != to_rank) {
-                    between |= MASK_SQUARE[+create_square(cx, cy)];
-                    cx += x, cy += y;
-                }
-                
-                // build BETWEEN (edge to edge)
-                Bitboard line = 0ULL;
-                cx = from_file;
-                cy = from_rank;
-                while (ok(cx, cy)) {
-                    line |= MASK_SQUARE[+create_square(cx, cy)];
-                    cx += x; cy += y;
-                }
-                cx = from_file - x;
-                cy = from_rank - y;
-                while (ok(cx, cy)) {
-                    line |= MASK_SQUARE[+create_square(cx, cy)];
-                    cx -= x; cy -= y;
-                }
-
-                MASK_BETWEEN[from][to] = between;
-                MASK_LINE[from][to] = line;
-            }
-        }
+        // Right attack file fill
+        if (from_file < 7)
+            RIGHT_ATTACK_FILE_FILL[from] |= MASK_FILE[from_file + 1];
     }
 
     // Zobrist hashing keys
@@ -342,7 +375,7 @@ std::string to_string(Bitboard bb) {
     for (int rank = 7; rank >= 0; --rank) {
         for (int file = 0; file < 8; ++file) {
             Square sq = create_square(file, rank);
-            result += (bb & MASK_SQUARE[+sq]) ? '1' : '0';
+            result += (bb & MASK_SQUARE[+sq]) ? '1' : '.';
         }
         if (rank > 0) result += '\n';
     }
