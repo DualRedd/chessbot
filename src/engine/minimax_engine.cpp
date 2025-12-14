@@ -1,6 +1,7 @@
 #include "engine/minimax_engine.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 
 #include "engine/move_picker.hpp"
@@ -317,22 +318,39 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
             std::cout << "info depth " << depth << " currmove " << MoveEncoding::to_uci(move)
                         << " currmovenumber " << move_count << "\n" << std::flush;
         }
-
         m_search_position.make_move(move);
 
+        int32_t new_depth = depth - 1;
+        int32_t reductions = 0;
+        const bool checking_move = m_search_position.get_position().in_check();
+
+        // Check extension for moves with good SEE values
+        if (checking_move && static_exchange_evaluation(m_search_position.get_position(), move, 0))
+            new_depth += 1;
+        
         int32_t score;
         if ((is_pv && move_count == 1) || depth <= 1) {
             // Search first move with full window (or all moves at low depth)
             constexpr NodeType type = is_pv ? NodeType::PV : NodeType::NonPV;
-            score = -_alpha_beta<type>(-beta, -alpha, depth - 1, ply + 1);
+            score = -_alpha_beta<type>(-beta, -alpha, new_depth, ply + 1);
         }
         else {
-            // Null window search
-            score = -_alpha_beta<NodeType::NonPV>(-alpha - 1, -alpha, depth - 1, ply + 1);
+            // Late move reduction
+            const bool lmr = move_count > 4 && new_depth - reductions >= 3;
+            if (lmr)
+                reductions += 1 + static_cast<int32_t>(floorf(logf(new_depth) * logf(move_count) / 3.1f));
 
-            // Check if re-search is needed
+            // Null window search
+            score = -_alpha_beta<NodeType::NonPV>(-alpha - 1, -alpha, new_depth - reductions, ply + 1);
+
+            // Check if re-search is needed with lmr (search full depth first)
+            if (lmr && score > alpha && score < beta) {
+                score = -_alpha_beta<NodeType::PV>(-alpha - 1, -alpha, new_depth, ply + 1);
+            }
+
+            // Check if re-re-search is needed (full depth and window)
             if (score > alpha && score < beta) {
-                score = -_alpha_beta<NodeType::PV>(-beta, -alpha, depth - 1, ply + 1);
+                score = -_alpha_beta<NodeType::PV>(-beta, -alpha, new_depth, ply + 1);
             }
         }
         
