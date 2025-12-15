@@ -36,15 +36,22 @@ constexpr int32_t MATERIAL_WEIGHTS[6] = {
     1   // Pawn
 };
 
-// Maximum phase value (starting material)
+// Maximum phase value (starting material) = 54
 constexpr int32_t PHASE_MAX = MATERIAL_WEIGHTS[+PieceType::Queen]  * 2
                             + MATERIAL_WEIGHTS[+PieceType::Rook]   * 4
                             + MATERIAL_WEIGHTS[+PieceType::Bishop] * 4
                             + MATERIAL_WEIGHTS[+PieceType::Knight] * 4
                             + MATERIAL_WEIGHTS[+PieceType::Pawn]   * 16;
 
-// Minimum phase value (where it is considered completely an endgame)
+// Minimum phase value (where it is considered completely an endgame for evaluation purposes)
 constexpr int32_t PHASE_MIN = 8;
+
+// Phase upper bounds for specific evaluation adjustments
+constexpr int32_t PHASE_OPENING = PHASE_MAX;
+constexpr int32_t PHASE_EARLY_MIDGAME = 46;
+constexpr int32_t PHASE_LATE_MIDGAME = 26;
+constexpr int32_t PHASE_EARLY_ENDGAME = 15;
+constexpr int32_t PHASE_LATE_ENDGAME = 7;
 
 // Phase width
 constexpr int32_t PHASE_WIDTH = PHASE_MAX - PHASE_MIN;

@@ -4,11 +4,9 @@
 #include "gtest/gtest.h"
 #include "core/position.hpp"
 #include "core/move_generation.hpp"
+#include "positions.hpp"
 
 static std::mt19937 rng;
-
-const FEN CHESS_START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-const FEN COMPLEX_POSITION = "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
 
 TEST(PositionTests, CopyConstructor) {
     Position original(CHESS_START_POSITION);
@@ -176,4 +174,22 @@ TEST(PositionTests, PinnersAndBlockersMatchBoardState) {
     ASSERT_EQ(position.get_pinners(Color::Black), MASK_SQUARE[+Square::A3]);
     ASSERT_EQ(position.get_king_blockers(Color::White), MASK_SQUARE[+Square::F8] | MASK_SQUARE[+Square::G7]);
     ASSERT_EQ(position.get_king_blockers(Color::Black), MASK_SQUARE[+Square::D3]);
+}
+
+TEST(PositionTests, GivesCheckMatchesInCheckAfterMove) {
+    MoveList move_list;
+    Position position;
+
+    for (const FEN& fen : TEST_POSITIONS) {
+        position.from_fen(fen);
+        move_list.generate<GenerateType::Legal>(position);
+        for (const Move& move : move_list) {
+            bool gives_check = position.gives_check(move);
+            position.make_move(move);
+            bool in_check = position.in_check(position.get_side_to_move());
+            ASSERT_TRUE(position.undo_move());
+            ASSERT_EQ(gives_check, in_check) << "gives_check() result does not match actual check state after move. FEN: "
+                                            << fen << ", Move: " << MoveEncoding::to_uci(move);
+        }
+    }
 }

@@ -57,6 +57,10 @@ MovePicker::MovePicker(const Position& position, const Move tt_move)
         ++m_stage;
 }
 
+void MovePicker::skip_quiets() {
+    m_skip_quiets = true;
+}
+
 Move MovePicker::next() {
     switch (m_stage) {
         case MovePickStage::TTMoveNormal:
@@ -74,8 +78,8 @@ Move MovePicker::next() {
             m_bad_captures_begin = m_bad_captures_end = m_cur_begin;
             insertion_sort(m_cur_begin, m_cur_end);
             ++m_stage;
-            [[fallthrough]];
         }
+        [[fallthrough]];
 
         case MovePickStage::GoodCaptures:
         case MovePickStage::GoodQuiescenceCaptures: {
@@ -95,33 +99,34 @@ Move MovePicker::next() {
                 return NO_MOVE;
 
             ++m_stage;
-            [[fallthrough]];
         }
+        [[fallthrough]];
 
         case MovePickStage::FirstKillerMove: {
             Move killer = m_killer_history->first(m_ply);
             if (++m_stage; killer != NO_MOVE && killer != m_tt_move && test_legality(m_position, killer))
                 return killer;
-            [[fallthrough]];
         }
+        [[fallthrough]];
 
         case MovePickStage::SecondKillerMove: {
             Move killer = m_killer_history->second(m_ply);
             if (++m_stage; killer != NO_MOVE && killer != m_tt_move && test_legality(m_position, killer))
                 return killer;
-            [[fallthrough]];
+            
         }
+        [[fallthrough]];
 
-        case MovePickStage::ScoreQuiets: {
+        case MovePickStage::ScoreQuiets: if (!m_skip_quiets) {
             MoveList quiets;
             quiets.generate<GenerateType::Quiets>(m_position);
             m_cur_end = score_moves<GenerateType::Quiets>(quiets, m_cur_begin);
             insertion_sort(m_cur_begin, m_cur_end);
             ++m_stage;
-            [[fallthrough]];
         }
+        [[fallthrough]];
 
-        case MovePickStage::Quiets: {
+        case MovePickStage::Quiets: if (!m_skip_quiets) {
             while (m_cur_begin < m_cur_end) {
                 if (m_cur_begin->move == m_tt_move
                     || m_cur_begin->move == m_killer_history->first(m_ply)
@@ -132,8 +137,8 @@ Move MovePicker::next() {
                 return (m_cur_begin++)->move;
             }
             ++m_stage;
-            [[fallthrough]];
         }
+        [[fallthrough]];
         
         case MovePickStage::BadCaptures: {
             while (m_bad_captures_begin < m_bad_captures_end) {
@@ -152,8 +157,8 @@ Move MovePicker::next() {
             m_cur_end = score_moves<GenerateType::Evasions>(evasions, m_cur_begin);
             insertion_sort(m_cur_begin, m_cur_end);
             ++m_stage;
-            [[fallthrough]];
         }
+        [[fallthrough]];
 
         case MovePickStage::Evasions: {
             while (m_cur_begin < m_cur_end) {

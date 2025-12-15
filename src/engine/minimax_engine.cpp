@@ -8,10 +8,18 @@
 #include "engine/value_tables.hpp"
 #include "engine/see.hpp"
 
+static constexpr int32_t NO_SCORE = 111'111'111;
 static constexpr int32_t INF_SCORE = 100'000'000;
 static constexpr int32_t MATE_SCORE = 1'000'000;
 static constexpr int32_t DRAW_SCORE = 0;
 
+// time in milliseconds since epoch
+static inline int32_t now_milliseconds() {
+    using namespace std::chrono;
+    return static_cast<int32_t>(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+}
+
+// Adjust a score to be stored in the TT (mate distance encoding)
 static inline int32_t normalize_score_for_tt(int32_t score, int ply) {
     if (score > MATE_SCORE - 1000)
         return score + ply;
@@ -20,6 +28,7 @@ static inline int32_t normalize_score_for_tt(int32_t score, int ply) {
     return score;
 }
 
+// Adjust a stored TT score back to the current ply (mate distance decoding)
 static inline int32_t adjust_score_from_tt(int32_t stored_score, int ply) {
     if (stored_score > MATE_SCORE - 1000)
         return stored_score - ply;
@@ -28,27 +37,35 @@ static inline int32_t adjust_score_from_tt(int32_t stored_score, int ply) {
     return stored_score;
 }
 
+// A score is a win if it is a mate score for the side to move
 static inline bool is_win(int32_t score) {
-    return score > MATE_SCORE - 1000;
+    return score < INF_SCORE && score > MATE_SCORE - 1000;
 }
+// A score is a loss if it is a mate score for the opponent
 static inline bool is_loss(int32_t score) {
-    return score < -MATE_SCORE + 1000;
+    return score > -INF_SCORE && score < -MATE_SCORE + 1000;
 }
+// A score is decisive if it is a mate score (win or loss)
+static inline bool is_decisive(int32_t score) {
+    return is_win(score) || is_loss(score);
+}
+// how many turns until checkmate a winning score represents
 static inline int32_t winning_in(int32_t score) {
     return MATE_SCORE - score;
 }
+// how many turns until checkmate a losing score represents
 static inline int32_t losing_in(int32_t score) {
     return MATE_SCORE + score;
 }
-
-// Losing score with ply bonus for opponent side to prefer faster mates
+// create a score to represent mate in (ply) turns
 static inline int32_t mated_in(int32_t ply) {
     return -MATE_SCORE + ply;
 }
-
-static inline int32_t now_milliseconds() {
-    using namespace std::chrono;
-    return static_cast<int32_t>(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+// check side to move has a pawn on rank 7 (white) or rank 2 (black)
+static inline bool promotion_possible(const Position& pos) {
+    const Color stm = pos.get_side_to_move();
+    const Bitboard rank_7 = stm == Color::White? MASK_RANK[6] : MASK_RANK[1];
+    return (pos.get_pieces(stm, PieceType::Pawn) & rank_7) != 0ULL;
 }
 
 
@@ -60,10 +77,10 @@ void registerMinimaxAI() {
     std::vector<ConfigField> cfg = {
         {"enable_info", "Enable search info output", FieldType::Bool, false},
         {"time_limit", "Thinking time (s)", FieldType::Double, 5.0},
+        {"max_depth", "Maximum search depth", FieldType::Int, 99},
         {"tt_size_megabytes", "Transposition table size (MB)", FieldType::Int, 256},
         //{"aspiration_window_enabled", "Enable aspiration window", FieldType::Bool, true},
         //{"aspiration_window", "Aspiration window (centipawns)", FieldType::Int, 50},
-        {"max_depth", "Maximum search depth", FieldType::Int, 99},
     };
 
     AIRegistry::registerAI("Minimax", cfg, createMinimaxAI);
@@ -243,11 +260,12 @@ UCI MinimaxAI::_compute_move() {
     }
 
     if (best_move == NO_MOVE) {
-        // no best move found (timeout on first iteration), choose one legal move
         if (target_depth != 1)
             throw std::runtime_error("MinimaxAI::_compute_move() - no move result!");
+
+        // no best move found (timeout on first iteration), choose one legal move
         if (m_enable_info_output)
-            std::cout << "info search timeout during first iteration\n" << std::flush;
+            std::cout << "info search stopped during first iteration!\n" << std::flush;
         best_move = move_list[0];
     }
 
@@ -260,7 +278,7 @@ UCI MinimaxAI::_compute_move() {
 
 
 template<NodeType node_type>
-int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth, const int32_t ply) {
+int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth, const int32_t ply, const int32_t prior_reductions) {
     constexpr bool is_root = (node_type == NodeType::Root);
     constexpr bool is_pv = (node_type == NodeType::PV || is_root);
 
@@ -270,7 +288,11 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
         m_root_best_move = NO_MOVE;
 
     if (_stop_check())
-        return -INF_SCORE;
+        return NO_SCORE;
+
+    MoveList root_move_list;
+    
+
 
     if (m_search_position.get_position().get_halfmove_clock() >= 100)
         return DRAW_SCORE; // fifty-move rule
@@ -304,7 +326,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
             return stored;
         }
     }
-
+    
     Move best_move = NO_MOVE;
     int32_t best_score = -INF_SCORE;
 
@@ -312,59 +334,82 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
                             &m_killer_history, &m_move_history);
     int move_count = 0;
 
+    const bool in_check = m_search_position.get_position().in_check();
+
     for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
         ++move_count;
         if (is_root && m_enable_info_output && now_milliseconds() - m_start_time >= 2000) {
             std::cout << "info depth " << depth << " currmove " << MoveEncoding::to_uci(move)
                         << " currmovenumber " << move_count << "\n" << std::flush;
         }
-        m_search_position.make_move(move);
 
         int32_t new_depth = depth - 1;
-        int32_t reductions = 0;
-        const bool checking_move = m_search_position.get_position().in_check();
+        const bool gives_check = m_search_position.get_position().gives_check(move);
+        const bool is_capture = m_search_position.get_position().to_capture(move) != PieceType::None;
+
+        // Futility pruning
+        if (!is_root && move_count > 1 && depth <= 3 && !in_check && !gives_check && !is_capture && !is_decisive(alpha)) {
+            int32_t futility_value = m_search_position.get_eval() + 48; // base margin
+                                    + depth * 101 // depth based margin
+                                    + m_move_history.get(m_search_position.get_position(), move) / 16; // history bonus
+            if (futility_value <= alpha) {
+                if (best_score < futility_value && !is_decisive(best_score)) {
+                    best_score = futility_value;
+                    best_move = move;
+                }
+                continue;
+            }
+        }
 
         // Check extension for moves with good SEE values
-        if (checking_move && static_exchange_evaluation(m_search_position.get_position(), move, 0))
+        if (gives_check && static_exchange_evaluation(m_search_position.get_position(), move, 0))
             new_depth += 1;
-        
+
+        // make move
+        m_search_position.make_move(move);
         int32_t score;
-        if ((is_pv && move_count == 1) || depth <= 1) {
-            // Search first move with full window (or all moves at low depth)
+
+        if (is_pv && move_count == 1) {
+            // Search first move with full window
             constexpr NodeType type = is_pv ? NodeType::PV : NodeType::NonPV;
             score = -_alpha_beta<type>(-beta, -alpha, new_depth, ply + 1);
         }
         else {
             // Late move reduction
-            const bool lmr = move_count > 4 && new_depth - reductions >= 3;
-            if (lmr)
-                reductions += 1 + static_cast<int32_t>(floorf(logf(new_depth) * logf(move_count) / 3.1f));
+            int32_t reductions = 0;
+            const bool lmr = move_count >= 3 && new_depth >= 3;
+            if (lmr) {
+                reductions += 1 + static_cast<int32_t>(floorf(logf(new_depth) * logf(move_count) / 3.2f));
+
+                // limit total reductions to 3
+                reductions = std::min(reductions, 3 - prior_reductions);
+            }
 
             // Null window search
-            score = -_alpha_beta<NodeType::NonPV>(-alpha - 1, -alpha, new_depth - reductions, ply + 1);
+            score = -_alpha_beta<NodeType::NonPV>(-alpha - 1, -alpha, new_depth - reductions, ply + 1, prior_reductions + reductions);
 
             // Check if re-search is needed with lmr (search full depth first)
-            if (lmr && score > alpha && score < beta) {
-                score = -_alpha_beta<NodeType::PV>(-alpha - 1, -alpha, new_depth, ply + 1);
+            if (lmr && score > alpha && score < beta && !m_stop_search) {
+                score = -_alpha_beta<NodeType::NonPV>(-alpha - 1, -alpha, new_depth, ply + 1, prior_reductions);
             }
 
-            // Check if re-re-search is needed (full depth and window)
-            if (score > alpha && score < beta) {
-                score = -_alpha_beta<NodeType::PV>(-beta, -alpha, new_depth, ply + 1);
+            // Check if re-search is needed (full depth and window)
+            if (score > alpha && score < beta && !m_stop_search) {
+                score = -_alpha_beta<NodeType::PV>(-beta, -alpha, new_depth, ply + 1, prior_reductions);
             }
         }
-        
+
+        // undo move
         m_search_position.undo_move();
 
         if (m_stop_search)
-            return -INF_SCORE; // timed out
+            return NO_SCORE; // timed out
+        
+        assert(score > -INF_SCORE && score < INF_SCORE);
 
         if (score > best_score) {
             best_score = score;
             best_move = move;
-
-            if constexpr (is_root) // store best move at root
-                m_root_best_move = best_move;
 
             if (score > alpha) {
                 if (score < beta) {
@@ -385,15 +430,20 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
 
     if (move_count == 0) {
         // Checkmate or stalemate
-        best_score = m_search_position.get_position().in_check() ? mated_in(ply) : DRAW_SCORE;
+        best_score = in_check ? mated_in(ply) : DRAW_SCORE;
     }
+
+    assert(best_score > -INF_SCORE && best_score < INF_SCORE);
 
     int32_t store_score = normalize_score_for_tt(best_score, ply);
     Bound bound = (best_score <= starting_alpha) ? Bound::Upper
-                          : (best_score >= beta) ? Bound::Lower
-                                                 : Bound::Exact;
+                            : (best_score >= beta) ? Bound::Lower
+                                                    : Bound::Exact;
     m_tt.store(zobrist_key, store_score, depth, bound, best_move);
 
+    if constexpr (is_root) // store best move at root
+        m_root_best_move = best_move;
+    
     return best_score;
 }
 
@@ -401,31 +451,57 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t
     ++m_stats.quiescence_nodes;
 
     if (_stop_check())
-        return -INF_SCORE;
+        return NO_SCORE;
+
+    // Stand pat evaluation
+    int32_t stand_pat = m_search_position.get_eval();
+
+    // Delta pruning pre move generation
+    int32_t big_delta = PIECE_VALUES[+PieceType::Queen];
+    if (promotion_possible(m_search_position.get_position()))
+        big_delta += PIECE_VALUES[+PieceType::Queen] - PIECE_VALUES[+PieceType::Pawn];
+    if (stand_pat + big_delta < alpha)
+        return alpha;
 
     int32_t best_score = -INF_SCORE;
     Move best_move = NO_MOVE;
 
     const bool in_check = m_search_position.get_position().in_check();
     if (!in_check) {
-        // Stand pat evaluation
-        best_score = m_search_position.get_eval();
-        if (best_score >= beta) return best_score;
-        if (best_score > alpha) alpha = best_score;
+        if (stand_pat >= beta) return stand_pat;
+        best_score = stand_pat;
+        if (best_score > alpha)
+            alpha = stand_pat;
     } 
 
+    const int32_t material_phase = m_search_position.material_phase();
+    
     MovePicker move_picker(m_search_position.get_position(), NO_MOVE);
     int move_count = 0;
 
     for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
-        m_search_position.make_move(move);
         ++move_count;
 
+        // Delta pruning, disabled in endgame
+        if (!in_check && material_phase > PHASE_LATE_ENDGAME) {
+            int32_t delta_value =  stand_pat + 150 + PIECE_VALUES[+m_search_position.get_position().to_capture(move)];
+            if (MoveEncoding::move_type(move) == MoveType::Promotion)
+                delta_value += PIECE_VALUES[+PieceType::Queen] - PIECE_VALUES[+PieceType::Pawn];
+            if (delta_value <= alpha) {
+                if (best_score < delta_value && !is_decisive(best_score) && !is_win(delta_value))
+                    best_score = delta_value;
+                continue;
+            }
+        }
+
+        m_search_position.make_move(move);
         int32_t score = -_quiescence(-beta, -alpha, ply + 1);
         m_search_position.undo_move();
 
         if (m_stop_search)
-            return -INF_SCORE; // timed out
+            return NO_SCORE; // timed out
+
+        assert(score > -INF_SCORE && score < INF_SCORE);
 
         if (score > best_score) {
             best_score = score;
@@ -449,6 +525,7 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t
         best_score = mated_in(ply);
     }
 
+    assert(best_score > -INF_SCORE && best_score < INF_SCORE);
     return best_score;
 }
 

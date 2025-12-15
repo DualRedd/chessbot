@@ -21,6 +21,7 @@ Position::StoredState::StoredState(Move move, Piece captured_piece, uint8_t cast
 Position::Position(const FEN& fen) {
     from_fen(fen);
     m_state_history.reserve(500);
+    m_null_move_en_passant_history.reserve(50);
 }
 
 Position::Position(const Position& other, bool copy_history) {
@@ -57,6 +58,7 @@ void Position::from_fen(const FEN& fen) {
     m_castling_rights = 0;
     m_en_passant_square = Square::None;
     m_pins_computed.fill(false);
+    m_check_squares_computed = false;
 
     // Parse FEN
     std::istringstream iss(fen);
@@ -292,6 +294,66 @@ FEN Position::to_fen() const {
     return oss.str();
 }
 
+bool Position::gives_check(Move move) const {
+    if (!m_check_squares_computed) {
+        _compute_check_squares();
+        m_check_squares_computed = true;
+    }
+
+    const Color opp = opponent(m_side_to_move);
+    const Square from = MoveEncoding::from_sq(move);
+    const Square to = MoveEncoding::to_sq(move);
+    const Piece moved_piece = get_piece_at(from);
+
+    // direct check
+    if (m_check_squares[+to_type(moved_piece)] & MASK_SQUARE[+to])
+        return true;
+
+    const Bitboard king_bb = get_pieces(opp, PieceType::King);
+
+    // discovered check
+    if (get_king_blockers(opp) & MASK_SQUARE[+from]) {
+        // Is check if did not move along the pin line
+        return !(MASK_LINE[+from][+to] & king_bb);
+    }
+
+    const Square king_sq = lsb(king_bb);
+    const MoveType move_type = MoveEncoding::move_type(move);
+
+    if (move_type == MoveType::EnPassant) {
+        // Rare case: simulate occupancy after capture for discovered check
+        // Other discovered checks are handled above, so only possible one is trough both pawns
+        Square capture_square = to - pawn_dir(m_side_to_move);
+        Bitboard occ = get_pieces() ^ MASK_SQUARE[+from] ^ MASK_SQUARE[+capture_square] | MASK_SQUARE[+to];
+        if (attacks_from<PieceType::Rook>(king_sq, occ) & (get_pieces(m_side_to_move, PieceType::Rook) | get_pieces(m_side_to_move, PieceType::Queen)))
+            return true;
+        if (attacks_from<PieceType::Bishop>(king_sq, occ) & (get_pieces(m_side_to_move, PieceType::Bishop) | get_pieces(m_side_to_move, PieceType::Queen)))
+            return true;
+        return false;
+    }
+    else if (move_type == MoveType::Promotion) {
+        const PieceType promo = MoveEncoding::promo(move);
+        // Check if promoted piece can attack the king
+        switch (promo) {
+            case PieceType::Knight:
+                return attacks_from<PieceType::Knight>(to, get_pieces() ^ MASK_SQUARE[+from]) & king_bb;
+            case PieceType::Bishop:
+                return attacks_from<PieceType::Bishop>(to, get_pieces() ^ MASK_SQUARE[+from]) & king_bb;
+            case PieceType::Rook:
+                return attacks_from<PieceType::Rook>(to, get_pieces() ^ MASK_SQUARE[+from]) & king_bb;
+            case PieceType::Queen:
+                return attacks_from<PieceType::Queen>(to, get_pieces() ^ MASK_SQUARE[+from]) & king_bb;
+        }
+    }
+    else if (move_type == MoveType::Castle) {
+        Square rook_to = static_cast<Square>((+to + +from) >> 1); // to + from / 2
+        return m_check_squares[+PieceType::Rook] & MASK_SQUARE[+rook_to];
+    }
+
+    // Normal move
+    return false;
+}
+
 void Position::make_move(Move move) {
     const Color opp = opponent(m_side_to_move);
     const Square from = MoveEncoding::from_sq(move);
@@ -404,6 +466,7 @@ void Position::make_move(Move move) {
     m_side_to_move = opp;
     m_key ^= ZOBRIST_SIDE;
     m_pins_computed.fill(false);
+    m_check_squares_computed = false;
 }
 
 bool Position::undo_move() {
@@ -413,7 +476,7 @@ bool Position::undo_move() {
     StoredState& state = m_state_history.back();
 
     // Previous turn
-    m_side_to_move = (m_side_to_move == Color::White) ? Color::Black : Color::White;
+    m_side_to_move = opponent(m_side_to_move);
     
     const Color opp = opponent(m_side_to_move);
     const Square from = MoveEncoding::from_sq(state.move);
@@ -475,8 +538,48 @@ bool Position::undo_move() {
     std::memcpy(&m_pinners, &state.pinners, sizeof(m_pinners));
     std::memcpy(&m_pins_computed, &state.pins_computed, sizeof(m_pins_computed));
 
+    // Invalidate check squares
+    m_check_squares_computed = false;
+
     m_state_history.pop_back();
     return true;
+}
+
+void Position::make_null_move() {
+    // Update move counters
+    m_halfmoves++;
+    m_fullmoves += +m_side_to_move; // Black = 1
+
+    // Remove en passant
+    assert(!m_null_move_en_passant_history.empty());
+    m_null_move_en_passant_history.push_back(m_en_passant_square);
+    m_key ^= (m_en_passant_square != Square::None) * ZOBRIST_EP[+file_of(m_en_passant_square)];
+    m_en_passant_square = Square::None;
+
+    // Next turn
+    m_side_to_move = opponent(m_side_to_move);
+    m_key ^= ZOBRIST_SIDE;
+
+    // Invalidate check squares
+    m_check_squares_computed = false;
+}
+
+void Position::undo_null_move() {
+    // Previous turn
+    m_side_to_move = opponent(m_side_to_move);
+    m_key ^= ZOBRIST_SIDE;
+
+    // Restore en passant square
+    m_en_passant_square = m_null_move_en_passant_history.back();
+    m_null_move_en_passant_history.pop_back();
+    m_key ^= (m_en_passant_square != Square::None) * ZOBRIST_EP[+file_of(m_en_passant_square)];
+
+    // Update move counters
+    m_fullmoves -= +m_side_to_move; // Black = 1 
+    m_halfmoves -= 1;
+
+    // Invalidate check squares
+    m_check_squares_computed = false;
 }
 
 Move Position::move_from_uci(const UCI& uci) const {
@@ -547,4 +650,15 @@ void Position::_compute_pins(Color side) const {
         }
         pop_lsb(possible_pinners);
     }
+}
+
+void Position::_compute_check_squares() const {
+    const Color opp = opponent(m_side_to_move);
+    const Square king_sq = lsb(get_pieces(opp, PieceType::King));
+    m_check_squares[+PieceType::Pawn] = MASK_PAWN_ATTACKS[+opp][+king_sq];
+    m_check_squares[+PieceType::Knight] = MASK_KNIGHT_ATTACKS[+king_sq];
+    m_check_squares[+PieceType::Rook] = attacks_from<PieceType::Rook>(king_sq, get_pieces());
+    m_check_squares[+PieceType::Bishop] = attacks_from<PieceType::Bishop>(king_sq, get_pieces());
+    m_check_squares[+PieceType::Queen] = m_check_squares[+PieceType::Rook] | m_check_squares[+PieceType::Bishop];
+    m_check_squares[+PieceType::King] = 0; // not possible to check with king
 }

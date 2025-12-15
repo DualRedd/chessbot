@@ -122,6 +122,12 @@ public:
     bool in_check() const;
 
     /**
+     * @param move the move to query
+     * @return True if the move gives check, else false.
+     */
+    bool gives_check(Move move) const;
+
+    /**
      * @param side the side of the attackers
      * @param square the square to query
      * @param occupied the occupancy bitboard to consider for sliders
@@ -180,6 +186,16 @@ public:
     bool undo_move();
 
     /**
+     * Apply a null move on this board (passing the turn).
+     */
+    void make_null_move();
+
+    /**
+     * Undo a null move on this board. Must only be used to undo a previously made null move.
+     */
+    void undo_null_move();
+
+    /**
      * @return The piece type being captured by the given move, or Piece::None.
      */
     PieceType to_capture(Move move) const;
@@ -221,13 +237,19 @@ private:
     // Helper to compute pins and blockers for the given side
     void _compute_pins(Color side) const;
 
+    // Helper to compute check squares for the current position
+    void _compute_check_squares() const;
+
 private:
     std::vector<StoredState> m_state_history;
+    std::vector<Square> m_null_move_en_passant_history;
 
     Bitboard m_pieces_by_type[7];   // [piece type]
     Bitboard m_pieces_by_color[2];  // [color]
     Piece m_piece_on_square[64];    // [square]
-    
+
+    mutable Bitboard m_check_squares[6];             // [piece type]
+    mutable bool m_check_squares_computed;
     mutable std::array<Bitboard, 2> m_king_blockers; // [color]
     mutable std::array<Bitboard, 2> m_pinners;       // [color]
     mutable std::array<bool, 2> m_pins_computed;     // [color]
@@ -331,7 +353,6 @@ inline bool Position::in_check(Color side) const {
 inline bool Position::in_check() const {
     return in_check(m_side_to_move);
 }
-
 
 inline Bitboard Position::attackers(Color side, Square square, Bitboard occupied) const {
     const Color opp = opponent(side);

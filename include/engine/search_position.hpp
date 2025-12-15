@@ -44,6 +44,11 @@ public:
     int plies_since_irreversible_move() const;
 
     /**
+     * @return Current material phase value. Weighted sum of all pieces on the board.
+     */
+    int32_t material_phase() const;
+
+    /**
      * Make a move on the board.
      * @param move the move.
      * @note Illegal moves can cause internal state to become invalid.
@@ -77,12 +82,7 @@ private:
      * @param type piece type
      * @return Evaluation material value for the piece.
      */
-    int32_t _material_value(PieceType type) const;
-
-    /**
-     * @return Current material phase value. Weighted sum of all pieces on the board.
-     */
-    int32_t _material_phase() const;
+    int32_t _material_value(PieceType type) const; 
 
     /**
      * Calculate the full evaluation from the current position.

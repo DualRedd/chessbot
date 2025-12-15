@@ -12,7 +12,7 @@ constexpr int32_t MOVE_HISTORY_MAX_VALUE = 45'000;
 
 class KillerHistory {
 public:
-    KillerHistory() = default;
+    KillerHistory() { reset(); }
 
     void reset() {
         for (int ply = 0; ply < KILLER_HISTORY_MAX_PLIES; ++ply) {
@@ -45,7 +45,7 @@ private:
 
 class MoveHistory {
 public:
-    MoveHistory() = default;
+    MoveHistory() { reset(); }
 
     void reset() {
         for (int piece = 0; piece < 14; ++piece) {
@@ -59,6 +59,8 @@ public:
         const Square to = MoveEncoding::to_sq(move);
         const Piece piece = pos.get_piece_at(from);
 
+        assert(+piece >= 0 && +piece < 14);
+
         // history gravity formula
         int32_t bonus_clamped = std::clamp(bonus, -MOVE_HISTORY_MAX_VALUE, MOVE_HISTORY_MAX_VALUE);
         m_history[+piece][+to] += bonus_clamped - m_history[+piece][+to] * abs(bonus_clamped) / MOVE_HISTORY_MAX_VALUE;
@@ -68,6 +70,8 @@ public:
         const Square from = MoveEncoding::from_sq(move);
         const Square to = MoveEncoding::to_sq(move);
         const Piece piece = pos.get_piece_at(from);
+
+        assert(+piece >= 0 && +piece < 14);
 
         return m_history[+piece][+to];
     }

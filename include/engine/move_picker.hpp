@@ -70,6 +70,11 @@ public:
     MovePicker(const Position& position, const Move tt_move);
 
     /**
+     * Stop any future quiet moves from being picked.
+     */
+    void skip_quiets();
+
+    /**
      * @return Next best move according to the move ordering heuristics. Returns NO_MOVE if no moves are left.
      */
     Move next();
@@ -88,6 +93,7 @@ private:
 private:
     const Position& m_position;
     int m_ply;
+    bool m_skip_quiets = false;
 
     MovePickStage m_stage;
     Move m_tt_move;

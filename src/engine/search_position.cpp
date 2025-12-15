@@ -10,6 +10,7 @@ void SearchPosition::set_board(const FEN& fen) {
     m_position.from_fen(fen);
     m_evals.clear();
     m_evals.emplace_back(_compute_full_eval());
+    m_pawn_hash_table.clear();
 
     m_zobrist_history.clear();
     m_irreversible_move_plies.clear();
@@ -50,6 +51,15 @@ int SearchPosition::repetition_count() const {
 
 int SearchPosition::plies_since_irreversible_move() const {
     return m_zobrist_history.size() - m_irreversible_move_plies.back();
+}
+
+int32_t SearchPosition::material_phase() const {
+    int32_t material = 0;
+    for (int type = 0; type < 6; ++type) {
+        int32_t count = popcount(m_position.get_pieces(PieceType(type)));
+        material += count * MATERIAL_WEIGHTS[type];
+    }
+    return std::min(material, PHASE_MAX);
 }
 
 void SearchPosition::make_move(Move move) {
@@ -137,18 +147,9 @@ inline int32_t SearchPosition::_pst_value(PieceType type, Color color, Square sq
     }
 }
 
-inline int32_t SearchPosition::_material_phase() const {
-    int32_t material = 0;
-    for (int type = 0; type < 6; ++type) {
-        int32_t count = popcount(m_position.get_pieces(PieceType(type)));
-        material += count * MATERIAL_WEIGHTS[type];
-    }
-    return std::min(material, PHASE_MAX);
-}
-
 inline Eval SearchPosition::_compute_full_eval() {
     Eval eval = {0, 0, 0};
-    eval.phase = _material_phase();
+    eval.phase = material_phase();
 
     for (Square square = Square::A1; square <= Square::H8; ++square) {
         Piece piece = m_position.get_piece_at(square);

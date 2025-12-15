@@ -51,7 +51,7 @@ private:
 
     // Alpha-beta search
     template<NodeType node_type>
-    int32_t _alpha_beta(int32_t alpha, int32_t beta, const int32_t depth, const int32_t ply);
+    int32_t _alpha_beta(int32_t alpha, int32_t beta, const int32_t depth, const int32_t ply, const int32_t prior_reductions = 0);
 
     // Quiescence search
     inline int32_t _quiescence(int32_t alpha, int32_t beta, const int32_t ply);

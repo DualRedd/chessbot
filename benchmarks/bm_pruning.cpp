@@ -57,7 +57,7 @@ static void BM_minimax_pruning_aspiration(benchmark::State& state) {
     int aspiration_window = static_cast<int>(state.range(0));
     run_minimax_fixed_depth(state,
                             PRUNING_TEST_POSITIONS_NEW,
-                            /*depth=*/8,
+                            /*depth=*/10,
                             /*tt_size_megabytes=*/512,
                             /*aspiration_enabled=*/true,
                             aspiration_window);
