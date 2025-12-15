@@ -70,7 +70,7 @@ private:
     const int32_t m_aspiration_window = 50;
 
     // Search state
-    SearchPosition m_search_position;
+    SearchPosition m_spos;
     TranspositionTable m_tt;
     KillerHistory m_killer_history;
     MoveHistory m_move_history;

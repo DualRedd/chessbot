@@ -63,6 +63,16 @@ public:
     bool undo_move();
 
     /**
+     * Apply a null move on this board (passing the turn).
+     */
+    void make_null_move();
+
+    /**
+     * Undo a null move on this board. Must only be used to undo a previously made null move.
+     */
+    void undo_null_move();
+
+    /**
      * @return The underlying board.
      */
     const Position& get_position() const;

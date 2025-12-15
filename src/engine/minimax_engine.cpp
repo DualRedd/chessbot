@@ -37,6 +37,21 @@ static inline int32_t adjust_score_from_tt(int32_t stored_score, int ply) {
     return stored_score;
 }
 
+// check side to move has a pawn on rank 7 (white) or rank 2 (black)
+static inline bool promotion_possible(const Position& pos) {
+    const Color stm = pos.get_side_to_move();
+    const Bitboard rank_7 = stm == Color::White? MASK_RANK[6] : MASK_RANK[1];
+    return (pos.get_pieces(stm, PieceType::Pawn) & rank_7) != 0ULL;
+}
+
+static inline bool has_non_pawn_material(const Position& pos) {
+    Bitboard pieces = pos.get_pieces(PieceType::All) & ~(
+        pos.get_pieces(PieceType::Pawn) |
+        pos.get_pieces(PieceType::King)
+    );
+    return pieces != 0ULL;
+}
+
 // A score is a win if it is a mate score for the side to move
 static inline bool is_win(int32_t score) {
     return score < INF_SCORE && score > MATE_SCORE - 1000;
@@ -60,12 +75,6 @@ static inline int32_t losing_in(int32_t score) {
 // create a score to represent mate in (ply) turns
 static inline int32_t mated_in(int32_t ply) {
     return -MATE_SCORE + ply;
-}
-// check side to move has a pawn on rank 7 (white) or rank 2 (black)
-static inline bool promotion_possible(const Position& pos) {
-    const Color stm = pos.get_side_to_move();
-    const Bitboard rank_7 = stm == Color::White? MASK_RANK[6] : MASK_RANK[1];
-    return (pos.get_pieces(stm, PieceType::Pawn) & rank_7) != 0ULL;
 }
 
 
@@ -92,7 +101,7 @@ MinimaxAI::MinimaxAI(const std::vector<ConfigField>& cfg)
     m_tt_size_megabytes(get_config_field_value<int>(cfg, "tt_size_megabytes")),
     //m_aspiration_window_enabled(get_config_field_value<bool>(cfg, "aspiration_window_enabled")),
     //m_aspiration_window(get_config_field_value<int>(cfg, "aspiration_window")),
-    m_search_position(),
+    m_spos(),
     m_tt(m_tt_size_megabytes),
     m_enable_info_output(get_config_field_value<bool>(cfg, "enable_info"))
 {}
@@ -108,7 +117,7 @@ MinimaxAI::MinimaxAI(const int32_t max_depth,
     m_tt_size_megabytes(tt_size_megabytes),
     m_aspiration_window_enabled(aspiration_window_enabled),
     m_aspiration_window(aspiration_window),
-    m_search_position(),
+    m_spos(),
     m_tt(m_tt_size_megabytes),
     m_enable_info_output(enable_info_output)
 {}
@@ -158,28 +167,28 @@ auto MinimaxAI::get_stats() const -> Stats {
 }
 
 void MinimaxAI::_set_board(const FEN& fen) {
-    m_search_position.set_board(fen);
+    m_spos.set_board(fen);
 }
 
 void MinimaxAI::_apply_move(const UCI& uci_move) {
     MoveList move_list;
-    Move move = m_search_position.get_position().move_from_uci(uci_move);
-    move_list.generate<GenerateType::Legal>(m_search_position.get_position());
+    Move move = m_spos.get_position().move_from_uci(uci_move);
+    move_list.generate<GenerateType::Legal>(m_spos.get_position());
     if (std::find(move_list.begin(), move_list.end(), move) == move_list.end()) {
         throw std::invalid_argument("MinimaxAI::apply_move() - illegal move!");
     }
-    m_search_position.make_move(move);
+    m_spos.make_move(move);
 }
 
 void MinimaxAI::_undo_move() {
-    if (!m_search_position.undo_move()) {
+    if (!m_spos.undo_move()) {
         throw std::invalid_argument("MinimaxAI::undo_move() - no previous move!");
     }
 }
 
 UCI MinimaxAI::_compute_move() {
     MoveList move_list;
-    move_list.generate<GenerateType::Legal>(m_search_position.get_position());
+    move_list.generate<GenerateType::Legal>(m_spos.get_position());
     if(move_list.count() == 0) {
         throw std::invalid_argument("MinimaxAI::compute_move() - no legal moves!");
     }
@@ -246,16 +255,16 @@ UCI MinimaxAI::_compute_move() {
                     << " time " << time_elapsed << " pv ";
             int pv_length = 0;
             for (size_t i = 0; i < target_depth; ++i) {
-                const TTEntry* tt_entry = m_tt.find(m_search_position.get_position().get_key());
+                const TTEntry* tt_entry = m_tt.find(m_spos.get_position().get_key());
                 if (!tt_entry || tt_entry->best_move == NO_MOVE)
                     break;
                 std::cout << MoveEncoding::to_uci(tt_entry->best_move) << " ";
-                m_search_position.make_move(tt_entry->best_move);
+                m_spos.make_move(tt_entry->best_move);
                 ++pv_length;
             }
             std::cout << "\n" << std::flush;
             for (size_t i = 0; i < pv_length; ++i)
-                m_search_position.undo_move();
+                m_spos.undo_move();
         }
     }
 
@@ -282,8 +291,6 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
     constexpr bool is_root = (node_type == NodeType::Root);
     constexpr bool is_pv = (node_type == NodeType::PV || is_root);
 
-    ++m_stats.alpha_beta_nodes;
-
     if constexpr (is_root)
         m_root_best_move = NO_MOVE;
 
@@ -291,22 +298,22 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
         return NO_SCORE;
 
     MoveList root_move_list;
-    
 
-
-    if (m_search_position.get_position().get_halfmove_clock() >= 100)
+    if (m_spos.get_position().get_halfmove_clock() >= 100)
         return DRAW_SCORE; // fifty-move rule
 
-    if (m_search_position.plies_since_irreversible_move() >= 4) {
-        if(m_search_position.repetition_count() >= 3)
+    if (m_spos.plies_since_irreversible_move() >= 4) {
+        if(m_spos.repetition_count() >= 3)
             return DRAW_SCORE; // threefold repetition
     }
 
     if (depth <= 0)
         return _quiescence(alpha, beta, ply);
 
+    ++m_stats.alpha_beta_nodes;
+
     int32_t starting_alpha = alpha;
-    uint64_t zobrist_key = m_search_position.get_position().get_key();
+    uint64_t zobrist_key = m_spos.get_position().get_key();
     const TTEntry* tt_entry = m_tt.find(zobrist_key);
 
     if (tt_entry) ++m_stats.tt_raw_hits;
@@ -326,15 +333,36 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
             return stored;
         }
     }
+
+    int32_t static_eval = m_spos.get_eval();
+    const bool in_check = m_spos.get_position().in_check();
+
+    // Null move pruning
+    // If the static eval is high enough, do a null move (pass the turn) and see if we still get a a beta cutoff.
+    // The idea being that if we can get a cutoff without moving, we can also get one when moving.
+    // The exception being zugzwangs. Which is why we check for non-pawn material, as zugzwangs are more common in pawn endgames.
+    // The is_null_window and previous_was_capture conditions are some ideas, that can improve stability.
+    bool is_null_window = !is_pv && alpha == beta - 1;
+    bool previous_was_capture = !is_root && m_spos.get_position().get_last_move_capture() != Piece::None;
+    if (!is_root && (is_null_window || !previous_was_capture) && !in_check && depth >= 3 && has_non_pawn_material(m_spos.get_position()) && static_eval >= beta) {
+        m_spos.make_null_move();
+        constexpr int32_t R = 3;
+        int32_t score = -_alpha_beta<NodeType::NonPV>(-beta - 1, -beta, depth - 1 - R, ply + 1);
+        m_spos.undo_null_move();
+
+        if (m_stop_search)
+            return NO_SCORE; // timed out
+
+        if (score >= beta)
+            return score; 
+    }
     
     Move best_move = NO_MOVE;
     int32_t best_score = -INF_SCORE;
 
-    MovePicker move_picker(m_search_position.get_position(), ply, tt_entry ? tt_entry->best_move : NO_MOVE,
+    MovePicker move_picker(m_spos.get_position(), ply, tt_entry ? tt_entry->best_move : NO_MOVE,
                             &m_killer_history, &m_move_history);
     int move_count = 0;
-
-    const bool in_check = m_search_position.get_position().in_check();
 
     for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
         ++move_count;
@@ -344,14 +372,14 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
         }
 
         int32_t new_depth = depth - 1;
-        const bool gives_check = m_search_position.get_position().gives_check(move);
-        const bool is_capture = m_search_position.get_position().to_capture(move) != PieceType::None;
+        const bool gives_check = m_spos.get_position().gives_check(move);
+        const bool is_capture = m_spos.get_position().to_capture(move) != PieceType::None;
 
         // Futility pruning
         if (!is_root && move_count > 1 && depth <= 3 && !in_check && !gives_check && !is_capture && !is_decisive(alpha)) {
-            int32_t futility_value = m_search_position.get_eval() + 48; // base margin
+            int32_t futility_value = static_eval + 48; // base margin
                                     + depth * 101 // depth based margin
-                                    + m_move_history.get(m_search_position.get_position(), move) / 16; // history bonus
+                                    + m_move_history.get(m_spos.get_position(), move) / 16; // history bonus
             if (futility_value <= alpha) {
                 if (best_score < futility_value && !is_decisive(best_score)) {
                     best_score = futility_value;
@@ -362,11 +390,11 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
         }
 
         // Check extension for moves with good SEE values
-        if (gives_check && static_exchange_evaluation(m_search_position.get_position(), move, 0))
+        if (gives_check && static_exchange_evaluation(m_spos.get_position(), move, 0))
             new_depth += 1;
 
         // make move
-        m_search_position.make_move(move);
+        m_spos.make_move(move);
         int32_t score;
 
         if (is_pv && move_count == 1) {
@@ -400,7 +428,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
         }
 
         // undo move
-        m_search_position.undo_move();
+        m_spos.undo_move();
 
         if (m_stop_search)
             return NO_SCORE; // timed out
@@ -418,9 +446,9 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
                 }
                 else {
                     // refutation move found, fail-high node
-                    if (m_search_position.get_position().to_capture(move) == PieceType::None) {
+                    if (m_spos.get_position().to_capture(move) == PieceType::None) {
                         m_killer_history.store(move, ply);
-                        m_move_history.update(m_search_position.get_position(), move, depth * depth);
+                        m_move_history.update(m_spos.get_position(), move, depth * depth);
                     }
                     break;
                 }
@@ -454,11 +482,11 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t
         return NO_SCORE;
 
     // Stand pat evaluation
-    int32_t stand_pat = m_search_position.get_eval();
+    int32_t stand_pat = m_spos.get_eval();
 
     // Delta pruning pre move generation
     int32_t big_delta = PIECE_VALUES[+PieceType::Queen];
-    if (promotion_possible(m_search_position.get_position()))
+    if (promotion_possible(m_spos.get_position()))
         big_delta += PIECE_VALUES[+PieceType::Queen] - PIECE_VALUES[+PieceType::Pawn];
     if (stand_pat + big_delta < alpha)
         return alpha;
@@ -466,7 +494,7 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t
     int32_t best_score = -INF_SCORE;
     Move best_move = NO_MOVE;
 
-    const bool in_check = m_search_position.get_position().in_check();
+    const bool in_check = m_spos.get_position().in_check();
     if (!in_check) {
         if (stand_pat >= beta) return stand_pat;
         best_score = stand_pat;
@@ -474,9 +502,9 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t
             alpha = stand_pat;
     } 
 
-    const int32_t material_phase = m_search_position.material_phase();
+    const int32_t material_phase = m_spos.material_phase();
     
-    MovePicker move_picker(m_search_position.get_position(), NO_MOVE);
+    MovePicker move_picker(m_spos.get_position(), NO_MOVE);
     int move_count = 0;
 
     for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
@@ -484,7 +512,7 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t
 
         // Delta pruning, disabled in endgame
         if (!in_check && material_phase > PHASE_LATE_ENDGAME) {
-            int32_t delta_value =  stand_pat + 150 + PIECE_VALUES[+m_search_position.get_position().to_capture(move)];
+            int32_t delta_value =  stand_pat + 150 + PIECE_VALUES[+m_spos.get_position().to_capture(move)];
             if (MoveEncoding::move_type(move) == MoveType::Promotion)
                 delta_value += PIECE_VALUES[+PieceType::Queen] - PIECE_VALUES[+PieceType::Pawn];
             if (delta_value <= alpha) {
@@ -494,9 +522,9 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t
             }
         }
 
-        m_search_position.make_move(move);
+        m_spos.make_move(move);
         int32_t score = -_quiescence(-beta, -alpha, ply + 1);
-        m_search_position.undo_move();
+        m_spos.undo_move();
 
         if (m_stop_search)
             return NO_SCORE; // timed out

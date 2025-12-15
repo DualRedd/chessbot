@@ -154,7 +154,7 @@ TEST(PositionTests, GetLastMove) {
     const int moves = 50;
     MoveList move_list;
     Position position(COMPLEX_POSITION);
-    EXPECT_EQ(position.get_last_move(), std::nullopt) << "should return std::nullopt with no moves made.";
+    EXPECT_EQ(position.get_last_move(), NO_MOVE) << "should return NO_MOVE with no moves made.";
     for (int i = 0; i < moves; i++) {
         move_list.generate<GenerateType::Legal>(position);
         ASSERT_TRUE(move_list.count() > 0);
@@ -165,7 +165,7 @@ TEST(PositionTests, GetLastMove) {
     for (int i = 0; i < moves; i++) {
         position.undo_move();
     }
-    EXPECT_EQ(position.get_last_move(), std::nullopt) << "should return std::nullopt after undoing all moves.";
+    EXPECT_EQ(position.get_last_move(), NO_MOVE) << "should return NO_MOVE after undoing all moves.";
 }
 
 TEST(PositionTests, PinnersAndBlockersMatchBoardState) {

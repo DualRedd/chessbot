@@ -126,6 +126,14 @@ bool SearchPosition::undo_move() {
     return true;
 }
 
+void SearchPosition::make_null_move() {
+    m_position.make_null_move();
+}
+
+void SearchPosition::undo_null_move() {
+    m_position.undo_null_move();
+}
+
 const Position& SearchPosition::get_position() const {
     return m_position;
 }

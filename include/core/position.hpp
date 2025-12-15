@@ -61,9 +61,14 @@ public:
     Color get_side_to_move() const;
 
     /**
-     * @return The last move played if there is one.
+     * @return The last move played or NO_MOVE constant.
      */
-    std::optional<Move> get_last_move() const;
+    Move get_last_move() const;
+
+    /**
+     * @return The piece captured by the last move, or Piece::None if no piece was captured.
+     */
+    Piece get_last_move_capture() const;
 
     /**
      * @return The halfmove clock.
@@ -315,9 +320,14 @@ inline Color Position::get_side_to_move() const {
     return m_side_to_move;
 }
 
-inline std::optional<Move> Position::get_last_move() const {
-    if(m_state_history.size() == 0) return std::nullopt;
+inline Move Position::get_last_move() const {
+    if(m_state_history.size() == 0) return NO_MOVE;
     else return m_state_history.back().move;
+}
+
+inline Piece Position::get_last_move_capture() const {
+    if(m_state_history.size() == 0) return Piece::None;
+    else return m_state_history.back().captured_piece;
 }
 
 inline uint32_t Position::get_halfmove_clock() const {

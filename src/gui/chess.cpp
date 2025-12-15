@@ -155,9 +155,9 @@ bool Chess::undo_move() {
 }
 
 std::optional<UCI> Chess::get_last_move() const {
-    auto move = m_position.get_last_move();
-    if (!move.has_value()) return std::nullopt;
-    return MoveEncoding::to_uci(move.value());
+    Move move = m_position.get_last_move();
+    if (move == NO_MOVE) return std::nullopt;
+    return MoveEncoding::to_uci(move);
 }
 
 Chess::GameState Chess::get_game_state() const {
