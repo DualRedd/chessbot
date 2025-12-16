@@ -68,3 +68,49 @@ const FEN TEST_POSITIONS[] {
     "rnb2r2/3pppkp/p5p1/qPpQ4/P1P1n3/4PN2/4KPPP/RN3B1R b - - 0 1",
     "3r1r1k/pp5p/4b1pb/6q1/3P4/4p1BP/PP2Q1PK/3RRB2 b - - 0 1",
 };
+
+const FEN MATE_IN_1[] = {
+    "8/1k5q/8/4Q3/8/1n1P4/NP6/1K6 b - -",
+    "8/8/pp3Q2/7k/5Pp1/P1P3K1/3r3p/8 b - -",
+    "8/p2k4/1p5R/2pp2R1/4n3/P2K4/1PP1N3/5r2 b - -",
+    "8/p4pkp/8/3B1b2/3b1ppP/P1N1r1n1/1PP3PR/R4QK1 b - -",
+};
+
+const FEN MATE_IN_2[] = {
+    "1krr4/p1p3b1/p1B5/3N4/8/8/KP4p1/8 w - -",
+    "1n1kqrnr/5pb1/ppPp2pp/4p1P1/P3P2P/2N1BP1B/1PP5/1K1R3R w - -",
+    "1n4k1/r5np/1p4PB/p1p5/2q3P1/2P4P/8/4QRK1 w - -",
+    "1n4r1/rp2R3/1k1N4/p3P1p1/PP1p4/3B4/2P4P/6K1 w - -",
+    "1n6/p3q2p/2pNk3/1pP1p3/1P2P2Q/2P3P1/6K1/8 w - -",
+    "1nbk1b1r/1r6/p2P2pp/1B2PpN1/2p2P2/2P1B3/7P/R3K2R w - -",
+    "1q1rk2r/3n1pbp/p1Q1p3/8/8/B4B2/P4PPP/5RK1 w k -",
+    "1q5r/1b1r1p1k/2p1pPpb/p1Pp4/3B1P1Q/1P4P1/P4KB1/2RR4 w - -",
+    "1qk1r2r/p2b4/P3p3/BN1p1npp/2p1n3/2P5/1QP1BPPP/RR4K1 w - -",
+};
+
+const FEN MATE_IN_3[] = {
+    "1k5r/pp3npp/3rp3/1R1pq1P1/QP1N1p1P/P3B3/5P2/4KBR1 w - -",
+    "1k6/1Pb5/K1P4p/B5p1/6P1/5p1P/4p3/8 w - -",
+    "1k6/1p4p1/pQ2p2p/1bP1Np2/8/2K2PPq/8/8 w - -",
+    "1k6/b2q1r2/p2PQ1p1/4Bp1p/3P3P/6PK/6B1/8 w - -",
+    "1kb3rr/1p2n2q/1N3p1b/1p6/5n1p/8/2P2QP1/R6K w - -",
+};
+
+const FEN MATE_IN_4[] = {
+    "1R6/pr4q1/1kp4p/7P/2Q5/BP6/P1P3r1/1K6 w - -",
+    "1R6/rbr2p2/5Pkp/2pBP1p1/ppP3P1/5K1P/P1PR4/8 w - -",
+    "1b3rk1/3n4/p3q1pQ/1p2p3/1P4N1/P1p5/2B2PPP/3R2K1 w - -",
+    "1b4rk/4R1pp/p1b4r/2PB4/Pp1Q4/6Pq/1P3P1P/4RNK1 w - -",
+    "1k1r3q/2p4r/1pPp4/3PpPp1/1K2PpR1/7p/R7/8 w - -",
+};
+
+const FEN MATE_IN_6[] = {
+    "1k6/p1p3bp/1pQ5/2p3Rb/1P4Pr/PK3n2/7q/4RB2 w - -",
+    "1kr5/p1pR4/2P3pp/5p2/1N6/KP2p2P/2P2r2/8 w - -",
+};
+
+const FEN MATE_IN_8[] = {
+    "1rn5/7r/8/8/4R3/1p1B4/5p2/1K1k1Nb1 w - -",
+    "2B1r3/2p1b1p1/n7/4p2p/p5Pp/1R3P1k/3pPR1P/3K4 w - -",
+    "2B5/8/2p1N3/r2kPp2/1P3P2/3P4/pP2K3/6b1 w - -",
+};

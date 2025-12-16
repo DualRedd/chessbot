@@ -12,16 +12,12 @@ std::unique_ptr<MinimaxAI> create_engine() {
     const int depth = 99;
     const double time_limit_seconds = 5.0;
     const size_t tt_size_megabytes = 256ULL;
-    const bool aspiration_enabled = true;
-    const int aspiration_window = 50;
     const bool enable_output = true;
 
     return std::make_unique<MinimaxAI>(
         depth,
         time_limit_seconds,
         tt_size_megabytes,
-        aspiration_enabled,
-        aspiration_window,
         enable_output
     );
 }

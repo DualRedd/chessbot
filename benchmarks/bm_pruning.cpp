@@ -4,9 +4,7 @@
 static void run_minimax_fixed_depth(benchmark::State& state,
                                     const std::vector<FEN>& positions,
                                     const int depth,
-                                    const size_t tt_size_megabytes,
-                                    const bool aspiration_enabled,
-                                    const int aspiration_window)
+                                    const size_t tt_size_megabytes)
 {
     for (auto _ : state) {
         uint64_t total_alpha_beta_nodes = 0;
@@ -16,7 +14,7 @@ static void run_minimax_fixed_depth(benchmark::State& state,
 
         // Fixed-depth search with unlimited time, so that we can compare pruning stats (same game tree)
         for (const FEN& fen : positions) {
-            MinimaxAI ai(depth, 1e6, tt_size_megabytes, aspiration_enabled, aspiration_window, false);
+            MinimaxAI ai(depth, 1e6, tt_size_megabytes, false);
             ai.set_board(fen);
             ai.compute_move();
             MinimaxAI::Stats s = ai.get_stats();
@@ -35,15 +33,6 @@ static void run_minimax_fixed_depth(benchmark::State& state,
 }
 
 static const std::vector<FEN> PRUNING_TEST_POSITIONS = {
-    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-    "r4rk1/1pp1qppp/p1np1n2/4p3/2P1P3/1P1P1N2/P1Q2PPP/3R1RK1 w - - 0 1",
-    "r1bq1rk1/pp3ppp/2n1pn2/2bp4/8/2N2N2/PPP2PPP/R1BQ1RK1 w - - 0 1",
-    "r4rk1/1pp2ppp/p1n2n2/2b1p3/2P1P3/1P1P1N2/P1Q2PPP/3R1RK1 b - - 0 1",
-    "r1bqkbnr/ppp1pppp/2n5/3p4/4P3/2N5/PPPP1PPP/R1BQKBNR w KQkq - 2 3",
-    "rnb1kb1r/pp2pppp/2p2n2/q7/3P4/2N2N2/PPP2PPP/R1BQKB1R w KQkq - 0 6",
-};
-
-static const std::vector<FEN> PRUNING_TEST_POSITIONS_NEW = {
     "r1bqkbnr/ppp1pppp/2n5/3p4/4P3/2N5/PPPP1PPP/R1BQKBNR w KQkq - 2 3"
     "rnb1kb1r/pp2pppp/2p2n2/q7/3P4/2N2N2/PPP2PPP/R1BQKB1R w KQkq - 0 6",
     "rnb2rk1/2q2ppp/p4n2/1p1Pp3/3N2P1/b3B3/BPP1QP1P/R2NK2R w KQ - 0 14",
@@ -56,11 +45,9 @@ static const std::vector<FEN> PRUNING_TEST_POSITIONS_NEW = {
 static void BM_minimax_pruning_aspiration(benchmark::State& state) {
     int aspiration_window = static_cast<int>(state.range(0));
     run_minimax_fixed_depth(state,
-                            PRUNING_TEST_POSITIONS_NEW,
+                            PRUNING_TEST_POSITIONS,
                             /*depth=*/10,
-                            /*tt_size_megabytes=*/512,
-                            /*aspiration_enabled=*/true,
-                            aspiration_window);
+                            /*tt_size_megabytes=*/512);
 }
 BENCHMARK(BM_minimax_pruning_aspiration)
     ->Arg(10)->Arg(20)->Arg(30)->Arg(50)->Arg(100)

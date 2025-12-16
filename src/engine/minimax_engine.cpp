@@ -64,7 +64,7 @@ static inline bool is_loss(int32_t score) {
 static inline bool is_decisive(int32_t score) {
     return is_win(score) || is_loss(score);
 }
-// Convert a mate score to number of moves until mate
+// Convert a mate score to number of moves until mate, zero if not a mate score
 static inline int32_t to_mate_distance(int32_t score) {
     if (is_win(score)) {
         return (MATE_SCORE - score + 1) / 2;
@@ -107,14 +107,10 @@ MinimaxAI::MinimaxAI(const std::vector<ConfigField>& cfg)
 MinimaxAI::MinimaxAI(const int32_t max_depth,
                     const double time_limit_seconds,
                     const size_t tt_size_megabytes,
-                    const bool aspiration_window_enabled,
-                    const int32_t aspiration_window,
                     const bool enable_uci_output) 
   : m_max_depth(max_depth),
     m_time_limit_seconds(time_limit_seconds),
     m_tt_size_megabytes(tt_size_megabytes),
-    m_aspiration_window_enabled(aspiration_window_enabled),
-    m_aspiration_window(aspiration_window),
     m_spos(),
     m_tt(m_tt_size_megabytes),
     m_enable_uci_output(enable_uci_output)
@@ -183,6 +179,11 @@ void MinimaxAI::_undo_move() {
         throw std::invalid_argument("MinimaxAI::undo_move() - no previous move!");
 }
 
+std::pair<int, UCI> MinimaxAI::find_mate() {
+    UCI best_move = compute_move();
+    return {to_mate_distance(m_stats.eval), best_move};
+}
+
 UCI MinimaxAI::_compute_move() {
     MoveList move_list;
     move_list.generate<GenerateType::Legal>(m_spos.get_position());
@@ -198,10 +199,10 @@ UCI MinimaxAI::_compute_move() {
     m_deadline = m_start_time + static_cast<int32_t>(m_time_limit_seconds * 1000.0);
     m_stop_search = false;
     m_nodes_visited = 0;
-
     m_seldepth = 0;
-    m_root_best_move = NO_MOVE;
-    m_root_best_score = -INF_SCORE;
+    
+    Move best_move = NO_MOVE;
+    int32_t best_score = -INF_SCORE;
     
     // Iterative deepening loop
     int target_depth = 1;
@@ -210,16 +211,28 @@ UCI MinimaxAI::_compute_move() {
             std::cout << "info depth " << target_depth << "\n" << std::flush;
 
         // Normal search
-        int32_t score = _alpha_beta<NodeType::Root>(-INF_SCORE, INF_SCORE, target_depth, 0);
+        m_root_best_move = NO_MOVE;
+        m_root_best_score = -INF_SCORE;
+        _alpha_beta<NodeType::Root>(-INF_SCORE, INF_SCORE, target_depth, 0);
 
-        if (m_stop_search)
-            break; // timed out
+        if (m_stop_search) {
+            // Timed out! Can still use partial result if root managed to find a better move.
+            // But don't update best move if either score is decisive, because the score is likely inaccurate for mate scores.
+            if (m_root_best_score > best_score && !is_decisive(best_score)) {
+                best_move = m_root_best_move;
+                best_score = m_root_best_score;
+            }
+            break;
+        }
+
+        best_move = m_root_best_move;
+        best_score = m_root_best_score;
 
         if (m_enable_uci_output) {
             int32_t time_elapsed = now_milliseconds() - m_start_time;
             std::cout << "info depth " << target_depth << " seldepth " << m_seldepth << " score ";
-            if (is_decisive(score)) std::cout << "mate " << to_mate_distance(score);
-            else std::cout << "cp " << score;
+            if (is_decisive(m_root_best_score)) std::cout << "mate " << to_mate_distance(m_root_best_score);
+            else std::cout << "cp " << m_root_best_score;
             std::cout << " nodes " << m_stats.alpha_beta_nodes
                     << " nps " << (time_elapsed == 0 ? "inf" : std::to_string(static_cast<int>(static_cast<double>(m_stats.alpha_beta_nodes + m_stats.quiescence_nodes) / time_elapsed * 1000.0)))
                     << " time " << time_elapsed << " pv ";
@@ -238,21 +251,21 @@ UCI MinimaxAI::_compute_move() {
         }
     }
 
-    if (m_root_best_move == NO_MOVE) {
+    if (best_move == NO_MOVE) {
         if (target_depth != 1)
             throw std::runtime_error("MinimaxAI::_compute_move() - missing move result!");
 
         // no best move found (timeout on first iteration), choose one legal move
         if (m_enable_uci_output)
             std::cout << "info search stopped during first iteration!\n" << std::flush;
-        m_root_best_move = move_list[0];
+        best_move = move_list[0];
     }
 
     m_stats.depth = target_depth - 1;
-    m_stats.eval = m_root_best_score;
+    m_stats.eval = best_score;
     m_stats.time_seconds = static_cast<double>(now_milliseconds() - m_start_time) / 1000.0;
 
-    UCI uci_best_move = MoveEncoding::to_uci(m_root_best_move);
+    UCI uci_best_move = MoveEncoding::to_uci(best_move);
     if (m_enable_uci_output)
         std::cout << "bestmove " << uci_best_move << "\n" << std::flush;
 
@@ -430,8 +443,10 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
 
             if constexpr (is_root) {
                 // Check for new best move at root
-                if (score > m_root_best_score)
+                if (score > m_root_best_score) {
+                    m_root_best_score = score;
                     m_root_best_move = best_move;
+                }
             }
 
             if (score > alpha) {
