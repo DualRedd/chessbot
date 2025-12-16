@@ -19,7 +19,7 @@ public:
               const size_t tt_size_megabytes,
               const bool aspiration_window_enabled,
               const int32_t aspiration_window,
-              const bool enable_info_output = true);
+              const bool enable_uci_output = true);
 
     void set_time_limit_seconds(double secs);
     void set_max_depth(int depth);
@@ -74,7 +74,10 @@ private:
     TranspositionTable m_tt;
     KillerHistory m_killer_history;
     MoveHistory m_move_history;
+
     Move m_root_best_move;
+    int32_t m_root_best_score;
+    int32_t m_seldepth;
 
     // Timed/node cutoff
     int32_t m_start_time;
@@ -83,6 +86,6 @@ private:
     bool m_stop_search = false;
 
     // Statistics
-    const bool m_enable_info_output = true;
+    const bool m_enable_uci_output = true;
     Stats m_stats;
 };

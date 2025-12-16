@@ -14,7 +14,7 @@ std::unique_ptr<MinimaxAI> create_engine() {
     const size_t tt_size_megabytes = 256ULL;
     const bool aspiration_enabled = true;
     const int aspiration_window = 50;
-    const bool enable_info_output = true;
+    const bool enable_output = true;
 
     return std::make_unique<MinimaxAI>(
         depth,
@@ -22,7 +22,7 @@ std::unique_ptr<MinimaxAI> create_engine() {
         tt_size_megabytes,
         aspiration_enabled,
         aspiration_window,
-        enable_info_output
+        enable_output
     );
 }
 
@@ -35,33 +35,20 @@ int main(int argc, char** argv) {
     auto engine = create_engine();
     engine->set_board(CHESS_START_POSITION);
 
-    std::atomic_bool compute_running{false};
-
     auto start_move_compute = [&](int depth_hint, double movetime_hint_s, int64_t nodes_hint) {
-        if (compute_running.load(std::memory_order_acquire)) {
-            throw std::runtime_error("Cannot start new move compute: one is already running!");
-        }
-
-        compute_running.store(true, std::memory_order_release);
-
         // inform engine of limits
         engine->set_time_limit_seconds(movetime_hint_s);
         engine->set_max_depth(depth_hint);
         engine->set_max_nodes(nodes_hint);
-
-        std::thread([&]() {
-            UCI move = engine->compute_move();
-            std::cout << "bestmove " << move << "\n" << std::flush;
-            compute_running.store(false, std::memory_order_release);
-        }).detach();
+        
+        // Start compute
+        engine->compute_move_async();
     };
 
-    auto stop_compute_and_wait = [&]() {
-        if (compute_running.load(std::memory_order_acquire)) {
-            engine->request_stop();
-            while (compute_running.load(std::memory_order_acquire)) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
+    auto stop_compute_and_busy_wait = [&]() {
+        engine->request_stop();
+        while (engine->is_computing()) {
+            std::this_thread::yield();
         }
     };
 
@@ -76,7 +63,7 @@ int main(int argc, char** argv) {
 
         try {
             if (cmd == "uci") {
-                std::cout << "id name minimax \n";
+                std::cout << "id name MyMinimax \n";
                 std::cout << "id author Haapiainen\n";
                 std::cout << "uciok\n" << std::flush;
             }
@@ -84,12 +71,12 @@ int main(int argc, char** argv) {
                 std::cout << "readyok\n" << std::flush;
             }
             else if (cmd == "ucinewgame") {
-                stop_compute_and_wait();
+                stop_compute_and_busy_wait();
                 engine->clear_transposition_table();
                 engine->set_board(CHESS_START_POSITION);
             }
             else if (cmd == "position") {
-                stop_compute_and_wait();
+                stop_compute_and_busy_wait();
                 // format: position startpos | fen <fen> [moves ...]
                 std::string token; iss >> token;
                 if (token == "startpos") {
@@ -119,7 +106,7 @@ int main(int argc, char** argv) {
                 }
             }
             else if (cmd == "go") {
-                stop_compute_and_wait();
+                stop_compute_and_busy_wait();
                 // parse go options
                 int depth = -1;
                 double movetime_s = -1.0;
@@ -129,6 +116,11 @@ int main(int argc, char** argv) {
                     if (tok == "movetime") { iss >> movetime_s; movetime_s /= 1000.0; }
                     else if (tok == "depth") { iss >> depth; }
                     else if (tok == "nodes") { iss >> nodes; }
+                    else if (tok == "infinite") { } // default is infinite
+                    else if (tok == "wtime" || tok == "btime" || tok == "winc" || tok == "binc" || tok == "ponder"
+                             || tok == "searchmoves" || tok == "mate" || tok == "movestogo") {
+                        throw std::invalid_argument("Currently unsupported go command option: " + tok);
+                    }
                     else {
                         throw std::invalid_argument("Unknown go command option: " + tok);
                     }
@@ -137,7 +129,7 @@ int main(int argc, char** argv) {
                 start_move_compute(depth, movetime_s, nodes);
             }
             else if (cmd == "stop") {
-                stop_compute_and_wait();
+                stop_compute_and_busy_wait();
             }
             else if (cmd == "setoption") {
                 // ignore for now
@@ -150,10 +142,10 @@ int main(int argc, char** argv) {
             }
         }
         catch (const std::exception &e) {
-            std::cerr << "Runtime error handling command '" << cmd << "': " << e.what() << "\n";
+            std::cerr << "Error handling command '" << cmd << "': " << e.what() << "\n";
         }
     }
 
-    stop_compute_and_wait();
+    stop_compute_and_busy_wait();
     return 0;
 }
