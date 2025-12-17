@@ -551,7 +551,6 @@ void Position::make_null_move() {
     m_fullmoves += +m_side_to_move; // Black = 1
 
     // Remove en passant
-    assert(!m_null_move_en_passant_history.empty());
     m_null_move_en_passant_history.push_back(m_en_passant_square);
     m_key ^= (m_en_passant_square != Square::None) * ZOBRIST_EP[+file_of(m_en_passant_square)];
     m_en_passant_square = Square::None;
@@ -570,6 +569,7 @@ void Position::undo_null_move() {
     m_key ^= ZOBRIST_SIDE;
 
     // Restore en passant square
+    assert(!m_null_move_en_passant_history.empty());
     m_en_passant_square = m_null_move_en_passant_history.back();
     m_null_move_en_passant_history.pop_back();
     m_key ^= (m_en_passant_square != Square::None) * ZOBRIST_EP[+file_of(m_en_passant_square)];
