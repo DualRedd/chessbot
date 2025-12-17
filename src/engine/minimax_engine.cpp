@@ -355,7 +355,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
 
     for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
         ++move_count;
-        if (is_root && m_enable_uci_output && now_milliseconds() - m_start_time >= 2000) {
+        if (is_root && m_enable_uci_output && now_milliseconds() - m_start_time >= 5000) {
             std::cout << "info depth " << depth << " currmove " << MoveEncoding::to_uci(move)
                         << " currmovenumber " << move_count << "\n" << std::flush;
         }
