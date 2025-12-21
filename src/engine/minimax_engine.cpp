@@ -162,6 +162,8 @@ auto MinimaxAI::get_stats() const -> Stats {
 }
 
 void MinimaxAI::_set_board(const FEN& fen) {
+    m_killer_history.reset();
+    m_move_history.reset();
     m_spos.set_board(fen);
 }
 
@@ -216,8 +218,8 @@ UCI MinimaxAI::_compute_move() {
         _alpha_beta<NodeType::Root>(-INF_SCORE, INF_SCORE, target_depth, 0);
 
         if (m_stop_search) {
-            // Timed out! Can still use partial result if root managed to find a better move.
-            // But don't update best move if either score is decisive, because the score is likely inaccurate for mate scores.
+            // Search stopped! Can still use partial result if root managed to find a better move.
+            // But don't update when best score is decisive, because the new score is likely inaccurate for mate scores.
             if (m_root_best_score > best_score && !is_decisive(best_score)) {
                 best_move = m_root_best_move;
                 best_score = m_root_best_score;
@@ -332,27 +334,29 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
     // The exception being zugzwangs. Which is why we check for non-pawn material, as zugzwangs are more common in pawn endgames.
     // The is_null_window and previous_was_capture conditions are some ideas, that can improve tactical stability.
     bool is_null_window = !is_pv && alpha == beta - 1;
-    bool previous_was_capture = !is_root && m_spos.get_position().get_last_move_capture() != Piece::None;
-    if (!is_root && (is_null_window || !previous_was_capture) && !in_check && depth >= 3 && has_non_pawn_material(m_spos.get_position()) && static_eval >= 53 + beta) {
+    bool previous_was_capture = m_spos.get_position().get_last_move_capture() != Piece::None;
+    if (!is_root && (is_null_window || !previous_was_capture) && !in_check && depth >= 3 && has_non_pawn_material(m_spos.get_position()) && static_eval >= 13 + beta) {
         m_spos.make_null_move();
         const int32_t R = 3 + (depth >= 8); // reduction
         int32_t score = -_alpha_beta<NodeType::NonPV>(-beta - 1, -beta, depth - 1 - R, ply + 1, prior_reductions);
         m_spos.undo_null_move();
 
         if (m_stop_search)
-            return NO_SCORE; // timed out
+            return NO_SCORE;
 
         if (score >= beta)
             return score; 
     }
+
+    // Check if futility pruning can be applied
+    bool can_futility_prune = !is_root && !in_check && depth <= 3;
     
     Move best_move = NO_MOVE;
     int32_t best_score = -INF_SCORE;
+    int move_count = 0;
 
     MovePicker move_picker(m_spos.get_position(), ply, tt_entry ? tt_entry->best_move : NO_MOVE,
                             &m_killer_history, &m_move_history);
-    int move_count = 0;
-
     for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
         ++move_count;
         if (is_root && m_enable_uci_output && now_milliseconds() - m_start_time >= 5000) {
@@ -363,14 +367,15 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
         int32_t new_depth = depth - 1;
         const bool gives_check = m_spos.get_position().gives_check(move);
         const bool is_capture = m_spos.get_position().to_capture(move) != PieceType::None;
+        const bool is_promotion = MoveEncoding::move_type(move) == MoveType::Promotion;
 
         // Futility pruning
         // If the static eval is lower than alpha by a certain futility margin, we can just prune the move without searching it.
-        // For tactical stability this is not done when in check, or when the move gives check or is a capture.
-        if (!is_root && move_count > 1 && depth <= 3 && !in_check && !gives_check && !is_capture && !is_decisive(alpha)) {
+        // For tactical stability this is not done when in check, or when the move gives check or is a capture/promotion.
+        if (can_futility_prune && move_count > 1 && !gives_check && !is_promotion && !is_capture && !is_decisive(alpha)) {
             int32_t futility_value = static_eval + 48; // base margin
-                                    + depth * 101 // depth based margin
-                                    + m_move_history.get(m_spos.get_position(), move) / 16; // history bonus
+                                    + depth * 91       // depth based margin
+                                    + m_move_history.get(m_spos.get_position(), move) / 32; // history bonus
             if (futility_value <= alpha) {
                 if (best_score < futility_value && !is_decisive(best_score)) {
                     best_score = futility_value;
@@ -402,7 +407,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
             // Assuming good move ordering the later moves should be worse,
             // so we can try to prove that with a reduced depth search first.
             int32_t reductions = 0;
-            const bool lmr = move_count >= 3 && new_depth >= 3;
+            const bool lmr = !is_root && move_count >= 3 && new_depth >= 3;
             if (lmr) {
                 // Formula idea from https://www.chessprogramming.org/Late_Move_Reductions
                 reductions += 1 + static_cast<int32_t>(floorf(logf(new_depth) * logf(move_count) / 3.2f));
@@ -432,7 +437,7 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
         m_spos.undo_move();
 
         if (m_stop_search)
-            return NO_SCORE; // timed out
+            return NO_SCORE;
 
         assert(score > -INF_SCORE && score < INF_SCORE);
 
@@ -456,9 +461,20 @@ int32_t MinimaxAI::_alpha_beta(int32_t alpha, int32_t beta, const int32_t depth,
                 }
                 else {
                     // refutation move found, fail-high node
-                    if (m_spos.get_position().to_capture(move) == PieceType::None) {
+                    if (move_picker.current_stage() == MovePickStage::Quiets) {
+                        // quiet move caused cutoff, update history and killer heuristics
+
+                        // apply bonus to the move causing the cutoff
+                        // and apply penalty to previous quiets, which did not cause cutoffs
+                        int32_t bonus = depth * depth;
+                        m_move_history.update(m_spos.get_position(), move, bonus);
+                        move_picker.repick_quiets();
+                        for (Move quiet_move = move_picker.next(); quiet_move != move; quiet_move = move_picker.next()) {
+                            assert(quiet_move != NO_MOVE);
+                            m_move_history.update(m_spos.get_position(), quiet_move, -bonus / 12);
+                        }
+
                         m_killer_history.store(move, ply);
-                        m_move_history.update(m_spos.get_position(), move, depth * depth);
                     }
                     break;
                 }
@@ -517,7 +533,7 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t
 
     const int32_t material_phase = m_spos.material_phase();
 
-    MovePicker move_picker(m_spos.get_position(), NO_MOVE);
+    MovePicker move_picker(m_spos.get_position(), NO_MOVE, &m_move_history);
     int move_count = 0;
 
     for (Move move = move_picker.next(); move != NO_MOVE; move = move_picker.next()) {
@@ -540,7 +556,7 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t
         m_spos.undo_move();
 
         if (m_stop_search)
-            return NO_SCORE; // timed out
+            return NO_SCORE;
 
         assert(score > -INF_SCORE && score < INF_SCORE);
 
@@ -562,9 +578,8 @@ inline int32_t MinimaxAI::_quiescence(int32_t alpha, int32_t beta, const int32_t
 
     // Stalemates cannot be detected, as not all moves are generated
     // Checkmates can, because all evasions are generated
-    if (in_check && move_count == 0) {
+    if (in_check && move_count == 0)
         best_score = mated_in(ply);
-    }
 
     assert(best_score > -INF_SCORE && best_score < INF_SCORE);
     return best_score;

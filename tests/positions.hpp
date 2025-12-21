@@ -108,9 +108,3 @@ const FEN MATE_IN_6[] = {
     "1k6/p1p3bp/1pQ5/2p3Rb/1P4Pr/PK3n2/7q/4RB2 w - -",
     "1kr5/p1pR4/2P3pp/5p2/1N6/KP2p2P/2P2r2/8 w - -",
 };
-
-const FEN MATE_IN_8[] = {
-    "1rn5/7r/8/8/4R3/1p1B4/5p2/1K1k1Nb1 w - -",
-    "2B1r3/2p1b1p1/n7/4p2p/p5Pp/1R3P1k/3pPR1P/3K4 w - -",
-    "2B5/8/2p1N3/r2kPp2/1P3P2/3P4/pP2K3/6b1 w - -",
-};

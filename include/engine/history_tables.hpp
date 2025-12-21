@@ -8,7 +8,7 @@
 #include "core/position.hpp"
 
 constexpr int32_t KILLER_HISTORY_MAX_PLIES = 256;
-constexpr int32_t MOVE_HISTORY_MAX_VALUE = 45'000;
+constexpr int32_t MOVE_HISTORY_MAX_VALUE = 40'000;
 
 class KillerHistory {
 public:

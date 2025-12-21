@@ -172,6 +172,23 @@ inline Bitboard attacks_from(Square square, Bitboard occupied) {
     }
 }
 
+/**
+ * Squares under attack by pieces of the given color.
+ * @tparam type Type of the pieces
+ * @param pieces Bitboard of pieces
+ * @return Bitboard of attack squares.
+ */
+template<PieceType type>
+inline Bitboard piece_attacks(Bitboard pieces, Bitboard occupied) {
+    static_assert(type != PieceType::Pawn, "Use pawn_attacks<Color> for pawns");
+    Bitboard attacks = 0ULL;
+    while (pieces) {
+        Square sq = lsb(pieces);
+        attacks |= attacks_from<type>(sq, occupied);
+        pop_lsb(pieces);
+    }
+    return attacks;
+}
 
 /**
  * All squares in front of each pawn.

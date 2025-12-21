@@ -1,15 +1,15 @@
 #include "engine/search_position.hpp"
-
+#include <iostream>
 SearchPosition::SearchPosition() : m_position(), m_pawn_hash_table(32) {
-    m_evals.reserve(200);
+    m_base_evals.reserve(200);
     m_zobrist_history.reserve(200);
     m_irreversible_move_plies.reserve(50);
 }
 
 void SearchPosition::set_board(const FEN& fen) {
     m_position.from_fen(fen);
-    m_evals.clear();
-    m_evals.emplace_back(_compute_full_eval());
+    m_base_evals.clear();
+    m_base_evals.emplace_back(_compute_base_eval());
     m_pawn_hash_table.clear();
 
     m_zobrist_history.clear();
@@ -19,10 +19,15 @@ void SearchPosition::set_board(const FEN& fen) {
 
 int32_t SearchPosition::get_eval() const {
     // Interpolate evaluation based on game phase
-    const Eval& eval = m_evals.back();
+    Eval eval = m_base_evals.back();
     const int32_t phase = std::max(eval.phase - PHASE_MIN, 0);
     const int32_t mg_value = eval.mg_eval * phase;
     const int32_t eg_value = eval.eg_eval * (PHASE_WIDTH - phase);
+
+    // Static features, non-dynamically updated.
+    // TODO: too slow for now, loses a little elo
+    //_eval_static_features(eval);
+
     int32_t eval_value = (mg_value + eg_value) / PHASE_WIDTH;
 
     // Get pawn eval
@@ -65,16 +70,16 @@ int32_t SearchPosition::material_phase() const {
 void SearchPosition::make_move(Move move) {
     m_zobrist_history.push_back(m_position.get_key());
 
-    const Eval& prev_eval = m_evals.back();
-    m_evals.push_back(prev_eval);
-    Eval& cur_eval = m_evals.back();
+    const Eval& prev_eval = m_base_evals.back();
+    m_base_evals.push_back(prev_eval);
+    Eval& cur_eval = m_base_evals.back();
 
     MoveType move_type = MoveEncoding::move_type(move);
 
-    if (move_type != MoveType::Normal) {
+    if (move_type != MoveType::Normal && move_type != MoveType::Castle) {
         // Slower recomputation for rarer move types
         m_position.make_move(move);
-        cur_eval = _compute_full_eval();
+        cur_eval = _compute_base_eval();
     }
     else {
         const Color side = m_position.get_side_to_move();
@@ -84,10 +89,10 @@ void SearchPosition::make_move(Move move) {
         const int32_t sign = (side == Color::White) ? 1 : -1;
 
         // Move piece
-       cur_eval.mg_eval += sign * (_pst_value(piece_type, side, to, GamePhase::Middlegame)
-                                - _pst_value(piece_type, side, from, GamePhase::Middlegame));
-       cur_eval.eg_eval += sign * (_pst_value(piece_type, side, to, GamePhase::Endgame)
-                                - _pst_value(piece_type, side, from, GamePhase::Endgame));
+        cur_eval.mg_eval += sign * (_pst_value(piece_type, side, to, GamePhase::Middlegame)
+                                 - _pst_value(piece_type, side, from, GamePhase::Middlegame));
+        cur_eval.eg_eval += sign * (_pst_value(piece_type, side, to, GamePhase::Endgame)
+                                 - _pst_value(piece_type, side, from, GamePhase::Endgame));
 
         // Handle capture
         PieceType captured = m_position.to_capture(move);
@@ -100,6 +105,29 @@ void SearchPosition::make_move(Move move) {
             const Color opp = opponent(side);
             cur_eval.mg_eval += sign * _pst_value(captured, opp, to, GamePhase::Middlegame);
             cur_eval.eg_eval += sign * _pst_value(captured, opp, to, GamePhase::Endgame);
+
+            if (captured == PieceType::Bishop && popcount(m_position.get_pieces(opp, PieceType::Bishop)) == 2) {
+                // Adjust for bishop pair
+                cur_eval.mg_eval += sign * BISHOP_PAIR_VALUE[+GamePhase::Middlegame];
+                cur_eval.eg_eval += sign * BISHOP_PAIR_VALUE[+GamePhase::Endgame];
+            }
+            else if (captured == PieceType::Knight && popcount(m_position.get_pieces(opp, PieceType::Knight)) == 2) {
+                // Adjust for knight pair
+                int32_t knight_count = popcount(m_position.get_pieces(opp, PieceType::Knight));
+                cur_eval.mg_eval += sign * KNIGHT_PAIR_VALUE[+GamePhase::Middlegame];
+                cur_eval.eg_eval += sign * KNIGHT_PAIR_VALUE[+GamePhase::Endgame];
+            }
+        }
+
+        // Handle castling
+        if (move_type == MoveType::Castle) {
+            Square rook_from = to > from ? from + 3 : from - 4;
+            Square rook_to = static_cast<Square>((+to + +from) >> 1); // to + from / 2
+
+            cur_eval.mg_eval += sign * (_pst_value(PieceType::Rook, side, rook_to, GamePhase::Middlegame)
+                                        - _pst_value(PieceType::Rook, side, rook_from, GamePhase::Middlegame));
+            cur_eval.eg_eval += sign * (_pst_value(PieceType::Rook, side, rook_to, GamePhase::Endgame)
+                                        - _pst_value(PieceType::Rook, side, rook_from, GamePhase::Endgame));
         }
 
         m_position.make_move(move);
@@ -112,10 +140,10 @@ void SearchPosition::make_move(Move move) {
 }
 
 bool SearchPosition::undo_move() {
-    if (m_evals.size() <= 1)
+    if (m_base_evals.size() <= 1)
         return false;
 
-    m_evals.pop_back();
+    m_base_evals.pop_back();
     m_position.undo_move();
 
     if (m_irreversible_move_plies.back() == m_zobrist_history.size()) {
@@ -155,7 +183,7 @@ inline int32_t SearchPosition::_pst_value(PieceType type, Color color, Square sq
     }
 }
 
-inline Eval SearchPosition::_compute_full_eval() {
+inline Eval SearchPosition::_compute_base_eval() {
     Eval eval = {0, 0, 0};
     eval.phase = material_phase();
 
@@ -169,6 +197,19 @@ inline Eval SearchPosition::_compute_full_eval() {
 
         eval.mg_eval += sign * (_material_value(type) + _pst_value(type, color, square, GamePhase::Middlegame));
         eval.eg_eval += sign * (_material_value(type) + _pst_value(type, color, square, GamePhase::Endgame));
+    }
+
+    // Bishop and knight pair bonuses
+    for (Color color : {Color::White, Color::Black}) {
+        const int32_t sign = (color == Color::White) ? 1 : -1;
+        if (popcount(m_position.get_pieces(color, PieceType::Bishop)) >= 2) {
+            eval.mg_eval += sign * BISHOP_PAIR_VALUE[+GamePhase::Middlegame];
+            eval.eg_eval += sign * BISHOP_PAIR_VALUE[+GamePhase::Endgame];
+        }
+        if (popcount(m_position.get_pieces(color, PieceType::Knight)) >= 2) {
+            eval.mg_eval += sign * KNIGHT_PAIR_VALUE[+GamePhase::Middlegame];
+            eval.eg_eval += sign * KNIGHT_PAIR_VALUE[+GamePhase::Endgame];
+        }
     }
 
     return eval;
@@ -267,4 +308,120 @@ inline int32_t SearchPosition::_eval_pawns() const {
     eval -= popcount(b_defended_pawns) * DEFENDED_PAWN_VALUE;
 
     return eval;
+}
+
+void SearchPosition::_eval_static_features(Eval& eval) const {
+    // Knight outposts
+    constexpr Bitboard CENTRAL_SQUARES = 0x0000001818000000ULL;
+    const Bitboard w_knights = m_position.get_pieces(Color::White, PieceType::Knight);
+    const Bitboard b_knights = m_position.get_pieces(Color::Black, PieceType::Knight);
+    const Bitboard w_pawn_attacks = pawn_attacks<Color::White>(m_position.get_pieces(Color::White, PieceType::Pawn));
+    const Bitboard b_pawn_attacks = pawn_attacks<Color::Black>(m_position.get_pieces(Color::Black, PieceType::Pawn));
+
+    const Bitboard w_outposts = w_knights & CENTRAL_SQUARES & w_pawn_attacks & ~b_pawn_attacks;
+    const Bitboard b_outposts = b_knights & CENTRAL_SQUARES & b_pawn_attacks & ~w_pawn_attacks;
+    eval.mg_eval += (popcount(w_outposts) - popcount(b_outposts)) * KNIGHT_OUTPOST_VALUE[+GamePhase::Middlegame];
+    eval.eg_eval += (popcount(w_outposts) - popcount(b_outposts)) * KNIGHT_OUTPOST_VALUE[+GamePhase::Endgame];
+
+    // Mobility and king safety
+    for (Color side : {Color::White, Color::Black}) {
+        const Bitboard all_own_pieces = m_position.get_pieces(side);
+        const int32_t sign = (side == Color::White) ? 1 : -1;
+
+        // Pawn shield mask
+        Bitboard shield_squares, king_attacks = MASK_KING_ATTACKS[+lsb(m_position.get_pieces(side, PieceType::King))];
+        if (side == Color::White)
+            shield_squares = shift_bb<Shift::Up>(king_attacks);
+        else
+            shield_squares = shift_bb<Shift::Down>(king_attacks);
+
+        // Opponent king zone mask
+        Square opp_king_square = lsb(m_position.get_pieces(opponent(side), PieceType::King));
+        Bitboard opp_king_zone = MASK_KING_ATTACKS[+opp_king_square] | MASK_SQUARE[+opp_king_square];
+        if (side == Color::White)
+            opp_king_zone = opp_king_zone | shift_bb<Shift::DoubleDown>(opp_king_zone);
+        else
+            opp_king_zone = opp_king_zone | shift_bb<Shift::DoubleUp>(opp_king_zone);
+
+        // Shield pawn count
+        const Bitboard shield_pawns = shield_squares & m_position.get_pieces(side, PieceType::Pawn);
+        const int32_t shield_count = popcount(shield_pawns);
+        eval.mg_eval += sign * shield_count * KING_PAWN_SHIELD_VALUES[+GamePhase::Middlegame];
+        eval.eg_eval += sign * shield_count * KING_PAWN_SHIELD_VALUES[+GamePhase::Endgame];
+
+        // https://www.chessprogramming.org/King_Safety#Attacking_King_Zone
+        int32_t attack_value_mg = 0, attack_value_eg = 0, attack_count = 0;
+
+        // Knights
+        Bitboard knights = m_position.get_pieces(side, PieceType::Knight);
+        while (knights) {
+            Square sq = lsb(knights);
+            Bitboard attacks = MASK_KNIGHT_ATTACKS[+sq] & ~all_own_pieces;
+
+            int32_t king_zone_attacks = popcount(attacks & opp_king_zone);
+            attack_value_mg += king_zone_attacks * ATTACK_VALUES[+PieceType::Knight][+GamePhase::Middlegame];
+            attack_value_eg += king_zone_attacks * ATTACK_VALUES[+PieceType::Knight][+GamePhase::Endgame];
+            attack_count += king_zone_attacks & 1;
+
+            int32_t mob = popcount(attacks);
+            eval.mg_eval += sign * mob * MOBILITY_VALUES[+PieceType::Knight][+GamePhase::Middlegame];
+            eval.eg_eval += sign * mob * MOBILITY_VALUES[+PieceType::Knight][+GamePhase::Endgame];
+            pop_lsb(knights);
+        }
+
+        // Bishop
+        Bitboard bishops = m_position.get_pieces(side, PieceType::Bishop);
+        while (bishops) {
+            Square sq = lsb(bishops);
+            Bitboard attacks = attacks_from<PieceType::Bishop>(sq, m_position.get_pieces()) & ~all_own_pieces;
+
+            int32_t king_zone_attacks = popcount(attacks & opp_king_zone);
+            attack_value_mg += king_zone_attacks * ATTACK_VALUES[+PieceType::Bishop][+GamePhase::Middlegame];
+            attack_value_eg += king_zone_attacks * ATTACK_VALUES[+PieceType::Bishop][+GamePhase::Endgame];
+            attack_count += king_zone_attacks & 1;
+
+            int32_t mob = popcount(attacks);
+            eval.mg_eval += sign * mob * MOBILITY_VALUES[+PieceType::Bishop][+GamePhase::Middlegame];
+            eval.eg_eval += sign * mob * MOBILITY_VALUES[+PieceType::Bishop][+GamePhase::Endgame];
+            pop_lsb(bishops);
+        }
+
+        // Rook
+        Bitboard rooks = m_position.get_pieces(side, PieceType::Rook);
+        while (rooks) {
+            Square sq = lsb(rooks);
+            Bitboard attacks = attacks_from<PieceType::Rook>(sq, m_position.get_pieces()) & ~all_own_pieces;
+
+            int32_t king_zone_attacks = popcount(attacks & opp_king_zone);
+            attack_value_mg += king_zone_attacks * ATTACK_VALUES[+PieceType::Rook][+GamePhase::Middlegame];
+            attack_value_eg += king_zone_attacks * ATTACK_VALUES[+PieceType::Rook][+GamePhase::Endgame];
+            attack_count += king_zone_attacks & 1;
+
+            int32_t mob = popcount(attacks);
+            eval.mg_eval += sign * mob * MOBILITY_VALUES[+PieceType::Rook][+GamePhase::Middlegame];
+            eval.eg_eval += sign * mob * MOBILITY_VALUES[+PieceType::Rook][+GamePhase::Endgame];
+            pop_lsb(rooks);
+        }
+
+        // Queen
+        Bitboard queens = m_position.get_pieces(side, PieceType::Queen);
+        while (queens) {
+            Square sq = lsb(queens);
+            Bitboard attacks = attacks_from<PieceType::Queen>(sq, m_position.get_pieces()) & ~all_own_pieces;
+
+            int32_t king_zone_attacks = popcount(attacks & opp_king_zone);
+            attack_value_mg += king_zone_attacks * ATTACK_VALUES[+PieceType::Queen][+GamePhase::Middlegame];
+            attack_value_eg += king_zone_attacks * ATTACK_VALUES[+PieceType::Queen][+GamePhase::Endgame];
+            attack_count += king_zone_attacks & 1;
+
+            int32_t mob = popcount(attacks);
+            eval.mg_eval += sign * mob * MOBILITY_VALUES[+PieceType::Queen][+GamePhase::Middlegame];
+            eval.eg_eval += sign * mob * MOBILITY_VALUES[+PieceType::Queen][+GamePhase::Endgame];
+            pop_lsb(queens);
+        }
+
+        // Final king safety adjustment
+        eval.mg_eval += sign * attack_value_mg * ATTACK_COUNT_MULTIPLIER[attack_count];
+        eval.eg_eval += sign * attack_value_eg * ATTACK_COUNT_MULTIPLIER[attack_count];
+    }
 }

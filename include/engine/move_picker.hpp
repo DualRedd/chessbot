@@ -56,9 +56,10 @@ public:
     /**
      * Move picker for normal search.
      * @param position the position to pick moves from
+     * @param ply current search ply
      * @param tt_move the transposition table best move to prioritize (can be NO_MOVE)
      * @param killer_history pointer to the killer history for the current search
-     * @param ply current search ply
+     * @param move_history pointer to the move history for the current search
      */
     MovePicker(const Position& position, int ply, const Move tt_move, KillerHistory* killer_history, MoveHistory* move_history);
 
@@ -66,8 +67,9 @@ public:
      * Move picker for quiescence search.
      * @param position the position to pick moves from
      * @param tt_move the transposition table best move to prioritize (can be NO_MOVE)
+     * @param move_history pointer to the move history for the current search
      */
-    MovePicker(const Position& position, const Move tt_move);
+    MovePicker(const Position& position, const Move tt_move, MoveHistory* move_history);
 
     /**
      * Stop any future quiet moves from being picked.
@@ -75,9 +77,20 @@ public:
     void skip_quiets();
 
     /**
+     * Repick quiet moves.
+     * @warning Should only be called after the first quiet move has been picked to ensure they are already scored.
+     */
+    void repick_quiets();
+
+    /**
      * @return Next best move according to the move ordering heuristics. Returns NO_MOVE if no moves are left.
      */
     Move next();
+
+    /**
+     * @return Current move picking stage. This matches the last move returned by next() or the start stage.
+     */
+    MovePickStage current_stage() const { return m_stage; }
 
 private:
     /**
@@ -103,4 +116,5 @@ private:
     std::array<ScoredMove, MAX_MOVE_LIST_SIZE> m_scored_moves;
     ScoredMove *m_cur_begin, *m_cur_end;
     ScoredMove *m_bad_captures_begin, *m_bad_captures_end;
+    ScoredMove *m_quiets_begin, *m_quiets_end;
 };

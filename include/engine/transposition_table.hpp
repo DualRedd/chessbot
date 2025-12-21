@@ -55,6 +55,6 @@ public:
 private:
     std::vector<TTEntry> m_table;
     size_t m_mask = 0;
-    const size_t m_probe_window = 4;
+    const size_t m_probe_window = 2;
     uint8_t m_age = 0;
 };

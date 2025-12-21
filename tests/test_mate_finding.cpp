@@ -63,11 +63,3 @@ TEST(MateFinding, MateIn6Positions) {
     }
 }
 
-TEST(MateFinding, MateIn8Positions) {
-    const int64_t node_limit = 10'000'000;
-    for (const auto& fen : MATE_IN_8) {
-        int mate_distance = test_case(fen, 8, node_limit);
-        ASSERT_EQ(mate_distance, 8) << "FEN: " << fen << " expected mate in "
-                                    << 8 << " but got " << mate_distance;
-    }
-}

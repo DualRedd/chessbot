@@ -3,23 +3,6 @@
 #include <cstdint>
 #include <array>
 
-
-// ------------
-// Piece Values
-// ------------
-
-constexpr int32_t PIECE_VALUES[8] = {
-    320, // Knight
-    330, // Bishop
-    500, // Rook
-    900, // Queen
-    0,   // King (handled separately in eval)
-    100, // Pawn
-    0,   // All
-    0    // None
-};
-
-
 // ----------
 // Game Phase
 // ----------
@@ -56,6 +39,56 @@ constexpr int32_t PHASE_LATE_ENDGAME = 7;
 // Phase width
 constexpr int32_t PHASE_WIDTH = PHASE_MAX - PHASE_MIN;
 
+// ------------
+// Piece Values
+// ------------
+
+constexpr int32_t PIECE_VALUES[8] = {
+    320, // Knight
+    330, // Bishop
+    500, // Rook
+    900, // Queen
+    0,   // King (handled separately in eval)
+    100, // Pawn
+    0,   // All
+    0    // None
+};
+
+constexpr int32_t BISHOP_PAIR_VALUE[2] = {30, 60}; // [gamephase]
+constexpr int32_t KNIGHT_PAIR_VALUE[2] = {40, 10}; // [gamephase]
+constexpr int32_t KNIGHT_OUTPOST_VALUE[2] = {30, 20}; // [gamephase]
+
+
+// --------
+// Mobility
+// --------
+
+constexpr int32_t MOBILITY_VALUES[4][2] = { // [piece][gamephase]
+    {4, 5}, // Knight
+    {4, 4}, // Bishop
+    {0, 4}, // Rook
+    {0, 2}, // Queen
+};
+
+// -----------
+// King Safety
+// -----------
+
+constexpr int32_t KING_PAWN_SHIELD_VALUES[2] = {10, 0}; // [gamephase]
+
+// Value per attack type
+constexpr int32_t ATTACK_VALUES[4][2] = { // [piece][gamephase]
+    {20, 10}, // Knight
+    {20, 10}, // Bishop
+    {40, 20}, // Rook
+    {80, 40}, // Queen
+};
+
+// Multiplier based on number of attacks
+constexpr int32_t ATTACK_COUNT_MULTIPLIER[7] = {
+    0, 50, 75, 88, 94, 97, 100
+};
+
 // --------------
 // Pawn Structure
 // --------------
@@ -73,9 +106,9 @@ constexpr int32_t PASSED_PAWN_VALUES[] = {0, 0, 14, 24, 40, 60, 80, 0}; // by ra
 
 constexpr int32_t PST_PAWN[2][64] = {{ // [gamephase][square]
       0,   0,   0,   0,   0,   0,   0,   0,
-    -10, -10, -12, -42, -40, -12,  -8,  -5,
-    -10, -15, -15,   2,   2, -15, -10, -10,
-    -15, -10,   0,  20,  20,   0, -10, -15,
+    -15, -15, -15, -15, -15, -15, -15, -15,
+    -15, -15, -15,   2,   2, -15, -10, -15,
+    -15, -10,  -5,  20,  20,  -5, -10, -15,
     -20, -20,   5,  35,  35,   5, -20, -20,
     -20, -20,  15,  30,  30,  15, -20, -20,
     -18, -15,  10,  10,  10,  10, -15, -18,
@@ -83,8 +116,8 @@ constexpr int32_t PST_PAWN[2][64] = {{ // [gamephase][square]
     },{
       0,   0,   0,   0,   0,   0,   0,   0,
       5,  -5,  -5, -15, -15,  -5,  -5,   5,
-      5,  -5,  -5,   0,   0,  -5,  -5,   5,
-     10,   4,   4,   5,   5,   4,   4,  10,
+      5,  -5,  -5,   4,   4,  -5,  -5,   5,
+     10,   6,   6,   8,   8,   6,   6,  10,
      10,  14,  10,  12,  12,  10,  14,  10,
      15,  20,  12,  14,  14,  12,  20,  15,
      20,  25,  23,  18,  18,  23,  25,  20,
@@ -114,7 +147,7 @@ constexpr int32_t PST_KNIGHT[2][64] = {{ // [gamephase][square]
 
 constexpr int32_t PST_BISHOP[2][64] = {{ // [gamephase][square]
     -20, -10, -40, -10, -10,- 40, -10, -20,
-    -10,   5,   0,   0,   0,   0,   5, -10,
+    -10,  15,   0,   0,   0,   0,  15, -10,
     -10,  10,  10,  10,  10,  10,  10, -10,
     -10,   0,  10,  10,  10,  10,   0, -10,
     -10,   5,   5,  10,  10,   5,   5, -10,
@@ -135,13 +168,13 @@ constexpr int32_t PST_BISHOP[2][64] = {{ // [gamephase][square]
 
 constexpr int32_t PST_ROOK[2][64] = {{ // [gamephase][square]
     -15, -10,  -3,   8,   8,  -3, -10, -15,
-    -15, -10,   0,  10,  10,   0, -10, -15,
-    -15, -10,   0,  10,  10,   0, -10, -15,
-    -15, -10,   0,  10,  10,   0, -10, -15,
-    -15, -10,   0,  10,  10,   0, -10, -15,
-    -15, -10,   0,  10,  10,   0, -10, -15,
-    -18,  -9,   3,  12,  12,   3,  -9, -15,
-    -18,  -9,  -5,   0,   0,  -5,  -9, -18
+     -5,   0,   5,   5,   5,   5,   0,  -5,
+    -10, -10,   0,   0,   0,   0, -10, -10,
+    -10, -10,   0,   0,   0,   0, -10, -10,
+    -10, -10,   0,   0,   0,   0, -10, -10,
+    -10, -10,   0,   0,   0,   0, -10, -10,
+     10,  10,  10,  10,  10,  10,  10,  10,
+      0,   0,   0,   0,   0,   0,   0,   0
     },{
       0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,

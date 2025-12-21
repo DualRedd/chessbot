@@ -95,10 +95,10 @@ private:
     int32_t _material_value(PieceType type) const; 
 
     /**
-     * Calculate the full evaluation from the current position.
+     * Calculate the full base evaluation from the current position.
      * @return The evaluation from white's perspective.
      */
-    Eval _compute_full_eval();
+    Eval _compute_base_eval();
 
     /**
      * Evaluate pawn structure.
@@ -106,11 +106,17 @@ private:
      */
     int32_t _eval_pawns() const;
 
+    /**
+     * Evaluate static features, that are not dynamically updated. Does not include pawn structure.
+     * @param eval Eval structure to update.
+     */
+    void _eval_static_features(Eval& eval) const;
+
 private:
     Position m_position;
 
     // Evaluation from white's perspective
-    std::vector<Eval> m_evals;
+    std::vector<Eval> m_base_evals;
     mutable PawnHashTable m_pawn_hash_table;
 
     // Ply history
