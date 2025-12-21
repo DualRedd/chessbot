@@ -12,7 +12,7 @@ Kaikki dokumentissa mainitut suorituskykymittausten tulokset on mitattu pöytäk
 
 Siirtojen generoinnin sekä siirtojen tekemisen ja perumisen suorituskykyä ja oikeellisuutta on testattu [perft](https://www.chessprogramming.org/Perft)-testillä.
 Testissä käydään läpi pelipuuta tietystä asemasta lähtien tietylle syvyydelle, tehden kaikki mahdolliset siirrot rekursiivisesti jokaisessa solmussa.
-Testin aikana lasketaan käytyjen solmujen määrä. Tätä voidaan verrata tunnettuihin arvoihin. Monipuoliset testiasetelmat kattavat myös kaikki erikoissiirrot.
+Testin aikana lasketaan käytyjen solmujen määrä. Tätä voidaan verrata tunnettuihin arvoihin. Testiasetelmat kattavat myös kaikki erikoissiirrot.
 
 Suorituskykyä voidaan mitata samalla testillä, kun jaetaan käytyjen solmujen määrä kuluneella ajalla. Testissä on mahdollista nopeuttaa solmujen laskemista ohittamalla siirtojen
 tekemisen lehtisolmuihin saakka, sillä niissä ei enää ole tarpeen generoida lisää siirtoja. Erityisesti suorituskykytestauksessa kuitenkin teen siirrot viimeiselle
@@ -39,29 +39,38 @@ arvon jos kaikkien nappuloiden värit vaihdettaisiin päittäin, sekä että alk
 
 ## Tekoälyn testaus
 
-Tekoälylle on haastavampaa luoda kattavia yksikkötestejä. Nyt on testattu, että se löytää varman voiton 1-8 siirron syvyydellä normaaleissa tilanteissa.
-Tiettyjä hyvin haastavia voittoja tekoäly ei välttämättä löydä nopeasti, sillä on mahdollista luoda tilanteita, jotka vaativat lyhyellä tähtäimellä
-esimerkksi materiaalin menettämistä suhteellisen paljon. Shakkitekoälyssä hyödynnetään erilaisia karsintatekniikoita siirroille, joten voi mennä
+Tekoälylle on haastavampaa luoda kattavia yksikkötestejä. Nyt on testattu, että se löytää varman voiton 1-6 siirron syvyydellä normaaleissa tilanteissa.
+Tiettyjä hyvin haastavia voittoja tekoäly ei välttämättä löydä nopeasti, sillä on esimerkiksi mahdollista luoda tilanteita, jotka vaativat lyhyellä tähtäimellä
+materiaalin menettämistä suhteellisen paljon. Tekoäly hyödyntää erilaisia karsintatekniikoita siirroille, joten voi mennä
 kauankin, ennen kuin tekoäly edes tutkii tällaista siirtosarjaa, sillä muut näyttävät alkuun paremmilta.
 
-Yksinkertaisissa loppupeleissä tekoäly voi löytää shakkimatin hyvinkin nopeasti pitkältä karsinnan ansiosta.
+Yksinkertaisissa loppupeleissä tekoäly voi löytää shakkimatin hyvinkin nopeasti pitkältä.
 Alla esimerkiksi eräs tulos [tästä](https://lichess.org/analysis/8/2k5/p7/5N2/4K2P/8/8/8_w_-_-_0_1?color=white) laudan tilasta.
-Tekoäly löysi neljässä sekunnissa shakkimatin 22 puolisiirron syvyydeltä.
+Tekoäly (versio 0.3.2) löysi neljässä sekunnissa shakkimatin 22 puolisiirron syvyydeltä.
 
 ```
 info depth 21 seldepth 34 score mate 11 nodes 14570383 nps 10368922 time 4070
 ```
 
+### Siirtojen järjestäminen
+
+Tekoälyllä voidaan tutkia samat tilat tietylle syvyydelle ilman aikarajaa, ja laskea keskiarvo käydyistä solmuista. Tällä tavalla voidaan verrata
+siirtojen järjestämiseen tehtyjä muutoksia. Tätä testatessa on tarpeen ottaa pois käytöstä kaikki heuristiset karsintamenetelmät, sillä tällöin
+siirtojärjestys voi myös vaikuttaa tietyissä tapauksissa lopputulokseen.
+
 ### Elo-testaus
 
-Yksikkotestäjä paremmin tekoälyn kehitystä pystyy mittamaan pelaamalla suuria määriä pelejä aikaisempaa versiota vastaan, tai jotain toista tekoälyä vastaan.
+Yksikkotestejä paremmin tekoälyn kehitystä pystyy mittamaan pelaamalla suuria määriä pelejä aikaisempaa versiota vastaan, tai jotain toista tekoälyä vastaan.
 Elo-luokitus kuvaa suhteellista eroa pelaajien tasossa. Esimerkiksi 100 pisteen ero tarkoittaa, että paremman pelaajan pistemäärä on 64%.
-400 pisteen ero tarkoittaa jo 90% pistemäärää. Pistemäärä shakissa lasketaan voitoista ja tasapeleistä. Voitto on yhden pisteen arvoinen ja tasapeli puoli pistettä. Prosenttiluku saadaan jakamalla maksimipisteillä.
+400 pisteen ero tarkoittaa jo 90% pistemäärää. Pistemäärä shakissa lasketaan voitoista ja tasapeleistä. Voitto on yhden pisteen arvoinen ja tasapeli puoli pistettä.
+Prosenttiluku saadaan jakamalla maksimipisteillä.
 
 Tekoälyjen testaamiseen toisiaan vastaan käytin [cutechess](https://github.com/cutechess/cutechess) komentorivityökalua, jolla voi ajaa turnauksia tekoälyjen kesken.
-Tätä varten tekoälyn on tuettava uci-standardia komentorivillä.
+Tätä varten tekoälyn on tuettava uci-standardia komentorivillä. Lisäksi generoin [Lichess:n](https://database.lichess.org/) avoimesta pelidatasta aloitusasetelmia,
+käyttäen pelejä, joissa molempien pelaajien rating oli yli 2000. Näitä käyttämällä testit on monipuolisempia. Varmistin myös, että tekoälyllä on 50 voittoprosentti
+itseään vastaan aloitusasetelmilla, eli ne eivät anna toiselle etua.
 
-Testasin tekoälyn tuoreinta versiota paikallisesti ladattuja Robocide- ja Baislicka- tekoälyjä vastaan, joiden Elo-luokitus on testattu [Computer Chess Rating Lists](https://computerchess.org.uk/ccrl/4040/) -sivustolla. Niiden taso on noin 2150-2200. Alla testitulokset turnauksesta, jossa jokainen pari pelasi 1000 peliä ja mietintäaikaa jokaisella siirrolla oli 200ms.
+Testasin tekoälyn uusinta versiota paikallisesti ladattuja Robocide- ja Baislicka- tekoälyjä vastaan, joiden Elo-luokitus on testattu [Computer Chess Rating Lists](https://computerchess.org.uk/ccrl/4040/) -sivustolla. Niiden taso on noin 2150-2200. Alla testitulokset turnauksesta, jossa jokainen pari pelasi 1000 peliä ja mietintäaikaa jokaisella siirrolla oli 200ms.
 
 | #  | Player          | Rating  | Points  | Played | (%) |
 |----|-----------------|---------|---------|--------|-----|
@@ -87,5 +96,5 @@ Testasin myös eri kehitysversioita tekoälystä toisiaan vastaan. 220 peliä pe
 ### Suorituskyvystä
 
 Tuorein versio tekoälystä tutkii noin 5 miljoonaa solmua sekunnissa, riippuen myös hieman laudan tilanteesta.
-Tämä on hidastunut alun 10+ miljoonasta, kun on lisätty erilaisisa heuristiikkoja ja hieman vaativampi evaluaatiofunktio.
+Tämä on hidastunut alun 10+ miljoonasta, kun on lisätty heuristiikkoja ja vaativampi evaluaatiofunktio.
 
